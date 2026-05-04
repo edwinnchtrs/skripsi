@@ -8,6 +8,8 @@ import Dashboard from './pages/Dashboard'
 import Assessment from './pages/Assessment'
 import Gosip from './pages/Gosip'
 import Terapi from './pages/Terapi'
+import UserDashboardLayout from './components/UserDashboardLayout'
+import UserDashboard from './pages/UserDashboard'
 
 function App() {
   return (
@@ -26,6 +28,11 @@ function App() {
         {/* Dashboard pakai layout sidebar baru */}
         <Route element={<DashboardLayout />}>
           <Route path="/dashboard" element={<Dashboard />} />
+        </Route>
+
+        {/* Dashboard khusus User */}
+        <Route element={<UserDashboardLayout />}>
+          <Route path="/user/dashboard" element={<UserDashboard />} />
         </Route>
       </Routes>
     </BrowserRouter>

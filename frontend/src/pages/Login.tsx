@@ -18,7 +18,12 @@ export default function Login() {
       const res = await api.post('/login', { username, password });
       localStorage.setItem('token', res.data.token);
       localStorage.setItem('user', JSON.stringify(res.data.user));
-      navigate('/dashboard');
+      
+      if (res.data.user.role === 'admin') {
+        navigate('/dashboard');
+      } else {
+        navigate('/user/dashboard');
+      }
     } catch (err: any) {
       setError(err.response?.data?.error || 'Login failed');
     } finally {
