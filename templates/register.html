@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}Register - NexusMind{% endblock %}
+
+{% block content %}
+<div class="flex justify-center items-center min-h-[70vh]">
+    <div class="glass-card w-full max-w-md p-8 animate-fade-in">
+        <h2 class="text-3xl font-bold mb-6 text-center">Buat Akun</h2>
+        
+        {% if error %}
+        <div class="bg-red-500/20 border border-red-500/50 text-red-200 px-4 py-3 rounded mb-4 text-sm">
+            {{ error }}
+        </div>
+        {% endif %}
+
+        <form action="/register" method="POST" class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium mb-2">Nama Lengkap</label>
+                <input type="text" name="nama" required class="w-full px-4 py-3 rounded-lg glass-input text-white" placeholder="Nama Anda">
+            </div>
+            <div>
+                <label class="block text-sm font-medium mb-2">Username</label>
+                <input type="text" name="username" required class="w-full px-4 py-3 rounded-lg glass-input text-white" placeholder="Pilih username">
+            </div>
+            <div>
+                <label class="block text-sm font-medium mb-2">Password</label>
+                <input type="password" name="password" required class="w-full px-4 py-3 rounded-lg glass-input text-white" placeholder="••••••••">
+            </div>
+            <button type="submit" class="w-full btn-primary py-3 rounded-lg font-semibold text-lg mt-4">
+                Daftar
+            </button>
+        </form>
+        
+        <p class="mt-6 text-center text-slate-400 text-sm">
+            Sudah punya akun? <a href="/login" class="text-indigo-400 hover:text-indigo-300">Masuk di sini</a>
+        </p>
+    </div>
+</div>
+{% endblock %}

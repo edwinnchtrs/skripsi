@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+
+{% block title %}Asesmen - NexusMind{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto animate-fade-in">
+    <div class="glass-card p-8 relative overflow-hidden">
+        
+        <!-- Progress Bar -->
+        <div class="absolute top-0 left-0 w-full h-1 bg-slate-700">
+            <div id="progressBar" class="h-full bg-primary transition-all duration-300" style="width: 0%"></div>
+        </div>
+
+        <div id="introScreen" class="text-center py-8">
+            <h2 class="text-3xl font-bold mb-4">Asesmen Quantum Cognition</h2>
+            <p class="text-slate-400 mb-8">Jawablah pertanyaan berikut secara spontan. Waktu reaksi Anda akan diukur sebagai bagian dari analisis dinamis (Interference Effect).</p>
+            <button onclick="startAssessment()" class="btn-primary px-8 py-3 rounded-lg font-medium text-lg">Mulai Sekarang</button>
+        </div>
+
+        <div id="questionsContainer" style="display: none;">
+            <!-- Questions injected via JS but constructed from server data -->
+        </div>
+
+        <div id="loadingScreen" class="text-center py-12" style="display: none;">
+            <div class="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mb-4"></div>
+            <h3 class="text-xl font-bold">Menganalisis Pola Kognitif...</h3>
+            <p class="text-slate-400 mt-2">Menghitung interference score dan memproses regresi linear.</p>
+        </div>
+
+    </div>
+</div>
+
+<div id="__appData" data-questions="{{ questions|tojson|e }}" data-order-type="{{ order_type }}" style="display:none;"></div>
+
+<script>
+    const __appData = document.getElementById('__appData');
+    const questionsData = JSON.parse(__appData.dataset.questions);
+    const orderType = __appData.dataset.orderType;
+    let currentIndex = 0;
+    let startTime = 0;
+    let responses = [];
+
+    const container = document.getElementById('questionsContainer');
+    const intro = document.getElementById('introScreen');
+    const progressBar = document.getElementById('progressBar');
+
+    function startAssessment() {
+        intro.style.display = 'none';
+        container.style.display = 'block';
+        renderQuestion();
+    }
+
+    function renderQuestion() {
+        if (currentIndex >= questionsData.length) {
+            submitData();
+            return;
+        }
+
+        const q = questionsData[currentIndex];
+        progressBar.style.width = `${(currentIndex / questionsData.length) * 100}%`;
+        
+        container.innerHTML = `
+            <div class="question-card active animate-fade-in">
+                <span class="text-sm font-medium text-indigo-400 mb-2 block">Pertanyaan ${currentIndex + 1} dari ${questionsData.length}</span>
+                <h3 class="text-2xl font-bold mb-8 leading-relaxed">${q.text}</h3>
+                
+                <div class="space-y-6">
+                    <input type="range" min="1" max="5" value="3" class="w-full" id="sliderValue" oninput="document.getElementById('valDisplay').innerText = this.value">
+                    <div class="flex justify-between text-slate-400 text-sm font-medium">
+                        <span>Sangat Tidak Setuju (1)</span>
+                        <span id="valDisplay" class="text-white text-lg font-bold bg-slate-800 px-3 py-1 rounded">3</span>
+                        <span>Sangat Setuju (5)</span>
+                    </div>
+                </div>
+
+                <div class="mt-10 flex justify-end">
+                    <button onclick="nextQuestion()" class="btn-primary px-6 py-3 rounded-lg font-medium">Lanjut</button>
+                </div>
+            </div>
+        `;
+        startTime = Date.now();
+    }
+
+    function nextQuestion() {
+        const val = document.getElementById('sliderValue').value;
+        const reactionTime = Date.now() - startTime;
+        
+        responses.push({
+            id: questionsData[currentIndex].id,
+            construct_type: questionsData[currentIndex].construct_type,
+            value: parseInt(val),
+            reaction_time_ms: reactionTime
+        });
+
+        currentIndex++;
+        renderQuestion();
+    }
+
+    async function submitData() {
+        container.style.display = 'none';
+        document.getElementById('loadingScreen').style.display = 'block';
+        progressBar.style.width = '100%';
+
+        try {
+            const res = await fetch('/assessment/submit', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    order_type: orderType,
+                    responses: responses
+                })
+            });
+            const data = await res.json();
+            if(data.status === 'success') {
+                window.location.href = '/dashboard';
+            }
+        } catch (e) {
+            alert('Terjadi kesalahan saat menyimpan data.');
+            window.location.href = '/dashboard';
+        }
+    }
+</script>
+{% endblock %}

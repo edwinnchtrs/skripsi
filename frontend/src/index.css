@@ -1,0 +1,39 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=Cormorant+Garamond:wght@400;500&display=swap');
+@import "tailwindcss";
+@config "../theme.config.js";
+
+@layer base {
+  body {
+    @apply bg-canvas text-body font-sans antialiased;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-serif text-ink tracking-tight;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-primary text-onPrimary font-sans font-medium px-5 py-3 rounded-md hover:bg-primary-active transition-colors h-10 flex items-center justify-center;
+  }
+  
+  .btn-secondary {
+    @apply bg-canvas text-ink font-sans font-medium px-5 py-3 rounded-md border border-hairline hover:bg-surface-soft transition-colors h-10 flex items-center justify-center;
+  }
+
+  .btn-secondary-dark {
+    @apply bg-surface-darkElevated text-onDark font-sans font-medium px-5 py-3 rounded-md hover:bg-surface-dark transition-colors;
+  }
+
+  .card-cream {
+    @apply bg-surface-card rounded-xl p-8;
+  }
+
+  .card-dark {
+    @apply bg-surface-dark text-onDark rounded-xl p-8;
+  }
+  
+  .text-input {
+    @apply bg-canvas text-ink border border-hairline rounded-md px-4 py-2 h-10 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all;
+  }
+}
