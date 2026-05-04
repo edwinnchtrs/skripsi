@@ -24,6 +24,8 @@ func ConnectDatabase() {
 		&GossipReact{},
 		&Prediction{},
 		&TherapyRecommendation{},
+		&Follow{},
+		&Affinity{},
 	)
 	if err != nil {
 		log.Fatal("Failed to auto migrate database!", err)

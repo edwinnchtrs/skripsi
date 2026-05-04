@@ -13,10 +13,18 @@ import UserDashboard from './pages/UserDashboard'
 import UserKuisioner from './pages/UserKuisioner'
 import Responden from './pages/Responden'
 import PrediksiIndividu from './pages/PrediksiIndividu'
-
+import UserAsesmenHistory from './pages/UserAsesmenHistory'
+import UserCurhat from './pages/UserCurhat'
+import UserProfileSettings from './pages/userDashboard/UserProfileSettings'
+import UserNetwork from './pages/userDashboard/UserNetwork'
 function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter
+      future={{
+        v7_startTransition: true,
+        v7_relativeSplatPath: true,
+      }}
+    >
       <Routes>
         {/* Public pages tanpa layout (Full Screen) */}
         <Route path="/login" element={<Login />} />
@@ -41,6 +49,10 @@ function App() {
         <Route element={<UserDashboardLayout />}>
           <Route path="/user/dashboard" element={<UserDashboard />} />
           <Route path="/user/kuisioner" element={<UserKuisioner />} />
+          <Route path="/user/asesmen" element={<UserAsesmenHistory />} />
+          <Route path="/user/curhat" element={<UserCurhat />} />
+          <Route path="/user/settings" element={<UserProfileSettings />} />
+          <Route path="/user/network" element={<UserNetwork />} />
         </Route>
       </Routes>
     </BrowserRouter>

@@ -5,26 +5,51 @@ import {
   ClipboardList,
   Activity,
   User,
+  Users,
   Settings,
   LogOut,
   Sun,
   Moon,
   Brain
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import api from '../api';
 
 const navItems = [
   { label: 'Overview', icon: LayoutDashboard, path: '/user/dashboard' },
   { label: 'Kuisioner Harian', icon: ClipboardList, path: '/user/kuisioner' },
   { label: 'Ruang Curhat Anonim', icon: MessageSquareHeart, path: '/user/curhat' },
   { label: 'Riwayat Asesmen', icon: Activity, path: '/user/asesmen' },
+  { label: 'Jaringan Teman', icon: Users, path: '/user/network' },
   { label: 'Pengaturan Akun', icon: Settings, path: '/user/settings' },
 ];
 
 export default function UserSidebar() {
   const location = useLocation();
   const navigate = useNavigate();
-  const [dark, setDark] = useState(false);
+  const [dark, setDark] = useState(() => {
+    const saved = localStorage.getItem('theme');
+    // Default is dark mode; light-mode is the opt-in
+    return saved !== 'light';
+  });
+  const [profile, setProfile] = useState<any>(null);
+
+  // Apply theme class on mount & whenever dark changes
+  useEffect(() => {
+    if (dark) {
+      document.documentElement.classList.remove('light-mode');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.documentElement.classList.add('light-mode');
+      localStorage.setItem('theme', 'light');
+    }
+  }, [dark]);
+
+  useEffect(() => {
+    api.get('/user/profile')
+      .then(res => setProfile(res.data))
+      .catch(console.error);
+  }, []);
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -37,7 +62,7 @@ export default function UserSidebar() {
       style={{
         width: 220,
         minWidth: 220,
-        background: '#0f1117',
+        background: 'var(--theme-sidebar)',
         display: 'flex',
         flexDirection: 'column',
         height: '100vh',
@@ -45,11 +70,11 @@ export default function UserSidebar() {
         left: 0,
         top: 0,
         zIndex: 100,
-        borderRight: '1px solid #1e2130',
+        borderRight: '1px solid var(--theme-sidebar-border)',
       }}
     >
       {/* Brand */}
-      <div style={{ padding: '20px 20px 12px', borderBottom: '1px solid #1e2130' }}>
+      <div style={{ padding: '20px 20px 12px', borderBottom: '1px solid var(--theme-sidebar-border)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div
             style={{
@@ -65,10 +90,10 @@ export default function UserSidebar() {
             <Brain size={20} color="#fff" />
           </div>
           <div>
-            <div style={{ color: '#fff', fontWeight: 700, fontSize: 14, lineHeight: 1.2 }}>
+            <div style={{ color: 'var(--theme-text-primary)', fontWeight: 700, fontSize: 14, lineHeight: 1.2 }}>
               QC Analytics
             </div>
-            <div style={{ color: '#8890a4', fontSize: 10 }}>User Portal</div>
+            <div style={{ color: 'var(--theme-text-muted)', fontSize: 10 }}>User Portal</div>
           </div>
         </div>
       </div>
@@ -89,8 +114,8 @@ export default function UserSidebar() {
                 padding: '9px 12px',
                 borderRadius: 8,
                 marginBottom: 2,
-                background: active ? 'rgba(34, 197, 94, 0.15)' : 'transparent',
-                color: active ? '#4ade80' : '#8890a4',
+                background: active ? 'var(--theme-nav-active-bg)' : 'transparent',
+                color: active ? '#4ade80' : 'var(--theme-text-muted)',
                 fontSize: 13,
                 fontWeight: active ? 600 : 400,
                 textDecoration: 'none',
@@ -105,30 +130,46 @@ export default function UserSidebar() {
       </nav>
 
       {/* User & theme */}
-      <div style={{ padding: '12px 16px', borderTop: '1px solid #1e2130' }}>
+      <div style={{ padding: '12px 16px', borderTop: '1px solid var(--theme-sidebar-border)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-          <div
-            style={{
-              width: 34,
-              height: 34,
-              borderRadius: '50%',
-              background: 'linear-gradient(135deg, #22c55e, #3ecfcf)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <User size={16} color="#fff" />
-          </div>
-          <div style={{ flex: 1, overflow: 'hidden' }}>
-            <div style={{ color: '#e2e8f0', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              Guest User
+          {profile?.profile_pic ? (
+            <img 
+              src={profile.profile_pic} 
+              alt="Profile" 
+              style={{ width: 34, height: 34, borderRadius: '50%', objectFit: 'cover' }} 
+            />
+          ) : (
+            <div
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: '50%',
+                background: 'linear-gradient(135deg, #22c55e, #3ecfcf)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <User size={16} color="#fff" />
             </div>
-            <div style={{ color: '#8890a4', fontSize: 11 }}>Mahasiswa</div>
+          )}
+          <div style={{ flex: 1, overflow: 'hidden' }}>
+            <div style={{ color: 'var(--theme-text-primary)', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {profile ? profile.nama : 'Loading...'}
+            </div>
+            <div style={{ color: 'var(--theme-text-muted)', fontSize: 11, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {profile?.bio || 'No bio yet'}
+            </div>
           </div>
         </div>
+        
+        {/* Followers Info */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12, fontSize: 11, color: 'var(--theme-text-muted)' }}>
+          <div><strong style={{ color: 'var(--theme-text-primary)' }}>{profile?.follower_count || 0}</strong> Followers</div>
+          <div><strong style={{ color: 'var(--theme-text-primary)' }}>{profile?.following_count || 0}</strong> Following</div>
+        </div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span style={{ color: '#8890a4', fontSize: 11 }}>Tema</span>
+          <span style={{ color: 'var(--theme-text-muted)', fontSize: 11 }}>Tema</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <Sun size={13} color="#8890a4" />
             <button
@@ -171,8 +212,8 @@ export default function UserSidebar() {
             padding: '7px 10px',
             borderRadius: 7,
             background: 'transparent',
-            border: '1px solid #2a2e42',
-            color: '#8890a4',
+            border: '1px solid var(--theme-btn-secondary-border)',
+            color: 'var(--theme-text-muted)',
             fontSize: 12,
             cursor: 'pointer',
           }}

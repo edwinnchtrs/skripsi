@@ -12,10 +12,25 @@ type User struct {
 	PasswordHash           string
 	Nama                   string
 	Role                   string `gorm:"default:user"`
+	Bio                    string
+	ProfilePic             string
 	Assessments            []Assessment
 	Curhats                []Curhat
 	Predictions            []Prediction
 	TherapyRecommendations []TherapyRecommendation
+}
+
+type Follow struct {
+	gorm.Model
+	FollowerID  uint `gorm:"index"`
+	FollowingID uint `gorm:"index"`
+}
+
+type Affinity struct {
+	gorm.Model
+	UserID       uint   `gorm:"index"`
+	TargetUserID uint   `gorm:"index"`
+	Type         string // teman, saudara, pacar
 }
 
 type Assessment struct {
@@ -36,6 +51,7 @@ type Curhat struct {
 	IsAnonymous bool `gorm:"default:true"`
 	Text        string
 	StressScore float64
+	AIResponse  string
 	Timestamp   time.Time `gorm:"autoCreateTime"`
 }
 

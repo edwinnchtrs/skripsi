@@ -1,9 +1,15 @@
 package main
 
 import (
+	"bytes"
 	"crypto/md5"
 	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"io"
 	"math"
+	"net/http"
+	"os"
 	"regexp"
 	"strings"
 )
@@ -52,6 +58,83 @@ func analyzeStressLevel(text string) float64 {
 		return 0.0
 	}
 	return score
+}
+
+func generateAIResponse(text string, stressScore float64) string {
+	apiKey := os.Getenv("OPENROUTER_API_KEY")
+	if apiKey == "" {
+		fmt.Println("Warning: OPENROUTER_API_KEY not set")
+		return fallbackAIResponse(stressScore)
+	}
+	url := "https://openrouter.ai/api/v1/chat/completions"
+
+	systemPrompt := "Kamu adalah seorang asisten konselor yang empatik, suportif, dan penuh perhatian. Tugasmu adalah membalas keluhan pengguna dengan kalimat yang menenangkan, hangat, dan penuh empati dalam bahasa Indonesia. Jawaban harus singkat, maksimal 3-4 kalimat, dan tidak terkesan kaku atau robotik."
+	userPrompt := fmt.Sprintf("Pengguna curhat: \"%s\"\nTingkat stres terdeteksi: %.2f/1.0\nBerikan balasan yang suportif dan menenangkan.", text, stressScore)
+
+	requestBody, _ := json.Marshal(map[string]interface{}{
+		"model": "openai/gpt-4o-mini",
+		"messages": []map[string]string{
+			{"role": "system", "content": systemPrompt},
+			{"role": "user", "content": userPrompt},
+		},
+		"max_tokens": 200,
+	})
+
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(requestBody))
+	if err != nil {
+		fmt.Println("OpenRouter Request Build Error:", err)
+		return fallbackAIResponse(stressScore)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+	req.Header.Set("HTTP-Referer", "http://localhost:5173")
+	req.Header.Set("X-Title", "Quantum Burnout Analytics")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Println("OpenRouter Request Error:", err)
+		return fallbackAIResponse(stressScore)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+
+	if resp.StatusCode != 200 {
+		fmt.Println("OpenRouter Status:", resp.StatusCode, "Body:", string(body))
+		return fallbackAIResponse(stressScore)
+	}
+
+	var result struct {
+		Choices []struct {
+			Message struct {
+				Content string `json:"content"`
+			} `json:"message"`
+		} `json:"choices"`
+	}
+	if err := json.Unmarshal(body, &result); err != nil {
+		fmt.Println("OpenRouter JSON Error:", err, string(body))
+		return fallbackAIResponse(stressScore)
+	}
+
+	if len(result.Choices) > 0 {
+		return result.Choices[0].Message.Content
+	}
+
+	fmt.Println("OpenRouter Empty Result")
+	return fallbackAIResponse(stressScore)
+}
+
+func fallbackAIResponse(stressScore float64) string {
+	if stressScore > 0.8 {
+		return "Saya mengerti ini pasti sangat berat untukmu. Tidak apa-apa merasa lelah. Apakah ada hal spesifik yang memicu beban ini? Saya di sini mendengarkan."
+	} else if stressScore > 0.5 {
+		return "Sepertinya kamu sedang menghadapi tantangan yang cukup membuat stres. Cobalah untuk mengambil jeda sejenak dan tarik napas dalam. Ingin bercerita lebih lanjut?"
+	} else if stressScore > 0.2 {
+		return "Terima kasih sudah berbagi. Terkadang hal-hal kecil memang bisa menumpuk. Jangan lupa untuk memberi dirimu sendiri apresiasi atas usahamu hari ini."
+	} else {
+		return "Senang mendengarnya! Terlihat kamu sedang dalam kondisi emosional yang cukup stabil. Pertahankan hal-hal positif ini ya!"
+	}
 }
 
 // --- Quantum Engine ---
