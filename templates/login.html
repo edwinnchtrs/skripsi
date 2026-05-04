@@ -3,33 +3,76 @@
 {% block title %}Login - NexusMind{% endblock %}
 
 {% block content %}
-<div class="flex justify-center items-center min-h-[70vh]">
-    <div class="glass-card w-full max-w-md p-8 animate-fade-in">
-        <h2 class="text-3xl font-bold mb-6 text-center">Selamat Datang</h2>
-        
-        {% if error %}
-        <div class="bg-red-500/20 border border-red-500/50 text-red-200 px-4 py-3 rounded mb-4 text-sm">
-            {{ error }}
+<div class="flex flex-col lg:flex-row justify-center items-center min-h-[80vh] gap-12 lg:gap-24">
+    <!-- Left Side: Branding / Vibe -->
+    <div class="hidden md:flex flex-col max-w-lg animate-fade-in stagger-1">
+        <div class="w-16 h-16 bg-indigo-500/20 rounded-2xl flex items-center justify-center mb-6 border border-indigo-500/30 shadow-[0_0_30px_rgba(99,102,241,0.2)]">
+            <svg class="w-8 h-8 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path>
+            </svg>
         </div>
-        {% endif %}
-
-        <form action="/login" method="POST" class="space-y-6">
-            <div>
-                <label class="block text-sm font-medium mb-2">Username</label>
-                <input type="text" name="username" required class="w-full px-4 py-3 rounded-lg glass-input text-white" placeholder="Masukkan username">
-            </div>
-            <div>
-                <label class="block text-sm font-medium mb-2">Password</label>
-                <input type="password" name="password" required class="w-full px-4 py-3 rounded-lg glass-input text-white" placeholder="••••••••">
-            </div>
-            <button type="submit" class="w-full btn-primary py-3 rounded-lg font-semibold text-lg">
-                Masuk
-            </button>
-        </form>
-        
-        <p class="mt-6 text-center text-slate-400 text-sm">
-            Belum punya akun? <a href="/register" class="text-indigo-400 hover:text-indigo-300">Daftar sekarang</a>
+        <h1 class="text-5xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-purple-400">
+            NexusMind
+        </h1>
+        <p class="text-xl text-slate-300 mb-8 leading-relaxed">
+            Sistem Analitik Kognitif Quantum untuk memprediksi tingkat burnout dan risiko psikosomatis secara real-time.
         </p>
+        <div class="flex items-center gap-6 text-sm text-slate-400">
+            <div class="flex items-center gap-2 bg-slate-800/50 px-3 py-1.5 rounded-full border border-slate-700/50">
+                <div class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_10px_rgba(52,211,153,0.8)]"></div>
+                Sistem Aktif
+            </div>
+            <div class="flex items-center gap-2 bg-slate-800/50 px-3 py-1.5 rounded-full border border-slate-700/50">
+                <div class="w-2 h-2 rounded-full bg-indigo-400 shadow-[0_0_10px_rgba(129,140,248,0.8)]"></div>
+                Enkripsi E2E
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Side: Login Form -->
+    <div class="glass-card w-full max-w-md p-8 sm:p-10 animate-fade-in stagger-2 relative overflow-hidden">
+        <!-- Glow effect behind the card -->
+        <div class="absolute -top-20 -right-20 w-40 h-40 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none"></div>
+        <div class="absolute -bottom-20 -left-20 w-40 h-40 bg-purple-500/20 rounded-full blur-3xl pointer-events-none"></div>
+
+        <div class="relative z-10">
+            <div class="md:hidden flex justify-center mb-6">
+                <div class="w-12 h-12 bg-indigo-500/20 rounded-xl flex items-center justify-center border border-indigo-500/30">
+                    <svg class="w-6 h-6 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
+                </div>
+            </div>
+            
+            <h2 class="text-3xl font-bold mb-2 text-center md:text-left">Masuk</h2>
+            <p class="text-slate-400 text-center md:text-left mb-8">Silakan login untuk mengakses dashboard Anda.</p>
+            
+            {% if error %}
+            <div class="bg-red-500/10 border border-red-500/30 text-red-300 px-4 py-3 rounded-lg mb-6 text-sm flex items-center gap-3">
+                <svg class="w-5 h-5 shrink-0 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                {{ error }}
+            </div>
+            {% endif %}
+
+            <form action="/login" method="POST" class="space-y-5">
+                <div class="animate-fade-in stagger-3">
+                    <label class="block text-sm font-medium mb-2 text-slate-300">Username</label>
+                    <input type="text" name="username" required class="w-full px-4 py-3 rounded-lg glass-input text-white transition-all focus:bg-slate-800/50" placeholder="Masukkan username">
+                </div>
+                <div class="animate-fade-in stagger-3">
+                    <label class="block text-sm font-medium mb-2 text-slate-300">Password</label>
+                    <input type="password" name="password" required class="w-full px-4 py-3 rounded-lg glass-input text-white transition-all focus:bg-slate-800/50" placeholder="••••••••">
+                </div>
+                <div class="animate-fade-in stagger-4 pt-4">
+                    <button type="submit" class="w-full btn-primary py-3.5 rounded-lg font-semibold text-lg flex justify-center items-center gap-2 shadow-[0_4px_20px_rgba(99,102,241,0.3)] hover:shadow-[0_4px_25px_rgba(99,102,241,0.5)]">
+                        Masuk ke Sistem
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+                    </button>
+                </div>
+            </form>
+            
+            <p class="mt-8 text-center text-slate-400 text-sm animate-fade-in stagger-4">
+                Belum punya akun? <a href="/register" class="text-indigo-400 hover:text-indigo-300 font-medium underline underline-offset-4 transition-colors">Daftar sekarang</a>
+            </p>
+        </div>
     </div>
 </div>
 {% endblock %}
