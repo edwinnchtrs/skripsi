@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: 'http://localhost:8080/api', // Go backend URL
+  baseURL: 'http://localhost:8080/api', // Main Go backend
 });
 
 api.interceptors.request.use((config) => {

@@ -5,8 +5,10 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 func AuthMiddleware() gin.HandlerFunc {
@@ -236,7 +238,13 @@ func main() {
 				}
 				DB.Create(&prediction)
 
-				c.JSON(http.StatusOK, gin.H{"status": "success", "prediction_id": prediction.ID, "risk_level": risk})
+				c.JSON(http.StatusOK, gin.H{
+					"status": "success", 
+					"prediction_id": prediction.ID, 
+					"risk_level": risk,
+					"burnout_score": bScore,
+					"psychosomatic_score": pScore,
+				})
 			})
 
 			protected.GET("/gosip", func(c *gin.Context) {
@@ -265,7 +273,7 @@ func main() {
 				}
 				DB.Create(&curhat)
 
-				c.JSON(http.StatusOK, gin.H{"status": "success"})
+				c.JSON(http.StatusOK, gin.H{"status": "success", "curhat": curhat})
 			})
 			
 			protected.GET("/terapi", func(c *gin.Context) {
@@ -279,6 +287,71 @@ func main() {
 				}
 
 				c.JSON(http.StatusOK, gin.H{"risk_level": riskLevel})
+			})
+
+			protected.GET("/responden", func(c *gin.Context) {
+				var users []User
+				if err := DB.Preload("Predictions", func(db *gorm.DB) *gorm.DB {
+					return db.Order("timestamp DESC")
+				}).Find(&users).Error; err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch respondents"})
+					return
+				}
+
+				type RespondenDTO struct {
+					ID                 uint      `json:"id"`
+					Nama               string    `json:"nama"`
+					Username           string    `json:"username"`
+					LatestBurnout      float64   `json:"latest_burnout"`
+					LatestRisk         string    `json:"latest_risk"`
+					LatestPsychosomatic float64   `json:"latest_psychosomatic"`
+					LastActivity       time.Time `json:"last_activity"`
+				}
+
+				var result []RespondenDTO
+				for _, u := range users {
+					if u.Role == "admin" {
+						continue
+					}
+					
+					dto := RespondenDTO{
+						ID:       u.ID,
+						Nama:     u.Nama,
+						Username: u.Username,
+					}
+					
+					if len(u.Predictions) > 0 {
+						latest := u.Predictions[0]
+						dto.LatestBurnout = latest.BurnoutScore
+						dto.LatestRisk = latest.RiskLevel
+						dto.LatestPsychosomatic = latest.PsychosomaticScore
+						dto.LastActivity = latest.Timestamp
+					}
+					
+					result = append(result, dto)
+				}
+
+				c.JSON(http.StatusOK, gin.H{"respondents": result})
+			})
+
+			protected.GET("/responden/:id/history", func(c *gin.Context) {
+				id := c.Param("id")
+				var predictions []Prediction
+				if err := DB.Where("user_id = ?", id).Order("timestamp DESC").Find(&predictions).Error; err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch history"})
+					return
+				}
+
+				var assessments []Assessment
+				if err := DB.Where("user_id = ?", id).Order("timestamp DESC").Find(&assessments).Error; err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch assessments"})
+					return
+				}
+
+				c.JSON(http.StatusOK, gin.H{
+					"predictions": predictions,
+					"assessments": assessments,
+				})
 			})
 		}
 	}

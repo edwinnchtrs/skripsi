@@ -1,5 +1,5 @@
 
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import { trendData } from './data';
 import { card, sectionTitle, tooltipStyle } from './styles';
 

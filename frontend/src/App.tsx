@@ -10,6 +10,9 @@ import Gosip from './pages/Gosip'
 import Terapi from './pages/Terapi'
 import UserDashboardLayout from './components/UserDashboardLayout'
 import UserDashboard from './pages/UserDashboard'
+import UserKuisioner from './pages/UserKuisioner'
+import Responden from './pages/Responden'
+import PrediksiIndividu from './pages/PrediksiIndividu'
 
 function App() {
   return (
@@ -30,11 +33,14 @@ function App() {
         {/* Dashboard pakai layout sidebar baru */}
         <Route element={<DashboardLayout />}>
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/responden" element={<Responden />} />
+          <Route path="/prediksi" element={<PrediksiIndividu />} />
         </Route>
 
         {/* Dashboard khusus User */}
         <Route element={<UserDashboardLayout />}>
           <Route path="/user/dashboard" element={<UserDashboard />} />
+          <Route path="/user/kuisioner" element={<UserKuisioner />} />
         </Route>
       </Routes>
     </BrowserRouter>
