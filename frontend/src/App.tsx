@@ -15,11 +15,13 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
+        {/* Public pages tanpa layout (Full Screen) */}
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+
         {/* Public pages pakai layout lama */}
         <Route element={<Layout />}>
           <Route path="/" element={<Home />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
           <Route path="/assessment" element={<Assessment />} />
           <Route path="/gosip" element={<Gosip />} />
           <Route path="/terapi" element={<Terapi />} />
