@@ -249,7 +249,7 @@ func main() {
 
 			protected.GET("/gosip", func(c *gin.Context) {
 				var curhats []Curhat
-				DB.Order("timestamp desc").Limit(20).Find(&curhats)
+				DB.Preload("Replies").Order("timestamp desc").Limit(20).Find(&curhats)
 				c.JSON(http.StatusOK, gin.H{"curhats": curhats})
 			})
 
@@ -276,6 +276,66 @@ func main() {
 				DB.Create(&curhat)
 
 				c.JSON(http.StatusOK, gin.H{"status": "success", "curhat": curhat})
+			})
+
+			protected.POST("/curhat/:id/reply", func(c *gin.Context) {
+				user := c.MustGet("user").(User)
+				curhatID := c.Param("id")
+
+				var input struct {
+					Text string `json:"text" binding:"required"`
+				}
+				if err := c.ShouldBindJSON(&input); err != nil {
+					c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+					return
+				}
+
+				var curhat Curhat
+				if err := DB.First(&curhat, curhatID).Error; err != nil {
+					c.JSON(http.StatusNotFound, gin.H{"error": "Curhat not found"})
+					return
+				}
+
+				reply := CurhatReply{
+					CurhatID: curhat.ID,
+					UserID:   user.ID,
+					Text:     input.Text,
+				}
+				DB.Create(&reply)
+
+				if curhat.UserID != user.ID {
+					notification := Notification{
+						UserID:  curhat.UserID,
+						Type:    "reply",
+						Message: "Seseorang membalas curhatan anonim Anda.",
+					}
+					DB.Create(&notification)
+				}
+
+				c.JSON(http.StatusOK, gin.H{"status": "success", "reply": reply})
+			})
+
+			protected.GET("/notifications/unread", func(c *gin.Context) {
+				user := c.MustGet("user").(User)
+				var notifications []Notification
+				DB.Where("user_id = ? AND is_read = ?", user.ID, false).Order("created_at desc").Find(&notifications)
+				c.JSON(http.StatusOK, gin.H{"notifications": notifications})
+			})
+
+			protected.POST("/notifications/:id/read", func(c *gin.Context) {
+				user := c.MustGet("user").(User)
+				notifID := c.Param("id")
+
+				var notification Notification
+				if err := DB.Where("id = ? AND user_id = ?", notifID, user.ID).First(&notification).Error; err != nil {
+					c.JSON(http.StatusNotFound, gin.H{"error": "Notification not found"})
+					return
+				}
+
+				notification.IsRead = true
+				DB.Save(&notification)
+
+				c.JSON(http.StatusOK, gin.H{"status": "success"})
 			})
 
 			protected.GET("/user/curhat", func(c *gin.Context) {

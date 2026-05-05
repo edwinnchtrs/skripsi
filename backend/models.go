@@ -53,6 +53,7 @@ type Curhat struct {
 	StressScore float64
 	AIResponse  string
 	Timestamp   time.Time `gorm:"autoCreateTime"`
+	Replies     []CurhatReply
 }
 
 type GossipReact struct {
@@ -78,4 +79,19 @@ type TherapyRecommendation struct {
 	PredictionID uint
 	ModuleName   string
 	Status       string `gorm:"default:pending"`
+}
+
+type CurhatReply struct {
+	gorm.Model
+	CurhatID uint
+	UserID   uint   // if 0, maybe anonymous? We will keep it but still anonymous display
+	Text     string
+}
+
+type Notification struct {
+	gorm.Model
+	UserID  uint
+	Type    string
+	Message string
+	IsRead  bool `gorm:"default:false"`
 }

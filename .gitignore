@@ -6,6 +6,7 @@ frontend/.env
 # Go binary
 backend/nexusmind-backend.exe
 backend/nexusmind-backend
+backend/.env
 
 # Database
 *.db

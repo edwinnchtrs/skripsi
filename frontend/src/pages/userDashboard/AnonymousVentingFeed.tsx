@@ -2,11 +2,18 @@ import { useState, useEffect } from 'react';
 import { Send, Heart, MessageCircle, Shield, Sparkles } from 'lucide-react';
 import api from '../../api';
 
+interface CurhatReply {
+  ID: number;
+  Text: string;
+  Timestamp: string;
+}
+
 interface BackendCurhat {
   ID: number;
   Text: string;
   StressScore: number;
   Timestamp: string;
+  Replies?: CurhatReply[];
 }
 
 function SentimentBadge({ score }: { score: number }) {
@@ -73,6 +80,8 @@ export default function AnonymousVentingFeed() {
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [likedPosts, setLikedPosts] = useState<Set<number>>(new Set());
+  const [activeReplyId, setActiveReplyId] = useState<number | null>(null);
+  const [replyText, setReplyText] = useState('');
 
   const fetchPosts = async () => {
     try {
@@ -127,6 +136,27 @@ export default function AnonymousVentingFeed() {
       else next.add(id);
       return next;
     });
+  };
+
+  const handleReply = async (curhatId: number) => {
+    if (!replyText.trim()) return;
+    
+    try {
+      const res = await api.post(`/curhat/${curhatId}/reply`, { text: replyText });
+      if (res.data.status === 'success') {
+        setPosts(prev => prev.map(p => {
+          if (p.ID === curhatId) {
+            return { ...p, Replies: [...(p.Replies || []), res.data.reply] };
+          }
+          return p;
+        }));
+        setReplyText('');
+        setActiveReplyId(null);
+      }
+    } catch (error) {
+      console.error('Failed to post reply:', error);
+      alert('Gagal mengirim balasan. Pastikan Anda sudah login.');
+    }
   };
 
   return (
@@ -371,25 +401,82 @@ export default function AnonymousVentingFeed() {
                 </button>
 
                 <button
+                  onClick={() => setActiveReplyId(activeReplyId === post.ID ? null : post.ID)}
                   style={{
-                    background: 'transparent', border: 'none', color: '#64748b', fontSize: 11,
+                    background: activeReplyId === post.ID ? '#3ecfcf12' : 'transparent', 
+                    border: 'none', 
+                    color: activeReplyId === post.ID ? '#3ecfcf' : '#64748b', 
+                    fontSize: 11,
                     display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer',
                     padding: '6px 12px', borderRadius: 20, fontWeight: 500,
                     transition: 'all 0.25s ease',
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.background = '#3ecfcf12';
-                    e.currentTarget.style.color = '#3ecfcf';
+                    if (activeReplyId !== post.ID) {
+                      e.currentTarget.style.background = '#3ecfcf12';
+                      e.currentTarget.style.color = '#3ecfcf';
+                    }
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'transparent';
-                    e.currentTarget.style.color = '#64748b';
+                    if (activeReplyId !== post.ID) {
+                      e.currentTarget.style.background = 'transparent';
+                      e.currentTarget.style.color = '#64748b';
+                    }
                   }}
                 >
                   <MessageCircle size={14} />
-                  Balas
+                  Balas {post.Replies && post.Replies.length > 0 ? `(${post.Replies.length})` : ''}
                 </button>
               </div>
+
+              {/* Replies Section */}
+              {(post.Replies && post.Replies.length > 0 || activeReplyId === post.ID) && (
+                <div style={{ marginTop: 12, paddingLeft: 40 }}>
+                  {post.Replies?.map(reply => (
+                    <div key={reply.ID} style={{ 
+                      background: '#1a202c', 
+                      borderRadius: 10, 
+                      padding: '10px 14px',
+                      marginBottom: 8,
+                      borderLeft: '2px solid #3ecfcf44'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                        <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600 }}>Anonim membalas</span>
+                        <span style={{ fontSize: 9, color: '#475569' }}>{formatTime(reply.Timestamp || new Date().toISOString())}</span>
+                      </div>
+                      <p style={{ margin: 0, fontSize: 12, color: '#cbd5e1', lineHeight: 1.5 }}>{reply.Text}</p>
+                    </div>
+                  ))}
+
+                  {activeReplyId === post.ID && (
+                    <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                      <input
+                        value={replyText}
+                        onChange={(e) => setReplyText(e.target.value)}
+                        placeholder="Tulis balasan anonim..."
+                        style={{
+                          flex: 1, background: '#161b26', border: '1px solid #252b3b',
+                          borderRadius: 8, padding: '8px 12px', color: '#e2e8f0', fontSize: 12,
+                          outline: 'none',
+                        }}
+                        onKeyDown={(e) => e.key === 'Enter' && handleReply(post.ID)}
+                      />
+                      <button
+                        onClick={() => handleReply(post.ID)}
+                        disabled={!replyText.trim()}
+                        style={{
+                          background: replyText.trim() ? 'linear-gradient(135deg, #3ecfcf, #2dd4bf)' : '#252b3b',
+                          border: 'none', borderRadius: 8, padding: '0 12px',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          cursor: replyText.trim() ? 'pointer' : 'default',
+                        }}
+                      >
+                        <Send size={12} color={replyText.trim() ? '#fff' : '#64748b'} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           ))
         )}

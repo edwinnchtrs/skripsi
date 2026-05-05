@@ -118,10 +118,10 @@ export default function UserCurhat() {
               color: TEXT_PRIMARY, letterSpacing: '-0.5px',
               lineHeight: 1.2
             }}>
-              Ruang Curhat Anonim
+              Ruang Curhat & AI
             </h1>
             <p style={{ margin: 0, fontSize: 14, color: TEXT_SECONDARY, fontWeight: 400 }}>
-              Ceritakan keluh kesahmu tanpa ragu · AI kami siap mendengarkan dan merespons
+              Curhat, ngobrol santai, tanya berita terkini — NEXUS AI siap menemani kapan saja 💬
             </p>
           </div>
         </div>
@@ -198,15 +198,15 @@ export default function UserCurhat() {
                 <Bot size={20} color="#fff" />
               </div>
               <div>
-                <p style={{ margin: 0, fontWeight: 700, fontSize: 15, color: TEXT_PRIMARY }}>Konselor AI</p>
+                <p style={{ margin: 0, fontWeight: 700, fontSize: 15, color: TEXT_PRIMARY }}>NEXUS AI</p>
                 <p style={{ margin: 0, fontSize: 12, color: '#4ade80', display: 'flex', alignItems: 'center', gap: 4 }}>
                   <span style={{ width: 6, height: 6, background: '#4ade80', borderRadius: '50%', display: 'inline-block' }} />
-                  Online · Siap mendengarkan
+                  Online · Siap nemenin kamu
                 </p>
               </div>
               <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
                 <Sparkles size={14} color="#a855f7" />
-                <span style={{ fontSize: 12, color: TEXT_MUTED }}>Powered by GPT-4o</span>
+                <span style={{ fontSize: 12, color: TEXT_MUTED }}>NEXUS AI · Curhat · Ngobrol · Berita</span>
               </div>
             </div>
 
@@ -229,12 +229,12 @@ export default function UserCurhat() {
                   }}>
                     <MessageSquareHeart size={34} color="#a855f7" opacity={0.6} />
                   </div>
-                  <p style={{ margin: '0 0 8px', fontSize: 16, fontWeight: 600, color: TEXT_PRIMARY }}>
-                    Mulai percakapan
+                  <p style={{ margin: 0, fontSize: 16, fontWeight: 600, color: TEXT_PRIMARY }}>
+                    Hei! Ada yang mau diceritain? 👋
                   </p>
                   <p style={{ margin: 0, fontSize: 14, color: TEXT_SECONDARY, lineHeight: 1.6 }}>
-                    Ceritakan apa yang kamu rasakan hari ini.<br />
-                    AI konselor kami akan merespons dengan penuh empati.
+                    Kamu bisa curhat, ngobrol santai, tanya soal berita,<br />
+                    atau apapun — NEXUS AI siap dengerin!
                   </p>
                 </div>
               ) : (
@@ -356,7 +356,7 @@ export default function UserCurhat() {
                   type="text"
                   value={inputText}
                   onChange={e => setInputText(e.target.value)}
-                  placeholder="Ketik curhatanmu di sini..."
+                  placeholder="Curhat, ngobrol, atau tanya apapun... 💬"
                   disabled={loadingChat}
                   style={{
                     flex: 1,
@@ -395,7 +395,7 @@ export default function UserCurhat() {
                 </button>
               </form>
               <p style={{ margin: '8px 0 0', fontSize: 11, color: TEXT_MUTED, textAlign: 'center' }}>
-                Percakapan ini bersifat anonim dan aman · dijaga kerahasiaannya
+                Curhat · Ngobrol Santai · Tanya Berita — semua aman & rahasia 🔒
               </p>
             </div>
           </div>

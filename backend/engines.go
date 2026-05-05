@@ -14,16 +14,34 @@ import (
 	"strings"
 )
 
-// --- NLP Engine ---
+// --- NLP Engine (Enhanced Stress Detection) ---
 var stressLexicon = map[string]float64{
+	// Kelelahan fisik & mental
 	"lelah": 0.8, "capek": 0.7, "pusing": 0.6, "muak": 0.9, "benci": 0.8,
 	"burnout": 1.0, "stres": 0.9, "gila": 0.7, "hancur": 0.8, "nangis": 0.7,
-	"beban": 0.6, "berat": 0.5, "resign": 0.9, "malas": 0.5, "bosan": 0.4,
+	"beban": 0.65, "berat": 0.5, "resign": 0.9, "malas": 0.5, "bosan": 0.4,
+	// Keputusasaan
+	"putus asa": 1.0, "menyerah": 0.9, "hopeless": 1.0, "gagal": 0.75, "sia-sia": 0.85,
+	"percuma": 0.8, "tidak berguna": 0.95, "nyesel": 0.7, "sesal": 0.65, "kecewa": 0.7,
+	// Kecemasan
+	"cemas": 0.8, "khawatir": 0.75, "takut": 0.7, "panik": 0.85, "gelisah": 0.75,
+	"tidak tenang": 0.8, "was-was": 0.7, "galau": 0.65, "bingung": 0.5,
+	// Hubungan & sosial
+	"lonely": 0.8, "kesepian": 0.8, "ditinggal": 0.85, "dikhianati": 0.9,
+	"diabaikan": 0.85, "tidak dihargai": 0.9, "diremehkan": 0.85,
+	// Pekerjaan/kuliah
+	"deadline": 0.55, "lembur": 0.6, "tugas": 0.3, "ujian": 0.4, "skripsi": 0.55,
+	"nilai jelek": 0.8, "dimarahi": 0.75, "dipecat": 0.95, "tekanan": 0.7,
+	// Fisik
+	"sakit": 0.6, "tidak tidur": 0.75, "insomnia": 0.8, "pening": 0.55,
 }
 
 var positiveLexicon = map[string]float64{
-	"senang": 0.8, "bahagia": 0.9, "semangat": 0.8, "bisa": 0.5,
-	"selesai": 0.4, "aman": 0.5, "lancar": 0.6,
+	"senang": 0.8, "bahagia": 0.9, "semangat": 0.8, "bisa": 0.4,
+	"selesai": 0.5, "aman": 0.5, "lancar": 0.6, "syukur": 0.8,
+	"tenang": 0.7, "damai": 0.7, "lega": 0.75, "bangga": 0.7,
+	"excited": 0.7, "happy": 0.8, "sukses": 0.7, "berhasil": 0.8,
+	"bersyukur": 0.85, "termotivasi": 0.8, "optimis": 0.75,
 }
 
 func analyzeStressLevel(text string) float64 {
@@ -63,13 +81,40 @@ func analyzeStressLevel(text string) float64 {
 func generateAIResponse(text string, stressScore float64) string {
 	apiKey := os.Getenv("OPENROUTER_API_KEY")
 	if apiKey == "" {
-		fmt.Println("Warning: OPENROUTER_API_KEY not set")
+		fmt.Println("Warning: OPENROUTER_API_KEY not set, using fallback response")
 		return fallbackAIResponse(stressScore)
 	}
 	url := "https://openrouter.ai/api/v1/chat/completions"
 
-	systemPrompt := "Kamu adalah seorang asisten konselor yang empatik, suportif, dan penuh perhatian. Tugasmu adalah membalas keluhan pengguna dengan kalimat yang menenangkan, hangat, dan penuh empati dalam bahasa Indonesia. Jawaban harus singkat, maksimal 3-4 kalimat, dan tidak terkesan kaku atau robotik."
-	userPrompt := fmt.Sprintf("Pengguna curhat: \"%s\"\nTingkat stres terdeteksi: %.2f/1.0\nBerikan balasan yang suportif dan menenangkan.", text, stressScore)
+	// Tentukan konteks stress untuk menyesuaikan nada AI
+	stressContext := ""
+	if stressScore > 0.7 {
+		stressContext = fmt.Sprintf("[PENTING: Sistem mendeteksi tingkat stres TINGGI (%.0f%%) pada pesan ini. Prioritaskan respons yang sangat empatik, menenangkan, dan tawarkan dukungan konkret. Jangan buru-buru beralih ke topik lain.]", stressScore*100)
+	} else if stressScore > 0.4 {
+		stressContext = fmt.Sprintf("[INFO: Sistem mendeteksi tingkat stres SEDANG (%.0f%%) pada pesan ini. Seimbangkan antara empati dan percakapan santai.]", stressScore*100)
+	}
+
+	systemPrompt := `Kamu adalah NEXUS AI — asisten virtual cerdas dan serbaguna yang hadir dalam platform kesehatan mental NexusMind. Kamu memiliki kepribadian yang hangat, cerdas, dan adaptif.
+
+KEMAMPUANMU:
+1. **Konselor Empatik**: Ketika pengguna curhat atau tertekan, kamu merespons dengan penuh empati, validasi perasaan, dan dukungan emosional. Gunakan teknik active listening.
+2. **Teman Ngobrol Santai**: Bisa membahas topik ringan, candaan, kehidupan sehari-hari, hobi, film, musik, makanan, dll dengan bahasa yang friendly dan relatable.
+3. **Informasi & Berita**: Bisa berdiskusi tentang isu terkini, teknologi, sains, sosial, ekonomi berdasarkan pengetahuanmu. Jika tidak tahu info terbaru, akui dengan jujur dan ajak diskusi dari sudut pandang yang kamu tahu.
+4. **Deteksi Stress**: Kamu secara aktif memperhatikan sinyal-sinyal stres atau tekanan dalam percakapan dan proaktif menawarkan dukungan jika diperlukan.
+
+ATURAN:
+- Balas dalam Bahasa Indonesia yang natural, tidak kaku.
+- Sesuaikan panjang respons dengan konteks: curhat → lebih panjang & empati; ngobrol santai → lebih pendek & playful.
+- JANGAN pernah memberikan saran medis yang spesifik. Sarankan profesional jika kondisi serius.
+- Gunakan emoji secara natural tapi tidak berlebihan.
+- Jika pengguna tampak stres, selipkan pertanyaan terbuka untuk mendorong mereka berbagi lebih.
+- Maksimal 4-5 kalimat untuk respons umum, bisa lebih panjang untuk topik yang dalam.
+` + stressContext
+
+	userPrompt := text
+	if stressScore > 0.4 {
+		userPrompt = fmt.Sprintf("%s\n\n[Skor stres terdeteksi: %.0f%%]", text, stressScore*100)
+	}
 
 	requestBody, _ := json.Marshal(map[string]interface{}{
 		"model": "openai/gpt-4o-mini",
@@ -77,7 +122,8 @@ func generateAIResponse(text string, stressScore float64) string {
 			{"role": "system", "content": systemPrompt},
 			{"role": "user", "content": userPrompt},
 		},
-		"max_tokens": 200,
+		"max_tokens": 350,
+		"temperature": 0.85,
 	})
 
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(requestBody))
@@ -88,7 +134,7 @@ func generateAIResponse(text string, stressScore float64) string {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 	req.Header.Set("HTTP-Referer", "http://localhost:5173")
-	req.Header.Set("X-Title", "Quantum Burnout Analytics")
+	req.Header.Set("X-Title", "NexusMind AI Assistant")
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
