@@ -263,13 +263,21 @@ func main() {
 					return
 				}
 
-				stressScore := analyzeStressLevel(input.Text)
-				aiResponse := generateAIResponse(input.Text, stressScore)
+				// Fetch last 5 messages for memory
+				var history []Curhat
+				DB.Where("user_id = ?", user.ID).Order("id desc").Limit(5).Find(&history)
+				// Reverse history to be chronological
+				for i, j := 0, len(history)-1; i < j; i, j = i+1, j-1 {
+					history[i], history[j] = history[j], history[i]
+				}
+
+				initialStress := analyzeStressLevel(input.Text)
+				aiResponse, finalStress := generateAIResponse(input.Text, history, initialStress)
 
 				curhat := Curhat{
 					UserID:      user.ID,
 					Text:        input.Text,
-					StressScore: stressScore,
+					StressScore: finalStress,
 					IsAnonymous: true,
 					AIResponse:  aiResponse,
 				}

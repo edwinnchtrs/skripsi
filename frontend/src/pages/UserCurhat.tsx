@@ -239,71 +239,95 @@ export default function UserCurhat() {
                 </div>
               ) : (
                 curhats.map((chat) => (
-                  <div key={chat.ID} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <div key={chat.ID} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                     {/* User bubble */}
-                    <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-                      <div style={{ maxWidth: '72%' }}>
+                    <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', animation: 'fadeInRight 0.3s ease-out' }}>
+                      <div style={{ maxWidth: '80%' }}>
                         <div style={{
                           background: GRADIENT_USER,
-                          padding: '12px 16px',
-                          borderRadius: '18px 18px 4px 18px',
+                          padding: '14px 18px',
+                          borderRadius: '22px 22px 4px 22px',
                           color: '#fff',
                           fontSize: 14,
                           lineHeight: 1.6,
-                          boxShadow: '0 4px 15px rgba(99,102,241,0.3)'
+                          boxShadow: '0 8px 20px -8px rgba(99,102,241,0.5)',
+                          position: 'relative'
                         }}>
-                          <p style={{ margin: 0, color: '#fff' }}>{chat.Text}</p>
-                          <p style={{ margin: '6px 0 0', fontSize: 11, color: 'rgba(255,255,255,0.65)', textAlign: 'right' }}>
-                            {formatTime(chat.Timestamp)}
-                          </p>
-                        </div>
-                        {/* Stress indicator */}
-                        <div style={{
-                          display: 'flex', justifyContent: 'flex-end',
-                          alignItems: 'center', gap: 4, marginTop: 4
-                        }}>
-                          <span style={{ fontSize: 11, color: TEXT_MUTED }}>Stres terdeteksi:</span>
-                          <span style={{
-                            fontSize: 11, fontWeight: 700,
-                            color: stressColor(chat.StressScore)
+                          <p style={{ margin: 0, color: '#fff', whiteSpace: 'pre-wrap' }}>{chat.Text}</p>
+                          <div style={{ 
+                            display: 'flex', 
+                            justifyContent: 'space-between', 
+                            alignItems: 'center', 
+                            marginTop: 8,
+                            paddingTop: 8,
+                            borderTop: '1px solid rgba(255,255,255,0.1)'
                           }}>
-                            {(chat.StressScore * 100).toFixed(0)}%
-                          </span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                              <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.7)', fontWeight: 500 }}>Stres:</span>
+                              <span style={{
+                                fontSize: 10, fontWeight: 800,
+                                color: chat.StressScore > 0.6 ? '#fecaca' : '#bbf7d0',
+                                background: 'rgba(0,0,0,0.2)',
+                                padding: '2px 6px',
+                                borderRadius: '10px'
+                              }}>
+                                {(chat.StressScore * 100).toFixed(0)}%
+                              </span>
+                            </div>
+                            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.6)' }}>
+                              {formatTime(chat.Timestamp)}
+                            </span>
+                          </div>
                         </div>
                       </div>
                       <div style={{
-                        width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
-                        background: 'rgba(99,102,241,0.2)',
-                        border: '2px solid rgba(99,102,241,0.3)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center'
+                        width: 40, height: 40, borderRadius: '50%', flexShrink: 0,
+                        background: 'rgba(99,102,241,0.15)',
+                        border: '2px solid rgba(99,102,241,0.2)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        alignSelf: 'flex-end'
                       }}>
-                        <User size={17} color="#818cf8" />
+                        <User size={18} color="#818cf8" />
                       </div>
                     </div>
 
                     {/* AI bubble */}
-                    <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-start' }}>
+                    <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-start', animation: 'fadeInLeft 0.3s ease-out' }}>
                       <div style={{
-                        width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
+                        width: 40, height: 40, borderRadius: '14px', flexShrink: 0,
                         background: GRADIENT_AI,
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        boxShadow: '0 4px 10px rgba(236,72,153,0.35)'
+                        boxShadow: '0 8px 16px -4px rgba(236,72,153,0.4)',
+                        alignSelf: 'flex-end'
                       }}>
-                        <Bot size={17} color="#fff" />
+                        <Bot size={20} color="#fff" />
                       </div>
-                      <div style={{ maxWidth: '72%' }}>
+                      <div style={{ maxWidth: '80%' }}>
                         <div style={{
-                          background: 'rgba(255,255,255,0.06)',
-                          border: '1px solid rgba(168,85,247,0.2)',
-                          padding: '12px 16px',
-                          borderRadius: '18px 18px 18px 4px',
+                          background: 'rgba(255,255,255,0.04)',
+                          border: '1px solid rgba(168,85,247,0.15)',
+                          padding: '16px 20px',
+                          borderRadius: '22px 22px 22px 4px',
                           fontSize: 14,
                           lineHeight: 1.6,
+                          backdropFilter: 'blur(10px)',
+                          boxShadow: '0 4px 15px rgba(0,0,0,0.2)'
                         }}>
-                          <p style={{ margin: 0, color: TEXT_PRIMARY }}>
-                            {chat.AIResponse || 'Terima kasih sudah berbagi ceritamu.'}
+                          <div style={{ 
+                            fontSize: 11, 
+                            fontWeight: 700, 
+                            color: '#a855f7', 
+                            marginBottom: 6, 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            gap: 5 
+                          }}>
+                            <Sparkles size={12} /> NEXUS AI
+                          </div>
+                          <p style={{ margin: 0, color: TEXT_PRIMARY, whiteSpace: 'pre-wrap' }}>
+                            {chat.AIResponse || 'Terima kasih sudah berbagi ceritamu. Aku di sini untuk mendengarkan.'}
                           </p>
-                          <p style={{ margin: '6px 0 0', fontSize: 11, color: TEXT_MUTED }}>
+                          <p style={{ margin: '10px 0 0', fontSize: 10, color: TEXT_MUTED, textAlign: 'right' }}>
                             {formatTime(chat.Timestamp)}
                           </p>
                         </div>
@@ -513,13 +537,36 @@ export default function UserCurhat() {
         )}
       </div>
 
-      {/* Bounce animation */}
+      {/* Animations & Custom Styles */}
       <style>{`
         @keyframes bounce {
           0%, 80%, 100% { transform: translateY(0); opacity: 0.6; }
           40% { transform: translateY(-6px); opacity: 1; }
         }
+        @keyframes fadeInLeft {
+          from { opacity: 0; transform: translateX(-20px); }
+          to { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes fadeInRight {
+          from { opacity: 0; transform: translateX(20px); }
+          to { opacity: 1; transform: translateX(0); }
+        }
         input::placeholder { color: #475569 !important; }
+        
+        /* Custom Scrollbar */
+        div::-webkit-scrollbar {
+          width: 5px;
+        }
+        div::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        div::-webkit-scrollbar-thumb {
+          background: rgba(168, 85, 247, 0.2);
+          border-radius: 10px;
+        }
+        div::-webkit-scrollbar-thumb:hover {
+          background: rgba(168, 85, 247, 0.4);
+        }
       `}</style>
     </div>
   );

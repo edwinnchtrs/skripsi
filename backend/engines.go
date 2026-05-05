@@ -78,58 +78,58 @@ func analyzeStressLevel(text string) float64 {
 	return score
 }
 
-func generateAIResponse(text string, stressScore float64) string {
+func generateAIResponse(text string, history []Curhat, initialStressScore float64) (string, float64) {
 	apiKey := os.Getenv("OPENROUTER_API_KEY")
 	if apiKey == "" {
 		fmt.Println("Warning: OPENROUTER_API_KEY not set, using fallback response")
-		return fallbackAIResponse(stressScore)
+		return fallbackAIResponse(initialStressScore), initialStressScore
 	}
 	url := "https://openrouter.ai/api/v1/chat/completions"
-
-	// Tentukan konteks stress untuk menyesuaikan nada AI
-	stressContext := ""
-	if stressScore > 0.7 {
-		stressContext = fmt.Sprintf("[PENTING: Sistem mendeteksi tingkat stres TINGGI (%.0f%%) pada pesan ini. Prioritaskan respons yang sangat empatik, menenangkan, dan tawarkan dukungan konkret. Jangan buru-buru beralih ke topik lain.]", stressScore*100)
-	} else if stressScore > 0.4 {
-		stressContext = fmt.Sprintf("[INFO: Sistem mendeteksi tingkat stres SEDANG (%.0f%%) pada pesan ini. Seimbangkan antara empati dan percakapan santai.]", stressScore*100)
-	}
 
 	systemPrompt := `Kamu adalah NEXUS AI — asisten virtual cerdas dan serbaguna yang hadir dalam platform kesehatan mental NexusMind. Kamu memiliki kepribadian yang hangat, cerdas, dan adaptif.
 
 KEMAMPUANMU:
-1. **Konselor Empatik**: Ketika pengguna curhat atau tertekan, kamu merespons dengan penuh empati, validasi perasaan, dan dukungan emosional. Gunakan teknik active listening.
-2. **Teman Ngobrol Santai**: Bisa membahas topik ringan, candaan, kehidupan sehari-hari, hobi, film, musik, makanan, dll dengan bahasa yang friendly dan relatable.
-3. **Informasi & Berita**: Bisa berdiskusi tentang isu terkini, teknologi, sains, sosial, ekonomi berdasarkan pengetahuanmu. Jika tidak tahu info terbaru, akui dengan jujur dan ajak diskusi dari sudut pandang yang kamu tahu.
-4. **Deteksi Stress**: Kamu secara aktif memperhatikan sinyal-sinyal stres atau tekanan dalam percakapan dan proaktif menawarkan dukungan jika diperlukan.
+1. **Konselor Empatik**: Ketika pengguna curhat atau tertekan, kamu merespons dengan penuh empati.
+2. **Ingatan Konteks**: Kamu diberikan riwayat percakapan sebelumnya. Gunakan itu untuk mengingat nama, masalah yang dibahas, atau detail lain agar percakapan terasa personal.
+3. **Analisis Psikologis**: Analisis tingkat stres pengguna berdasarkan pesan terbaru.
 
-ATURAN:
-- Balas dalam Bahasa Indonesia yang natural, tidak kaku.
-- Sesuaikan panjang respons dengan konteks: curhat → lebih panjang & empati; ngobrol santai → lebih pendek & playful.
-- JANGAN pernah memberikan saran medis yang spesifik. Sarankan profesional jika kondisi serius.
-- Gunakan emoji secara natural tapi tidak berlebihan.
-- Jika pengguna tampak stres, selipkan pertanyaan terbuka untuk mendorong mereka berbagi lebih.
-- Maksimal 4-5 kalimat untuk respons umum, bisa lebih panjang untuk topik yang dalam.
-` + stressContext
+ATURAN OUTPUT:
+Kamu HARUS merespons dalam format JSON sebagai berikut:
+{
+  "response": "Kalimat jawabanmu di sini dalam Bahasa Indonesia yang natural dan empatik.",
+  "stress_score": 0.XX
+}
+- "stress_score" desimal 0.0 - 1.0.
+- Maksimal 4-5 kalimat.`
 
-	userPrompt := text
-	if stressScore > 0.4 {
-		userPrompt = fmt.Sprintf("%s\n\n[Skor stres terdeteksi: %.0f%%]", text, stressScore*100)
+	// Membangun riwayat pesan untuk AI
+	messages := []map[string]string{
+		{"role": "system", "content": systemPrompt},
 	}
 
+	// Tambahkan riwayat (maksimal 5 pesan terakhir agar tidak boros token)
+	for _, h := range history {
+		messages = append(messages, map[string]string{"role": "user", "content": h.Text})
+		if h.AIResponse != "" {
+			messages = append(messages, map[string]string{"role": "assistant", "content": h.AIResponse})
+		}
+	}
+
+	// Tambahkan pesan terbaru
+	messages = append(messages, map[string]string{"role": "user", "content": text})
+
 	requestBody, _ := json.Marshal(map[string]interface{}{
-		"model": "openai/gpt-4o-mini",
-		"messages": []map[string]string{
-			{"role": "system", "content": systemPrompt},
-			{"role": "user", "content": userPrompt},
-		},
-		"max_tokens": 350,
-		"temperature": 0.85,
+		"model":           "openai/gpt-4o-mini",
+		"messages":        messages,
+		"max_tokens":      500,
+		"temperature":     0.7,
+		"response_format": map[string]string{"type": "json_object"},
 	})
 
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(requestBody))
 	if err != nil {
 		fmt.Println("OpenRouter Request Build Error:", err)
-		return fallbackAIResponse(stressScore)
+		return fallbackAIResponse(initialStressScore), initialStressScore
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+apiKey)
@@ -140,7 +140,7 @@ ATURAN:
 	resp, err := client.Do(req)
 	if err != nil {
 		fmt.Println("OpenRouter Request Error:", err)
-		return fallbackAIResponse(stressScore)
+		return fallbackAIResponse(initialStressScore), initialStressScore
 	}
 	defer resp.Body.Close()
 
@@ -148,7 +148,7 @@ ATURAN:
 
 	if resp.StatusCode != 200 {
 		fmt.Println("OpenRouter Status:", resp.StatusCode, "Body:", string(body))
-		return fallbackAIResponse(stressScore)
+		return fallbackAIResponse(initialStressScore), initialStressScore
 	}
 
 	var result struct {
@@ -160,15 +160,23 @@ ATURAN:
 	}
 	if err := json.Unmarshal(body, &result); err != nil {
 		fmt.Println("OpenRouter JSON Error:", err, string(body))
-		return fallbackAIResponse(stressScore)
+		return fallbackAIResponse(initialStressScore), initialStressScore
 	}
 
 	if len(result.Choices) > 0 {
-		return result.Choices[0].Message.Content
+		var aiData struct {
+			Response    string  `json:"response"`
+			StressScore float64 `json:"stress_score"`
+		}
+		// Bersihkan content jika ada karakter aneh sebelum unmarshal
+		content := result.Choices[0].Message.Content
+		if err := json.Unmarshal([]byte(content), &aiData); err == nil {
+			return aiData.Response, aiData.StressScore
+		}
 	}
 
-	fmt.Println("OpenRouter Empty Result")
-	return fallbackAIResponse(stressScore)
+	fmt.Println("OpenRouter Empty or Invalid Result")
+	return fallbackAIResponse(initialStressScore), initialStressScore
 }
 
 func fallbackAIResponse(stressScore float64) string {
