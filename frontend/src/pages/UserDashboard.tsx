@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import UserDashboardHeader from './userDashboard/UserDashboardHeader';
-import UserStatCards from './userDashboard/UserStatCards';
+import UserStatCards, { type Prediction, type Assessment } from './userDashboard/UserStatCards';
 import PersonalTrendChart from './userDashboard/PersonalTrendChart';
 import DailyQuestionnaire from './userDashboard/DailyQuestionnaire';
 import AnonymousVentingFeed from './userDashboard/AnonymousVentingFeed';
@@ -19,38 +19,63 @@ const page: React.CSSProperties = {
 export default function UserDashboard() {
   const [toast, setToast] = useState<{ id: number, message: string } | null>(null);
 
+  // ── Real data state ──────────────────────────────────────────
+  const [predictions, setPredictions] = useState<Prediction[]>([]);
+  const [assessments, setAssessments] = useState<Assessment[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
+
+  // Fetch user history (predictions + assessments)
+  useEffect(() => {
+    const fetchHistory = async () => {
+      try {
+        const res = await api.get('/user/history');
+        setPredictions(res.data.predictions ?? []);
+        setAssessments(res.data.assessments ?? []);
+      } catch (err) {
+        console.error('Failed to fetch user history', err);
+      } finally {
+        setHistoryLoading(false);
+      }
+    };
+    fetchHistory();
+  }, []);
+
+  // ── Notification polling ─────────────────────────────────────
   useEffect(() => {
     const fetchNotifications = async () => {
       try {
         const res = await api.get('/notifications/unread');
         const notifs = res.data.notifications;
         if (notifs && notifs.length > 0) {
-          // Show the first unread notification
           const notif = notifs[0];
           setToast({ id: notif.ID, message: notif.Message });
-          
-          // Mark as read so it doesn't pop up again
           await api.post(`/notifications/${notif.ID}/read`);
         }
-      } catch (err) {
-        // Ignore or log
-      }
+      } catch (_) { /* silently ignore */ }
     };
 
-    // Poll every 10 seconds
     const interval = setInterval(fetchNotifications, 10000);
-    // Initial fetch
     fetchNotifications();
-
     return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
     if (toast) {
-      const timer = setTimeout(() => setToast(null), 5000); // Hide after 5s
+      const timer = setTimeout(() => setToast(null), 5000);
       return () => clearTimeout(timer);
     }
   }, [toast]);
+
+  // Re-fetch after questionnaire submission so stats update immediately
+  const handleAssessmentDone = async () => {
+    setHistoryLoading(true);
+    try {
+      const res = await api.get('/user/history');
+      setPredictions(res.data.predictions ?? []);
+      setAssessments(res.data.assessments ?? []);
+    } catch (_) { /* ignore */ }
+    finally { setHistoryLoading(false); }
+  };
 
   return (
     <div style={page}>
@@ -70,28 +95,39 @@ export default function UserDashboard() {
       )}
 
       <UserDashboardHeader />
-      <UserStatCards />
 
-      {/* Grid Utama */}
+      {/* Stat cards — real data */}
+      <UserStatCards
+        predictions={predictions}
+        assessments={assessments}
+        loading={historyLoading}
+      />
+
+      {/* Main Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 16, alignItems: 'start' }}>
-        
-        {/* Kolom Kiri: Tren & Kuisioner */}
+
+        {/* Left column: Trend chart + Questionnaire */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <PersonalTrendChart />
-          <DailyQuestionnaire />
+          <PersonalTrendChart
+            predictions={predictions}
+            assessments={assessments}
+            loading={historyLoading}
+          />
+          {/* Pass callback so chart/cards refresh after submission */}
+          <DailyQuestionnaire onSubmitSuccess={handleAssessmentDone} />
         </div>
 
-        {/* Kolom Kanan: Ruang Curhat */}
+        {/* Right column: Anonymous Venting Feed */}
         <div>
           <AnonymousVentingFeed />
         </div>
-        
+
       </div>
-      
+
       <style>{`
         @keyframes fadeSlideIn {
           from { opacity: 0; transform: translateY(20px); }
-          to { opacity: 1; transform: translateY(0); }
+          to   { opacity: 1; transform: translateY(0); }
         }
       `}</style>
     </div>

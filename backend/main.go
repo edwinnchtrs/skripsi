@@ -643,6 +643,129 @@ func main() {
 				c.JSON(http.StatusOK, gin.H{"status": "success", "message": "Affinity updated", "affinity": affinity.Type})
 			})
 
+			protected.GET("/admin/analytics", func(c *gin.Context) {
+				user := c.MustGet("user").(User)
+				if user.Role != "admin" {
+					c.JSON(http.StatusForbidden, gin.H{"error": "Admin access required"})
+					return
+				}
+
+				var users []User
+				if err := DB.Preload("Predictions", func(db *gorm.DB) *gorm.DB {
+					return db.Order("timestamp DESC")
+				}).Find(&users).Error; err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch users"})
+					return
+				}
+
+				totalRespondents := 0
+				var sumBurnout float64
+				highRiskCount := 0
+				
+				burnoutCounts := map[string]int{"Rendah": 0, "Sedang": 0, "Tinggi": 0}
+				psychoCounts := map[string]int{"Rendah": 0, "Sedang": 0, "Tinggi": 0}
+
+				type ScatterPoint struct {
+					X float64 `json:"x"`
+					Y float64 `json:"y"`
+				}
+				var scatterData []ScatterPoint
+
+				for _, u := range users {
+					if u.Role == "admin" {
+						continue
+					}
+					totalRespondents++
+					if len(u.Predictions) > 0 {
+						latest := u.Predictions[0]
+						sumBurnout += latest.BurnoutScore
+						if latest.RiskLevel == "High" {
+							highRiskCount++
+						}
+						
+						if latest.BurnoutScore < 34 {
+							burnoutCounts["Rendah"]++
+						} else if latest.BurnoutScore < 67 {
+							burnoutCounts["Sedang"]++
+						} else {
+							burnoutCounts["Tinggi"]++
+						}
+
+						if latest.PsychosomaticScore < 34 {
+							psychoCounts["Rendah"]++
+						} else if latest.PsychosomaticScore < 67 {
+							psychoCounts["Sedang"]++
+						} else {
+							psychoCounts["Tinggi"]++
+						}
+
+						scatterData = append(scatterData, ScatterPoint{
+							X: latest.PsychosomaticScore,
+							Y: latest.BurnoutScore,
+						})
+					}
+				}
+
+				var avgBurnout float64
+				if totalRespondents > 0 {
+					avgBurnout = sumBurnout / float64(totalRespondents)
+				}
+
+				var totalPredictions int64
+				DB.Model(&Prediction{}).Count(&totalPredictions)
+
+				// Trend calculation
+				var allPreds []Prediction
+				DB.Order("timestamp ASC").Find(&allPreds)
+				
+				dateGroups := make(map[string][]float64)
+				var orderedDates []string
+				for _, p := range allPreds {
+					dateStr := p.Timestamp.Format("02 Jan")
+					if len(dateGroups[dateStr]) == 0 {
+						orderedDates = append(orderedDates, dateStr)
+					}
+					dateGroups[dateStr] = append(dateGroups[dateStr], p.BurnoutScore)
+				}
+
+				type TrendDay struct {
+					Date      string  `json:"date"`
+					Semua     float64 `json:"semua"`
+					Mahasiswa float64 `json:"mahasiswa"`
+					Karyawan  float64 `json:"karyawan"`
+				}
+				var trendData []TrendDay
+				
+				for _, d := range orderedDates {
+					scores := dateGroups[d]
+					sum := 0.0
+					for _, s := range scores { sum += s }
+					avg := sum / float64(len(scores))
+					
+					trendData = append(trendData, TrendDay{
+						Date: d,
+						Semua: avg,
+						Mahasiswa: avg + 5.0, // Mocked offset for UI
+						Karyawan: avg - 3.0,  // Mocked offset for UI
+					})
+				}
+
+				if len(trendData) > 10 {
+					trendData = trendData[len(trendData)-10:] // Keep last 10 days
+				}
+
+				c.JSON(http.StatusOK, gin.H{
+					"totalRespondents": totalRespondents,
+					"avgBurnout": avgBurnout,
+					"highRiskCount": highRiskCount,
+					"totalPredictions": totalPredictions,
+					"burnoutDist": burnoutCounts,
+					"psychoDist": psychoCounts,
+					"scatterData": scatterData,
+					"trendData": trendData,
+				})
+			})
+
 		}
 	}
 

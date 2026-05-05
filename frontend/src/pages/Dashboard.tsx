@@ -1,4 +1,4 @@
-
+import { useState, useEffect } from 'react';
 import DashboardHeader from './dashboard/DashboardHeader';
 import StatCards from './dashboard/StatCards';
 import TrendChart from './dashboard/TrendChart';
@@ -8,6 +8,7 @@ import ScatterPlot from './dashboard/ScatterPlot';
 import ModelPerformance from './dashboard/ModelPerformance';
 import RightPanel from './dashboard/RightPanel';
 import RespondentTable from './dashboard/RespondentTable';
+import api from '../api';
 
 const page: React.CSSProperties = {
   padding: '22px 24px',
@@ -18,31 +19,60 @@ const page: React.CSSProperties = {
 };
 
 export default function DashboardPage() {
+  const [analytics, setAnalytics] = useState<any>(null);
+  const [respondents, setRespondents] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [analyticsRes, respondentsRes] = await Promise.all([
+          api.get('/admin/analytics'),
+          api.get('/responden')
+        ]);
+        setAnalytics(analyticsRes.data);
+        setRespondents(respondentsRes.data.respondents || []);
+      } catch (error) {
+        console.error("Failed to fetch dashboard data", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
   return (
     <div style={page}>
       <DashboardHeader />
-      <StatCards />
+      <StatCards data={analytics} loading={loading} />
 
-      {/* Row 2 + Right panel (spans rows 2 & 3) */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 290px', gap: 12, marginBottom: 12 }}>
-        <TrendChart />
-        <DonutCharts />
-        {/* Right panel spans 2 rows */}
-        <div style={{ gridColumn: '4', gridRow: '1 / 3' }}>
-          <RightPanel />
+      {/* Main Layout: Left Content (2 rows) + Right Panel */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 290px', gap: 12, marginBottom: 12, alignItems: 'start' }}>
+        
+        {/* Left Content Area */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {/* Row 1 */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+            <TrendChart data={analytics?.trendData} loading={loading} />
+            <DonutCharts data={analytics} loading={loading} />
+          </div>
+          
+          {/* Row 2 */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+            <KorelasiChart />
+            <ScatterPlot data={analytics?.scatterData} loading={loading} />
+            <ModelPerformance />
+          </div>
+        </div>
+
+        {/* Right Panel */}
+        <div>
+          <RightPanel data={analytics} loading={loading} />
         </div>
       </div>
 
-      {/* Row 3 (under row 2, right panel continues) */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 290px', gap: 12, marginBottom: 12 }}>
-        <KorelasiChart />
-        <ScatterPlot />
-        <ModelPerformance />
-        {/* col 4 is occupied by RightPanel above — leave empty */}
-      </div>
-
       {/* Table full width */}
-      <RespondentTable />
+      <RespondentTable data={respondents} loading={loading} />
     </div>
   );
 }

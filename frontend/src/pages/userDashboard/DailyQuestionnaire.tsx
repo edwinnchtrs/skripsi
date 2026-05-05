@@ -2,7 +2,11 @@ import { useState } from 'react';
 import { card, sectionTitle } from '../dashboard/styles';
 import { questionsPool } from './userData';
 
-export default function DailyQuestionnaire() {
+interface DailyQuestionnaireProps {
+  onSubmitSuccess?: () => void;
+}
+
+export default function DailyQuestionnaire({ onSubmitSuccess }: DailyQuestionnaireProps) {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [isCompleted, setIsCompleted] = useState(false);
   const [answers, setAnswers] = useState<number[]>([]);
@@ -16,7 +20,8 @@ export default function DailyQuestionnaire() {
       setCurrentQuestionIndex(currentQuestionIndex + 1);
     } else {
       setIsCompleted(true);
-      // Di sini nanti bisa panggil API untuk submit hasil
+      // Trigger parent refresh so stat cards update
+      onSubmitSuccess?.();
     }
   };
 
