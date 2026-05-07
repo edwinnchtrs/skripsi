@@ -1,16 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import {
-  MessageSquareHeart,
-  Send,
-  Bot,
-  User,
-  BellRing,
-  Clock,
-  Info,
-  CheckCircle2,
-  Sparkles
+  MessageSquareHeart, Send, Bot, User, BellRing, Clock,
+  Info, CheckCircle2, Sparkles, Loader2, AlertCircle,
+  Gauge, Zap, Smile, Frown, Meh
 } from 'lucide-react';
+import { AreaChart, Area, ResponsiveContainer } from 'recharts';
 import api from '../api';
+import { card, sectionTitle } from './dashboard/styles';
 
 interface Curhat {
   ID: number;
@@ -20,316 +16,240 @@ interface Curhat {
   Timestamp: string;
 }
 
-interface Notification {
+interface TherapyNotif {
   ID: number;
   ModuleName: string;
   Status: string;
   CreatedAt: string;
 }
 
-const BG = 'rgba(15, 17, 30, 0.98)';
-const CARD = 'rgba(30, 35, 55, 0.85)';
-const BORDER = 'rgba(255,255,255,0.08)';
-const TEXT_PRIMARY = '#f1f5f9';
-const TEXT_SECONDARY = '#94a3b8';
-const TEXT_MUTED = '#64748b';
-const GRADIENT_USER = 'linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)';
-const GRADIENT_AI = 'linear-gradient(135deg, #a855f7 0%, #ec4899 100%)';
-const GRADIENT_HEADER = 'linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%)';
-
 export default function UserCurhat() {
   const [activeTab, setActiveTab] = useState<'chat' | 'notif'>('chat');
   const [curhats, setCurhats] = useState<Curhat[]>([]);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [notifications, setNotifications] = useState<TherapyNotif[]>([]);
   const [inputText, setInputText] = useState('');
-  const [loadingChat, setLoadingChat] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [loading, setLoading] = useState(true);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { fetchData(); }, []);
-  useEffect(() => { if (activeTab === 'chat') scrollToBottom(); }, [curhats, activeTab]);
+
+  // Real-time polling for notifications when on notif tab
+  useEffect(() => {
+    if (activeTab !== 'notif') return;
+    const poll = async () => {
+      try {
+        const res = await api.get('/user/notifications');
+        if (res.data.notifications) {
+          setNotifications(prev => {
+            const newData = res.data.notifications;
+            if (JSON.stringify(prev) !== JSON.stringify(newData)) return newData;
+            return prev;
+          });
+        }
+      } catch (_) {}
+    };
+    const interval = setInterval(poll, 3000);
+    return () => clearInterval(interval);
+  }, [activeTab]);
+
+  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [curhats]);
 
   const fetchData = async () => {
+    setLoading(true);
     try {
       const [chatRes, notifRes] = await Promise.all([
         api.get('/user/curhat'),
-        api.get('/user/notifications')
+        api.get('/user/notifications'),
       ]);
       if (chatRes.data.curhats) setCurhats(chatRes.data.curhats);
       if (notifRes.data.notifications) setNotifications(notifRes.data.notifications);
-    } catch (error) {
-      console.error('Failed to fetch data', error);
-    }
-  };
-
-  const scrollToBottom = () => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
   };
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputText.trim()) return;
-    const currentText = inputText;
+    const text = inputText.trim();
+    if (!text || sending) return;
     setInputText('');
-    setLoadingChat(true);
+    setSending(true);
     try {
-      const res = await api.post('/curhat/submit', { text: currentText });
+      const res = await api.post('/curhat/submit', { text });
       if (res.data.curhat) setCurhats(prev => [...prev, res.data.curhat]);
-    } catch (error) {
-      console.error('Failed to send message', error);
-    } finally {
-      setLoadingChat(false);
-    }
+    } catch (e) { console.error(e); }
+    finally { setSending(false); inputRef.current?.focus(); }
   };
 
-  const formatTime = (d: string) =>
-    new Date(d).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-  const formatDate = (d: string) =>
-    new Date(d).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
-
-  const stressColor = (score: number) => {
-    if (score > 0.7) return '#f87171';
-    if (score > 0.4) return '#fbbf24';
-    return '#4ade80';
+  const stressLevel = (score: number) => {
+    if (score > 0.7) return { label: 'Tinggi', color: '#ef4444', emoji: '😰' };
+    if (score > 0.4) return { label: 'Sedang', color: '#f59e0b', emoji: '😟' };
+    return { label: 'Rendah', color: '#22c55e', emoji: '😊' };
   };
+
+  const formatTime = (d: string) => new Date(d).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+
+  const quickReplies = [
+    'Aku merasa lelah sekali hari ini...',
+    'Bagaimana cara mengatasi stres?',
+    'Aku butuh teman bicara',
+    'Pekerjaan/kuliahku sangat membebani',
+  ];
+
+  const avgStress = curhats.length > 0
+    ? curhats.reduce((s, c) => s + c.StressScore, 0) / curhats.length
+    : 0;
+
+  const stressTrend = curhats.slice(-8).map((c, i) => ({
+    n: i + 1,
+    s: c.StressScore,
+  }));
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      background: BG,
-      padding: '32px 24px',
-      fontFamily: "'Inter', sans-serif",
-      color: TEXT_PRIMARY,
-    }}>
-      <div style={{ maxWidth: 860, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 28 }}>
+    <div style={{ padding: '22px 24px', background: '#0b0d14', minHeight: '100vh', color: '#e2e8f0', fontFamily: 'Inter, sans-serif' }}>
+      <style>{`
+        @keyframes bounce2 { 0%,80%,100%{transform:translateY(0);opacity:0.5} 40%{transform:translateY(-6px);opacity:1} }
+        @keyframes slideIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+        .msg-in { animation: slideIn 0.25s ease-out; }
+      `}</style>
 
-        {/* ===== HEADER ===== */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
-          <div style={{
-            width: 60, height: 60, borderRadius: 18, flexShrink: 0,
-            background: GRADIENT_HEADER,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 10px 30px -5px rgba(236,72,153,0.45)'
-          }}>
-            <MessageSquareHeart size={30} color="#fff" />
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+            <div style={{ width: 38, height: 38, borderRadius: 10, background: 'linear-gradient(135deg, #ec4899, #a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <MessageSquareHeart size={20} color="#fff" />
+            </div>
+            <h1 style={{ fontSize: 22, fontWeight: 700, color: '#e2e8f0', margin: 0 }}>Ruang Curhat AI</h1>
           </div>
-          <div>
-            <h1 style={{
-              fontSize: 28, fontWeight: 800, margin: '0 0 4px 0',
-              color: TEXT_PRIMARY, letterSpacing: '-0.5px',
-              lineHeight: 1.2
-            }}>
-              Ruang Curhat & AI
-            </h1>
-            <p style={{ margin: 0, fontSize: 14, color: TEXT_SECONDARY, fontWeight: 400 }}>
-              Curhat, ngobrol santai, tanya berita terkini — NEXUS AI siap menemani kapan saja 💬
-            </p>
+          <p style={{ color: '#8890a4', fontSize: 12, margin: '2px 0 0' }}>Curhat anonim dengan AI — setiap kata dianalisis untuk mendeteksi tingkat stresmu</p>
+        </div>
+        {curhats.length > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#131722', border: '1px solid #1e2130', borderRadius: 10, padding: '8px 16px' }}>
+            <Gauge size={15} color={stressLevel(avgStress).color} />
+            <div>
+              <div style={{ fontSize: 10, color: '#8890a4' }}>Rata-rata Stres</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: stressLevel(avgStress).color }}>
+                {stressLevel(avgStress).label} ({(avgStress * 100).toFixed(0)}%)
+              </div>
+            </div>
           </div>
-        </div>
+        )}
+      </div>
 
-        {/* ===== TABS ===== */}
-        <div style={{
-          display: 'flex', gap: 4,
-          background: 'rgba(255,255,255,0.04)',
-          padding: 4, borderRadius: 14,
-          border: `1px solid ${BORDER}`,
-          width: 'fit-content'
-        }}>
-          {[
-            { key: 'chat', icon: <Bot size={15} />, label: 'Curhat AI' },
-            { key: 'notif', icon: <BellRing size={15} />, label: 'Notifikasi Admin', badge: notifications.length > 0 },
-          ].map(tab => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key as 'chat' | 'notif')}
-              style={{
-                padding: '9px 20px',
-                borderRadius: 10,
-                border: 'none',
-                cursor: 'pointer',
-                fontWeight: 600,
-                fontSize: 14,
-                display: 'flex', alignItems: 'center', gap: 7,
-                transition: 'all 0.2s ease',
-                position: 'relative',
-                color: activeTab === tab.key ? '#fff' : TEXT_MUTED,
-                background: activeTab === tab.key
-                  ? 'linear-gradient(135deg, rgba(168,85,247,0.3) 0%, rgba(236,72,153,0.3) 100%)'
-                  : 'transparent',
-                boxShadow: activeTab === tab.key ? '0 2px 12px rgba(168,85,247,0.2)' : 'none',
-              }}
-            >
-              {tab.icon}
-              <span style={{ color: activeTab === tab.key ? '#fff' : TEXT_MUTED }}>{tab.label}</span>
-              {tab.badge && (
-                <span style={{
-                  width: 7, height: 7, background: '#ef4444',
-                  borderRadius: '50%', position: 'absolute', top: 8, right: 8
-                }} />
-              )}
-            </button>
-          ))}
-        </div>
-
-        {/* ===== CHAT TAB ===== */}
-        {activeTab === 'chat' && (
-          <div style={{
-            background: CARD,
-            border: `1px solid ${BORDER}`,
-            borderRadius: 24,
-            backdropFilter: 'blur(20px)',
-            boxShadow: '0 25px 60px -15px rgba(0,0,0,0.6)',
-            display: 'flex', flexDirection: 'column',
-            overflow: 'hidden',
-            minHeight: 540
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 14, background: '#131722', borderRadius: 10, padding: 4, width: 'fit-content', border: '1px solid #1e2130' }}>
+        {[
+          { key: 'chat' as const, label: 'Curhat AI', icon: Bot },
+          { key: 'notif' as const, label: 'Notifikasi Terapi', icon: BellRing, badge: notifications.length },
+        ].map(tab => (
+          <button key={tab.key} onClick={() => setActiveTab(tab.key)} style={{
+            padding: '8px 18px', borderRadius: 7, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 500,
+            background: activeTab === tab.key ? 'rgba(168,85,247,0.18)' : 'transparent',
+            color: activeTab === tab.key ? '#c4b5fd' : '#8890a4', display: 'flex', alignItems: 'center', gap: 7, position: 'relative',
           }}>
-            {/* Chat Header Bar */}
-            <div style={{
-              padding: '16px 24px',
-              borderBottom: `1px solid ${BORDER}`,
-              display: 'flex', alignItems: 'center', gap: 12,
-              background: 'rgba(168,85,247,0.06)'
-            }}>
-              <div style={{
-                width: 40, height: 40, borderRadius: 12,
-                background: GRADIENT_AI,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: '0 4px 12px rgba(168,85,247,0.4)'
-              }}>
-                <Bot size={20} color="#fff" />
+            <tab.icon size={14} /> {tab.label}
+            {tab.badge > 0 && (
+              <span style={{ position: 'absolute', top: 6, right: 6, width: 7, height: 7, background: '#ef4444', borderRadius: '50%' }} />
+            )}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'chat' && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 220px', gap: 12, alignItems: 'start' }}>
+          {/* Chat Area */}
+          <div style={{ ...card, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: 0 }}>
+            {/* Chat Header */}
+            <div style={{ padding: '12px 18px', borderBottom: '1px solid #1e2130', display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(168,85,247,0.04)' }}>
+              <div style={{ width: 34, height: 34, borderRadius: 10, background: 'linear-gradient(135deg, #a855f7, #ec4899)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Bot size={17} color="#fff" />
               </div>
               <div>
-                <p style={{ margin: 0, fontWeight: 700, fontSize: 15, color: TEXT_PRIMARY }}>NEXUS AI</p>
-                <p style={{ margin: 0, fontSize: 12, color: '#4ade80', display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <span style={{ width: 6, height: 6, background: '#4ade80', borderRadius: '50%', display: 'inline-block' }} />
-                  Online · Siap nemenin kamu
-                </p>
-              </div>
-              <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Sparkles size={14} color="#a855f7" />
-                <span style={{ fontSize: 12, color: TEXT_MUTED }}>NEXUS AI · Curhat · Ngobrol · Berita</span>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#e2e8f0' }}>NEXUS AI</div>
+                <div style={{ fontSize: 10, color: '#4ade80', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ width: 5, height: 5, background: '#4ade80', borderRadius: '50%' }} /> Online
+                </div>
               </div>
             </div>
 
             {/* Messages */}
-            <div style={{
-              flex: 1, padding: '24px 20px',
-              overflowY: 'auto', display: 'flex',
-              flexDirection: 'column', gap: 20,
-              minHeight: 380, maxHeight: 460
-            }}>
-              {curhats.length === 0 ? (
-                <div style={{
-                  margin: 'auto', textAlign: 'center', padding: 40,
-                }}>
-                  <div style={{
-                    width: 70, height: 70, margin: '0 auto 20px',
-                    borderRadius: '50%',
-                    background: 'rgba(168,85,247,0.12)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center'
-                  }}>
-                    <MessageSquareHeart size={34} color="#a855f7" opacity={0.6} />
+            <div style={{ flex: 1, padding: '16px 18px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 14, maxHeight: 420, minHeight: 360 }}>
+              {loading ? (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+                  <Loader2 size={22} color="#8890a4" style={{ animation: 'spin 1s linear infinite' }} />
+                </div>
+              ) : curhats.length === 0 ? (
+                <div style={{ margin: 'auto', textAlign: 'center', padding: 20 }}>
+                  <div style={{ width: 60, height: 60, borderRadius: '50%', background: 'rgba(168,85,247,0.1)', border: '1px solid rgba(168,85,247,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
+                    <MessageSquareHeart size={28} color="#a855f7" />
                   </div>
-                  <p style={{ margin: 0, fontSize: 16, fontWeight: 600, color: TEXT_PRIMARY }}>
-                    Hei! Ada yang mau diceritain? 👋
-                  </p>
-                  <p style={{ margin: 0, fontSize: 14, color: TEXT_SECONDARY, lineHeight: 1.6 }}>
-                    Kamu bisa curhat, ngobrol santai, tanya soal berita,<br />
-                    atau apapun — NEXUS AI siap dengerin!
-                  </p>
+                  <div style={{ fontSize: 15, fontWeight: 600, color: '#e2e8f0', marginBottom: 4 }}>Ceritakan apa yang kamu rasakan</div>
+                  <div style={{ fontSize: 12, color: '#8890a4', marginBottom: 16 }}>AI akan menganalisis tingkat stres dan memberikan respons yang mendukung</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
+                    {quickReplies.map(q => (
+                      <button key={q} onClick={() => setInputText(q)} style={{
+                        padding: '6px 12px', borderRadius: 16, background: '#0f1117', border: '1px solid #1e2130',
+                        color: '#8890a4', fontSize: 11, cursor: 'pointer', maxWidth: 200, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                      }}>
+                        {q}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               ) : (
-                curhats.map((chat) => (
-                  <div key={chat.ID} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                    {/* User bubble */}
-                    <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', animation: 'fadeInRight 0.3s ease-out' }}>
-                      <div style={{ maxWidth: '80%' }}>
+                curhats.map(chat => (
+                  <div key={chat.ID} className="msg-in" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {/* User message */}
+                    <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                      <div style={{ maxWidth: '75%' }}>
                         <div style={{
-                          background: GRADIENT_USER,
-                          padding: '14px 18px',
-                          borderRadius: '22px 22px 4px 22px',
-                          color: '#fff',
-                          fontSize: 14,
-                          lineHeight: 1.6,
-                          boxShadow: '0 8px 20px -8px rgba(99,102,241,0.5)',
-                          position: 'relative'
+                          background: 'linear-gradient(135deg, #6366f1, #7c3aed)', padding: '12px 16px',
+                          borderRadius: '18px 18px 4px 18px', color: '#fff', fontSize: 13, lineHeight: 1.6,
                         }}>
-                          <p style={{ margin: 0, color: '#fff', whiteSpace: 'pre-wrap' }}>{chat.Text}</p>
-                          <div style={{ 
-                            display: 'flex', 
-                            justifyContent: 'space-between', 
-                            alignItems: 'center', 
-                            marginTop: 8,
-                            paddingTop: 8,
-                            borderTop: '1px solid rgba(255,255,255,0.1)'
+                          {chat.Text}
+                        </div>
+                        {/* Stress badge */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, justifyContent: 'flex-end' }}>
+                          <span style={{ fontSize: 9, color: '#4a5068' }}>{formatTime(chat.Timestamp)}</span>
+                          <span style={{
+                            padding: '2px 8px', borderRadius: 10, fontSize: 9, fontWeight: 700,
+                            background: stressLevel(chat.StressScore).color + '18',
+                            color: stressLevel(chat.StressScore).color,
                           }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                              <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.7)', fontWeight: 500 }}>Stres:</span>
-                              <span style={{
-                                fontSize: 10, fontWeight: 800,
-                                color: chat.StressScore > 0.6 ? '#fecaca' : '#bbf7d0',
-                                background: 'rgba(0,0,0,0.2)',
-                                padding: '2px 6px',
-                                borderRadius: '10px'
-                              }}>
-                                {(chat.StressScore * 100).toFixed(0)}%
-                              </span>
-                            </div>
-                            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.6)' }}>
-                              {formatTime(chat.Timestamp)}
-                            </span>
-                          </div>
+                            Stres {stressLevel(chat.StressScore).label} {(chat.StressScore * 100).toFixed(0)}%
+                          </span>
                         </div>
                       </div>
                       <div style={{
-                        width: 40, height: 40, borderRadius: '50%', flexShrink: 0,
-                        background: 'rgba(99,102,241,0.15)',
-                        border: '2px solid rgba(99,102,241,0.2)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        alignSelf: 'flex-end'
+                        width: 32, height: 32, borderRadius: '50%', background: 'rgba(99,102,241,0.12)',
+                        border: '1.5px solid rgba(99,102,241,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, alignSelf: 'flex-end',
                       }}>
-                        <User size={18} color="#818cf8" />
+                        <User size={15} color="#818cf8" />
                       </div>
                     </div>
 
-                    {/* AI bubble */}
-                    <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-start', animation: 'fadeInLeft 0.3s ease-out' }}>
+                    {/* AI message */}
+                    <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-start' }}>
                       <div style={{
-                        width: 40, height: 40, borderRadius: '14px', flexShrink: 0,
-                        background: GRADIENT_AI,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        boxShadow: '0 8px 16px -4px rgba(236,72,153,0.4)',
-                        alignSelf: 'flex-end'
+                        width: 32, height: 32, borderRadius: 9, background: 'linear-gradient(135deg, #a855f7, #ec4899)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, alignSelf: 'flex-end',
                       }}>
-                        <Bot size={20} color="#fff" />
+                        <Bot size={16} color="#fff" />
                       </div>
-                      <div style={{ maxWidth: '80%' }}>
+                      <div style={{ maxWidth: '75%' }}>
                         <div style={{
-                          background: 'rgba(255,255,255,0.04)',
-                          border: '1px solid rgba(168,85,247,0.15)',
-                          padding: '16px 20px',
-                          borderRadius: '22px 22px 22px 4px',
-                          fontSize: 14,
-                          lineHeight: 1.6,
-                          backdropFilter: 'blur(10px)',
-                          boxShadow: '0 4px 15px rgba(0,0,0,0.2)'
+                          background: '#0f1117', border: '1px solid #1e2130',
+                          padding: '12px 16px', borderRadius: '18px 18px 18px 4px',
+                          fontSize: 13, lineHeight: 1.6,
                         }}>
-                          <div style={{ 
-                            fontSize: 11, 
-                            fontWeight: 700, 
-                            color: '#a855f7', 
-                            marginBottom: 6, 
-                            display: 'flex', 
-                            alignItems: 'center', 
-                            gap: 5 
-                          }}>
-                            <Sparkles size={12} /> NEXUS AI
+                          <div style={{ fontSize: 10, color: '#a855f7', fontWeight: 700, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <Sparkles size={11} /> NEXUS AI
                           </div>
-                          <p style={{ margin: 0, color: TEXT_PRIMARY, whiteSpace: 'pre-wrap' }}>
-                            {chat.AIResponse || 'Terima kasih sudah berbagi ceritamu. Aku di sini untuk mendengarkan.'}
-                          </p>
-                          <p style={{ margin: '10px 0 0', fontSize: 10, color: TEXT_MUTED, textAlign: 'right' }}>
-                            {formatTime(chat.Timestamp)}
-                          </p>
+                          <div style={{ color: '#c0c9e0', whiteSpace: 'pre-wrap' }}>
+                            {chat.AIResponse || 'Terima kasih sudah berbagi. Aku di sini untuk mendengarkan.'}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -337,31 +257,15 @@ export default function UserCurhat() {
                 ))
               )}
 
-              {/* Loading / Typing indicator */}
-              {loadingChat && (
+              {/* Typing indicator */}
+              {sending && (
                 <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-start' }}>
-                  <div style={{
-                    width: 36, height: 36, borderRadius: '50%',
-                    background: GRADIENT_AI,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    flexShrink: 0
-                  }}>
-                    <Bot size={17} color="#fff" />
+                  <div style={{ width: 32, height: 32, borderRadius: 9, background: 'linear-gradient(135deg, #a855f7, #ec4899)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Bot size={16} color="#fff" />
                   </div>
-                  <div style={{
-                    background: 'rgba(255,255,255,0.06)',
-                    border: '1px solid rgba(168,85,247,0.2)',
-                    padding: '14px 20px',
-                    borderRadius: '18px 18px 18px 4px',
-                    display: 'flex', alignItems: 'center', gap: 5
-                  }}>
+                  <div style={{ background: '#0f1117', border: '1px solid #1e2130', padding: '12px 18px', borderRadius: '18px 18px 18px 4px', display: 'flex', gap: 4 }}>
                     {[0, 1, 2].map(i => (
-                      <div key={i} style={{
-                        width: 7, height: 7, borderRadius: '50%',
-                        background: '#a855f7',
-                        animation: 'bounce 1.2s infinite',
-                        animationDelay: `${i * 0.2}s`
-                      }} />
+                      <div key={i} style={{ width: 6, height: 6, borderRadius: '50%', background: '#a855f7', animation: 'bounce2 1.2s infinite', animationDelay: `${i * 0.2}s` }} />
                     ))}
                   </div>
                 </div>
@@ -369,205 +273,126 @@ export default function UserCurhat() {
               <div ref={chatEndRef} />
             </div>
 
-            {/* Input bar */}
-            <div style={{
-              padding: '16px 20px',
-              borderTop: `1px solid ${BORDER}`,
-              background: 'rgba(10, 12, 22, 0.6)'
-            }}>
-              <form onSubmit={handleSend} style={{ display: 'flex', gap: 10 }}>
+            {/* Input */}
+            <div style={{ padding: '10px 14px', borderTop: '1px solid #1e2130', background: '#0f1117' }}>
+              <form onSubmit={handleSend} style={{ display: 'flex', gap: 8 }}>
                 <input
-                  type="text"
+                  ref={inputRef}
                   value={inputText}
                   onChange={e => setInputText(e.target.value)}
-                  placeholder="Curhat, ngobrol, atau tanya apapun... 💬"
-                  disabled={loadingChat}
+                  placeholder="Tulis curhatanmu di sini..."
+                  disabled={sending}
                   style={{
-                    flex: 1,
-                    background: 'rgba(255,255,255,0.05)',
-                    border: `1px solid ${inputText ? 'rgba(168,85,247,0.5)' : BORDER}`,
-                    borderRadius: 14,
-                    padding: '13px 18px',
-                    color: TEXT_PRIMARY,
-                    fontSize: 14,
-                    outline: 'none',
-                    transition: 'border-color 0.2s',
-                    caretColor: '#a855f7',
+                    flex: 1, padding: '10px 14px', background: '#131722', border: '1px solid #1e2130',
+                    borderRadius: 10, color: '#e2e8f0', fontSize: 13, outline: 'none',
                   }}
-                  onFocus={e => e.target.style.borderColor = 'rgba(168,85,247,0.6)'}
-                  onBlur={e => e.target.style.borderColor = inputText ? 'rgba(168,85,247,0.5)' : BORDER}
                 />
-                <button
-                  type="submit"
-                  disabled={!inputText.trim() || loadingChat}
-                  style={{
-                    width: 50, height: 50,
-                    borderRadius: 14,
-                    border: 'none',
-                    cursor: !inputText.trim() || loadingChat ? 'not-allowed' : 'pointer',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    transition: 'all 0.2s',
-                    background: !inputText.trim() || loadingChat
-                      ? 'rgba(255,255,255,0.08)'
-                      : GRADIENT_AI,
-                    boxShadow: !inputText.trim() || loadingChat
-                      ? 'none'
-                      : '0 4px 15px rgba(168,85,247,0.4)',
-                  }}
-                >
-                  <Send size={19} color={!inputText.trim() || loadingChat ? TEXT_MUTED : '#fff'} />
+                <button type="submit" disabled={!inputText.trim() || sending} style={{
+                  width: 42, height: 42, borderRadius: 10, border: 'none', cursor: (!inputText.trim() || sending) ? 'not-allowed' : 'pointer',
+                  background: (!inputText.trim() || sending) ? '#1e2130' : 'linear-gradient(135deg, #a855f7, #ec4899)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                }}>
+                  {sending ? <Loader2 size={16} color="#fff" style={{ animation: 'spin 1s linear infinite' }} /> : <Send size={16} color="#fff" />}
                 </button>
               </form>
-              <p style={{ margin: '8px 0 0', fontSize: 11, color: TEXT_MUTED, textAlign: 'center' }}>
-                Curhat · Ngobrol Santai · Tanya Berita — semua aman & rahasia 🔒
-              </p>
             </div>
           </div>
-        )}
 
-        {/* ===== NOTIFIKASI TAB ===== */}
-        {activeTab === 'notif' && (
-          <div style={{
-            background: CARD,
-            border: `1px solid ${BORDER}`,
-            borderRadius: 24,
-            backdropFilter: 'blur(20px)',
-            boxShadow: '0 25px 60px -15px rgba(0,0,0,0.6)',
-            padding: 28,
-            minHeight: 420
-          }}>
-            {/* Section title */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
-              <div style={{
-                width: 44, height: 44, borderRadius: 13,
-                background: 'rgba(251,191,36,0.15)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center'
-              }}>
-                <BellRing size={22} color="#fbbf24" />
+          {/* Right Panel: Stress Info */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {/* Stress Trend */}
+            {curhats.length > 1 && (
+              <div style={card}>
+                <h4 style={{ fontSize: 12, fontWeight: 700, color: '#e2e8f0', margin: '0 0 6px' }}>Tren Stres</h4>
+                <ResponsiveContainer width="100%" height={100}>
+                  <AreaChart data={stressTrend} margin={{ top: 0, right: 0, bottom: 0, left: -25 }}>
+                    <defs>
+                      <linearGradient id="stG" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#ef4444" stopOpacity={0.3} />
+                        <stop offset="100%" stopColor="#ef4444" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <Area type="monotone" dataKey="s" stroke="#ef4444" strokeWidth={1.5} fill="url(#stG)" dot={false} />
+                  </AreaChart>
+                </ResponsiveContainer>
               </div>
-              <div>
-                <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: TEXT_PRIMARY }}>
-                  Notifikasi Penanganan Admin
-                </h2>
-                <p style={{ margin: 0, fontSize: 13, color: TEXT_SECONDARY }}>
-                  Pesan & rekomendasi terapi dari tim psikolog
-                </p>
+            )}
+
+            {/* Stress Level Legend */}
+            <div style={card}>
+              <h4 style={{ fontSize: 12, fontWeight: 700, color: '#e2e8f0', margin: '0 0 8px' }}>Level Stres</h4>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {[
+                  { icon: Smile, label: 'Rendah (0-40%)', color: '#22c55e', desc: 'Kondisi baik' },
+                  { icon: Meh, label: 'Sedang (40-70%)', color: '#f59e0b', desc: 'Perlu perhatian' },
+                  { icon: Frown, label: 'Tinggi (>70%)', color: '#ef4444', desc: 'Butuh dukungan' },
+                ].map(l => (
+                  <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', background: '#0f1117', borderRadius: 6, border: '1px solid #1e2130' }}>
+                    <l.icon size={14} color={l.color} />
+                    <div>
+                      <div style={{ fontSize: 10, fontWeight: 600, color: l.color }}>{l.label}</div>
+                      <div style={{ fontSize: 9, color: '#8890a4' }}>{l.desc}</div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
 
-            {/* Notification cards */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {notifications.length === 0 ? (
-                <div style={{
-                  padding: '48px 32px', textAlign: 'center',
-                  background: 'rgba(255,255,255,0.02)',
-                  border: `1px dashed rgba(255,255,255,0.1)`,
-                  borderRadius: 16
-                }}>
-                  <div style={{
-                    width: 60, height: 60, margin: '0 auto 16px',
-                    borderRadius: '50%', background: 'rgba(74,222,128,0.12)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center'
-                  }}>
-                    <CheckCircle2 size={30} color="#4ade80" opacity={0.7} />
+            {/* Info */}
+            <div style={{ ...card, fontSize: 10, color: '#8890a4', lineHeight: 1.5 }}>
+              <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
+                <Info size={12} color="#6c63ff" />
+                <span style={{ fontWeight: 600, color: '#c0c9e0' }}>Cara Kerja</span>
+              </div>
+              AI menganalisis kata-katamu menggunakan NLP lexicon-based engine untuk mendeteksi indikator stres seperti kelelahan, kecemasan, dan keputusasaan.
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Notifications Tab */}
+      {activeTab === 'notif' && (
+        <div style={card}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+            <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(251,191,36,0.12)', border: '1px solid rgba(251,191,36,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <BellRing size={18} color="#fbbf24" />
+            </div>
+            <div>
+              <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#e2e8f0' }}>Notifikasi Terapi</h3>
+              <p style={{ margin: 0, fontSize: 11, color: '#8890a4' }}>Rekomendasi dari admin berdasarkan hasil asesmen</p>
+            </div>
+          </div>
+          {notifications.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 36 }}>
+              <CheckCircle2 size={32} color="#4a5068" />
+              <p style={{ color: '#8890a4', fontSize: 13, marginTop: 8 }}>Belum ada notifikasi terapi</p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {notifications.map(n => (
+                <div key={n.ID} style={{ display: 'flex', gap: 12, padding: '12px 14px', background: '#0f1117', borderRadius: 10, border: '1px solid #1e2130', alignItems: 'flex-start' }}>
+                  <div style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Info size={16} color="#fbbf24" />
                   </div>
-                  <p style={{ margin: '0 0 6px', fontSize: 15, fontWeight: 600, color: TEXT_PRIMARY }}>
-                    Semua Bersih!
-                  </p>
-                  <p style={{ margin: 0, fontSize: 13, color: TEXT_SECONDARY }}>
-                    Belum ada notifikasi atau rekomendasi penanganan dari Admin.
-                  </p>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: '#e2e8f0' }}>{n.ModuleName}</span>
+                      <span style={{
+                        padding: '2px 8px', borderRadius: 10, fontSize: 9, fontWeight: 700,
+                        background: n.Status === 'pending' ? 'rgba(251,191,36,0.15)' : 'rgba(34,197,94,0.15)',
+                        color: n.Status === 'pending' ? '#fcd34d' : '#86efac',
+                      }}>{n.Status}</span>
+                    </div>
+                    <div style={{ fontSize: 10, color: '#8890a4', display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <Clock size={10} /> {new Date(n.CreatedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                    </div>
+                  </div>
                 </div>
-              ) : (
-                notifications.map(notif => (
-                  <div key={notif.ID} style={{
-                    background: 'rgba(255,255,255,0.04)',
-                    border: `1px solid rgba(251,191,36,0.15)`,
-                    borderRadius: 16, padding: '20px 22px',
-                    display: 'flex', gap: 16, alignItems: 'flex-start',
-                    transition: 'transform 0.2s, box-shadow 0.2s',
-                    cursor: 'default'
-                  }}
-                    onMouseEnter={e => {
-                      e.currentTarget.style.transform = 'translateY(-2px)';
-                      e.currentTarget.style.boxShadow = '0 8px 25px rgba(0,0,0,0.3)';
-                    }}
-                    onMouseLeave={e => {
-                      e.currentTarget.style.transform = 'none';
-                      e.currentTarget.style.boxShadow = 'none';
-                    }}
-                  >
-                    <div style={{
-                      width: 44, height: 44, borderRadius: 13, flexShrink: 0,
-                      background: 'rgba(251,191,36,0.15)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center'
-                    }}>
-                      <Info size={20} color="#fbbf24" />
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6, flexWrap: 'wrap' }}>
-                        <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: TEXT_PRIMARY }}>
-                          Modul Terapi: {notif.ModuleName}
-                        </h3>
-                        <span style={{
-                          fontSize: 11, fontWeight: 700,
-                          padding: '3px 10px', borderRadius: 20,
-                          background: notif.Status === 'pending'
-                            ? 'rgba(251,191,36,0.18)' : 'rgba(74,222,128,0.18)',
-                          color: notif.Status === 'pending' ? '#fcd34d' : '#86efac',
-                          letterSpacing: '0.5px',
-                          textTransform: 'uppercase'
-                        }}>
-                          {notif.Status}
-                        </span>
-                      </div>
-                      <p style={{ margin: '0 0 10px', fontSize: 13, color: TEXT_SECONDARY, lineHeight: 1.6 }}>
-                        Admin menyarankan Anda mengikuti modul ini berdasarkan hasil pemantauan kesehatan mental Anda terakhir.
-                      </p>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <Clock size={12} color={TEXT_MUTED} />
-                        <span style={{ fontSize: 12, color: TEXT_MUTED }}>{formatDate(notif.CreatedAt)}</span>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
+              ))}
             </div>
-          </div>
-        )}
-      </div>
-
-      {/* Animations & Custom Styles */}
-      <style>{`
-        @keyframes bounce {
-          0%, 80%, 100% { transform: translateY(0); opacity: 0.6; }
-          40% { transform: translateY(-6px); opacity: 1; }
-        }
-        @keyframes fadeInLeft {
-          from { opacity: 0; transform: translateX(-20px); }
-          to { opacity: 1; transform: translateX(0); }
-        }
-        @keyframes fadeInRight {
-          from { opacity: 0; transform: translateX(20px); }
-          to { opacity: 1; transform: translateX(0); }
-        }
-        input::placeholder { color: #475569 !important; }
-        
-        /* Custom Scrollbar */
-        div::-webkit-scrollbar {
-          width: 5px;
-        }
-        div::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        div::-webkit-scrollbar-thumb {
-          background: rgba(168, 85, 247, 0.2);
-          border-radius: 10px;
-        }
-        div::-webkit-scrollbar-thumb:hover {
-          background: rgba(168, 85, 247, 0.4);
-        }
-      `}</style>
+          )}
+        </div>
+      )}
     </div>
   );
 }

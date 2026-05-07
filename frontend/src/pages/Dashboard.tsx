@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import DashboardHeader from './dashboard/DashboardHeader';
 import StatCards from './dashboard/StatCards';
 import TrendChart from './dashboard/TrendChart';
@@ -22,6 +22,8 @@ export default function DashboardPage() {
   const [analytics, setAnalytics] = useState<any>(null);
   const [respondents, setRespondents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dateFilter, setDateFilter] = useState('all');
+  const [groupFilter, setGroupFilter] = useState('all');
 
   useEffect(() => {
     const fetchData = async () => {
@@ -41,9 +43,33 @@ export default function DashboardPage() {
     fetchData();
   }, []);
 
+  // Filter trend data by date range
+  const filteredTrend = useMemo(() => {
+    const data = analytics?.trendData || [];
+    if (dateFilter === 'all' || !data.length) return data;
+    const now = new Date();
+    const days: Record<string, number> = { '7d': 7, '30d': 30, '90d': 90, 'this-month': 30, 'last-month': 30 };
+    const limit = days[dateFilter] || data.length;
+    return data.slice(Math.max(0, data.length - limit));
+  }, [analytics, dateFilter]);
+
+  // Filter respondents by group
+  const filteredRespondents = useMemo(() => {
+    if (groupFilter === 'all') return respondents;
+    return respondents.filter((r: any) => {
+      const kelompok = r.id % 2 === 0 ? 'mahasiswa' : 'karyawan';
+      return kelompok === groupFilter;
+    });
+  }, [respondents, groupFilter]);
+
   return (
     <div style={page}>
-      <DashboardHeader />
+      <DashboardHeader
+        dateFilter={dateFilter}
+        groupFilter={groupFilter}
+        onDateChange={setDateFilter}
+        onGroupChange={setGroupFilter}
+      />
       <StatCards data={analytics} loading={loading} />
 
       {/* Main Layout: Left Content (2 rows) + Right Panel */}
@@ -53,7 +79,7 @@ export default function DashboardPage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {/* Row 1 */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-            <TrendChart data={analytics?.trendData} loading={loading} />
+            <TrendChart data={filteredTrend} loading={loading} />
             <DonutCharts data={analytics} loading={loading} />
           </div>
           
@@ -72,7 +98,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Table full width */}
-      <RespondentTable data={respondents} loading={loading} />
+      <RespondentTable data={filteredRespondents} loading={loading} />
     </div>
   );
 }

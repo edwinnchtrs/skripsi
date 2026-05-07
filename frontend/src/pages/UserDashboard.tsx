@@ -40,22 +40,27 @@ export default function UserDashboard() {
     fetchHistory();
   }, []);
 
-  // ── Notification polling ─────────────────────────────────────
+  // ── Notification polling (real-time every 3s) ─────────────────
   useEffect(() => {
+    let lastNotifId = 0;
     const fetchNotifications = async () => {
       try {
         const res = await api.get('/notifications/unread');
         const notifs = res.data.notifications;
         if (notifs && notifs.length > 0) {
           const notif = notifs[0];
-          setToast({ id: notif.ID, message: notif.Message });
-          await api.post(`/notifications/${notif.ID}/read`);
+          // Only show toast for new notifications
+          if (notif.ID > lastNotifId) {
+            lastNotifId = notif.ID;
+            setToast({ id: notif.ID, message: notif.Message });
+            await api.post(`/notifications/${notif.ID}/read`);
+          }
         }
-      } catch (_) { /* silently ignore */ }
+      } catch (_) {}
     };
 
-    const interval = setInterval(fetchNotifications, 10000);
     fetchNotifications();
+    const interval = setInterval(fetchNotifications, 3000);
     return () => clearInterval(interval);
   }, []);
 

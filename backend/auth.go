@@ -1,7 +1,6 @@
 package main
 
 import (
-	"os"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -9,13 +8,6 @@ import (
 )
 
 var jwtKey = []byte(getEnv("SECRET_KEY", "b4rn0u7_qU4ntUm_s3cr3t_k3y_992"))
-
-func getEnv(key, fallback string) string {
-	if value, ok := os.LookupEnv(key); ok {
-		return value
-	}
-	return fallback
-}
 
 func HashPassword(password string) (string, error) {
 	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 10)

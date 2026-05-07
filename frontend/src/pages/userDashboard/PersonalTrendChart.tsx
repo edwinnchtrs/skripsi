@@ -21,8 +21,8 @@ export default function PersonalTrendChart({ predictions, assessments, loading }
     .slice(-10) // last 10 entries
     .map(p => ({
       date: formatDate(p.Timestamp),
-      burnout: Math.round(p.BurnoutScore),
-      psikosomatik: Math.round(p.PsychosomaticScore),
+      burnout: Number(p.BurnoutScore.toFixed(1)),
+      psikosomatik: Number(p.PsychosomaticScore.toFixed(1)),
     }));
 
   const asmtData = [...assessments]
@@ -30,8 +30,8 @@ export default function PersonalTrendChart({ predictions, assessments, loading }
     .slice(-10)
     .map(a => ({
       date: formatDate(a.Timestamp),
-      eficiensi: Math.round(a.EfficacyScore * 100),
-      kelelahan: Math.round(a.FatigueScore * 100),
+      efisiensi: Number(a.EfficacyScore.toFixed(1)),
+      kelelahan: Number(a.FatigueScore.toFixed(1)),
     }));
 
   const hasData = predData.length > 0;
@@ -69,7 +69,7 @@ export default function PersonalTrendChart({ predictions, assessments, loading }
             <LineChart data={predData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#1e2130" />
               <XAxis dataKey="date" tick={{ fill: '#8890a4', fontSize: 9 }} />
-              <YAxis tick={{ fill: '#8890a4', fontSize: 9 }} domain={[0, 100]} />
+              <YAxis tick={{ fill: '#8890a4', fontSize: 9 }} domain={[0, 10]} />
               <Tooltip contentStyle={tooltipStyle} />
               <Legend iconSize={8} wrapperStyle={{ fontSize: 11, color: '#8890a4' }} />
               <Line
@@ -93,7 +93,7 @@ export default function PersonalTrendChart({ predictions, assessments, loading }
                 <LineChart data={asmtData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#1e2130" />
                   <XAxis dataKey="date" tick={{ fill: '#8890a4', fontSize: 9 }} />
-                  <YAxis tick={{ fill: '#8890a4', fontSize: 9 }} domain={[0, 100]} />
+                  <YAxis tick={{ fill: '#8890a4', fontSize: 9 }} domain={[0, 10]} />
                   <Tooltip contentStyle={tooltipStyle} />
                   <Legend iconSize={8} wrapperStyle={{ fontSize: 11, color: '#8890a4' }} />
                   <Line

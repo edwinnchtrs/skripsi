@@ -10,7 +10,8 @@ import {
   LogOut,
   Sun,
   Moon,
-  Brain
+  Brain,
+  Bell
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import api from '../api';
@@ -18,7 +19,7 @@ import api from '../api';
 const navItems = [
   { label: 'Overview', icon: LayoutDashboard, path: '/user/dashboard' },
   { label: 'Kuisioner Harian', icon: ClipboardList, path: '/user/kuisioner' },
-  { label: 'Ruang Curhat Anonim', icon: MessageSquareHeart, path: '/user/curhat' },
+  { label: 'Ruang Curhat Anonim', icon: MessageSquareHeart, path: '/user/curhat', badge: true },
   { label: 'Riwayat Asesmen', icon: Activity, path: '/user/asesmen' },
   { label: 'Jaringan Teman', icon: Users, path: '/user/network' },
   { label: 'Pengaturan Akun', icon: Settings, path: '/user/settings' },
@@ -33,6 +34,21 @@ export default function UserSidebar() {
     return saved !== 'light';
   });
   const [profile, setProfile] = useState<any>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  // Poll unread notifications
+  useEffect(() => {
+    const poll = async () => {
+      try {
+        const res = await api.get('/notifications/unread');
+        const count = (res.data.notifications || []).length;
+        setUnreadCount(count);
+      } catch (_) {}
+    };
+    poll();
+    const interval = setInterval(poll, 3000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Apply theme class on mount & whenever dark changes
   useEffect(() => {
@@ -124,6 +140,15 @@ export default function UserSidebar() {
             >
               <Icon size={16} />
               {item.label}
+              {(item as any).badge && unreadCount > 0 && (
+                <span style={{
+                  marginLeft: 'auto', background: '#ef4444', color: '#fff',
+                  borderRadius: '50%', minWidth: 18, height: 18, display: 'flex',
+                  alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700,
+                }}>
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
             </Link>
           );
         })}

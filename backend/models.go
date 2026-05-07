@@ -95,3 +95,21 @@ type Notification struct {
 	Message string
 	IsRead  bool `gorm:"default:false"`
 }
+
+type SystemConfig struct {
+	gorm.Model
+	BurnoutThresholdLow    float64 `gorm:"default:34"`
+	BurnoutThresholdMedium float64 `gorm:"default:67"`
+	PsychoThresholdLow     float64 `gorm:"default:34"`
+	PsychoThresholdMedium  float64 `gorm:"default:67"`
+	InterferenceWeight     float64 `gorm:"default:1.0"`
+	EarlyWarningEnabled    bool    `gorm:"default:true"`
+	EarlyWarningThreshold  float64 `gorm:"default:0.7"`
+	MaintenanceMode        bool    `gorm:"default:false"`
+	MaxAssessmentPerDay    int     `gorm:"default:3"`
+	AIResponseEnabled      bool    `gorm:"default:true"`
+	NotificationRetention  int     `gorm:"default:30"`
+	DataRetentionDays      int     `gorm:"default:365"`
+	ModelVersion           string  `gorm:"default:1.0.0"`
+	AppName                string  `gorm:"default:QC Analytics"`
+}

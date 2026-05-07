@@ -1,82 +1,56 @@
-import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { card, sectionTitle } from '../dashboard/styles';
-import { questionsPool } from './userData';
+import { ClipboardList, ArrowRight, Sparkles } from 'lucide-react';
 
 interface DailyQuestionnaireProps {
   onSubmitSuccess?: () => void;
 }
 
 export default function DailyQuestionnaire({ onSubmitSuccess }: DailyQuestionnaireProps) {
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [isCompleted, setIsCompleted] = useState(false);
-  const [answers, setAnswers] = useState<number[]>([]);
-  
-  // Ambil 3 pertanyaan acak (untuk mockup kita ambil 3 pertama)
-  const todaysQuestions = questionsPool.slice(0, 3);
-
-  const handleAnswer = (score: number) => {
-    setAnswers([...answers, score]);
-    if (currentQuestionIndex < todaysQuestions.length - 1) {
-      setCurrentQuestionIndex(currentQuestionIndex + 1);
-    } else {
-      setIsCompleted(true);
-      // Trigger parent refresh so stat cards update
-      onSubmitSuccess?.();
-    }
-  };
+  const nav = useNavigate();
 
   return (
     <div style={{ ...card, display: 'flex', flexDirection: 'column' }}>
-      <div style={sectionTitle}>Kuisioner Harian</div>
-      
-      {isCompleted ? (
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px 0' }}>
-          <div style={{ width: 48, height: 48, borderRadius: '50%', background: '#22c55e22', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
-            <span style={{ fontSize: 24 }}>🎉</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+        <Sparkles size={13} color="#a855f7" />
+        <div style={{ ...sectionTitle, margin: 0 }}>Kuisioner Harian</div>
+      </div>
+
+      <p style={{ fontSize: 11, color: '#8890a4', margin: '0 0 16px', lineHeight: 1.5 }}>
+        Kuisioner berbasis AI dengan pertanyaan baru setiap hari. Menggunakan model <strong style={{ color: '#a89cff' }}>Quantum Cognition</strong> + <strong style={{ color: '#3ecfcf' }}>Regresi Linier</strong> untuk menganalisis tingkat burnout dan risiko psikosomatis Anda.
+      </p>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
+        {[
+          { icon: '🧠', text: '10 pertanyaan AI-generated baru setiap hari' },
+          { icon: '⏱️', text: 'Analisis quantum + reaction time tracking' },
+          { icon: '📊', text: 'Hasil prediksi burnout & psikosomatis' },
+          { icon: '🔔', text: 'Notifikasi otomatis setelah analisis selesai' },
+        ].map((item, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: '#c0c9e0' }}>
+            <span>{item.icon}</span>
+            <span>{item.text}</span>
           </div>
-          <div style={{ color: '#e2e8f0', fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Terima kasih!</div>
-          <div style={{ color: '#8890a4', fontSize: 11, textAlign: 'center' }}>Data Anda telah dicatat untuk analisis hari ini.</div>
-        </div>
-      ) : (
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-          <div style={{ fontSize: 11, color: '#8890a4', marginBottom: 12 }}>
-            Pertanyaan {currentQuestionIndex + 1} dari {todaysQuestions.length}
-          </div>
-          <div style={{ fontSize: 14, color: '#e2e8f0', fontWeight: 500, marginBottom: 24, lineHeight: 1.4 }}>
-            {todaysQuestions[currentQuestionIndex]}
-          </div>
-          
-          <div style={{ marginTop: 'auto', display: 'flex', gap: 8, flexDirection: 'column' }}>
-            {[
-              { label: 'Sangat Buruk / Sering', score: 1, color: '#ef4444' },
-              { label: 'Buruk / Lumayan', score: 2, color: '#f59e0b' },
-              { label: 'Biasa Saja', score: 3, color: '#3ecfcf' },
-              { label: 'Baik / Jarang', score: 4, color: '#6c63ff' },
-              { label: 'Sangat Baik / Tidak Pernah', score: 5, color: '#22c55e' }
-            ].map((opt) => (
-              <button
-                key={opt.score}
-                onClick={() => handleAnswer(opt.score)}
-                style={{
-                  background: 'transparent',
-                  border: `1px solid ${opt.color}40`,
-                  padding: '8px 12px',
-                  borderRadius: 8,
-                  color: '#e2e8f0',
-                  fontSize: 12,
-                  textAlign: 'left',
-                  cursor: 'pointer',
-                  transition: 'background 0.2s',
-                }}
-                onMouseOver={(e) => (e.currentTarget.style.background = `${opt.color}15`)}
-                onMouseOut={(e) => (e.currentTarget.style.background = 'transparent')}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+        ))}
+      </div>
+
+      <button
+        onClick={() => nav('/user/kuisioner')}
+        style={{
+          width: '100%', padding: '11px', borderRadius: 10,
+          background: 'linear-gradient(135deg, #6c63ff, #a855f7)',
+          border: 'none', color: '#fff', fontSize: 13, fontWeight: 600,
+          cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          boxShadow: '0 4px 16px rgba(108,99,255,0.3)',
+        }}>
+        <ClipboardList size={15} />
+        Mulai Kuisioner Hari Ini
+        <ArrowRight size={15} />
+      </button>
+
+      <p style={{ fontSize: 10, color: '#4a5068', textAlign: 'center', marginTop: 10 }}>
+        Hasil otomatis tersimpan & tampil di dashboard
+      </p>
     </div>
   );
 }

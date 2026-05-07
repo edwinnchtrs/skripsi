@@ -12,6 +12,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"time"
 )
 
 // --- NLP Engine (Enhanced Stress Detection) ---
@@ -181,13 +182,13 @@ Kamu HARUS merespons dalam format JSON sebagai berikut:
 
 func fallbackAIResponse(stressScore float64) string {
 	if stressScore > 0.8 {
-		return "Saya mengerti ini pasti sangat berat untukmu. Tidak apa-apa merasa lelah. Apakah ada hal spesifik yang memicu beban ini? Saya di sini mendengarkan."
-	} else if stressScore > 0.5 {
-		return "Sepertinya kamu sedang menghadapi tantangan yang cukup membuat stres. Cobalah untuk mengambil jeda sejenak dan tarik napas dalam. Ingin bercerita lebih lanjut?"
-	} else if stressScore > 0.2 {
-		return "Terima kasih sudah berbagi. Terkadang hal-hal kecil memang bisa menumpuk. Jangan lupa untuk memberi dirimu sendiri apresiasi atas usahamu hari ini."
+		return "Aku benar-benar mendengarmu. Ini terdengar sangat berat dan kamu tidak sendirian menghadapi ini. Cobalah untuk mengambil napas dalam sejenak ya. Apakah kamu ingin menceritakan lebih detail apa yang membuatmu merasa seperti ini? Kadang berbagi bisa sedikit meringankan beban."
+	} else if stressScore > 0.6 {
+		return "Wah, sepertinya kamu sedang dalam tekanan yang cukup besar. Wajar kok merasa seperti itu. Mungkin kamu bisa coba istirahat sejenak, lakukan hal kecil yang kamu suka. Ada yang bisa aku bantu untuk meringankan pikiranmu hari ini?"
+	} else if stressScore > 0.35 {
+		return "Aku paham, kadang hal-hal kecil memang bisa numpuk dan bikin kita capek sendiri. Tapi hebat lho kamu masih bertahan sampai sekarang. Coba deh ingat-ingat satu hal positif yang terjadi hari ini, sekecil apapun itu."
 	} else {
-		return "Senang mendengarnya! Terlihat kamu sedang dalam kondisi emosional yang cukup stabil. Pertahankan hal-hal positif ini ya!"
+		return "Senang mendengarnya! Sepertinya kamu dalam kondisi yang cukup baik. Tetap jaga keseimbangan ya antara kerja/istirahat. Kalau ada yang mengganjal, aku selalu di sini untuk mendengarkan."
 	}
 }
 
@@ -311,4 +312,130 @@ func predictBurnout(fatigue, cynicism, efficacy, interference, nlpStress float64
 	}
 
 	return burnoutScore, psychosomaticScore, riskLevel
+}
+
+// --- AI-Generated Daily Questions ---
+var cachedQuestions []Question
+var cachedDate string
+var generating bool
+
+func getDailyQuestions() ([]Question, string) {
+	today := time.Now().Format("2006-01-02")
+
+	// Return cached if available for today
+	if cachedDate == today && len(cachedQuestions) > 0 {
+		return cachedQuestions, today
+	}
+
+	// Return defaults immediately, trigger async AI generation
+	if !generating {
+		generating = true
+		go generateDailyQuestionsBG(today)
+	}
+
+	// If we have previous day's cache, return that (better than defaults)
+	if len(cachedQuestions) > 0 {
+		return cachedQuestions, today
+	}
+
+	return getDefaultQuestions(), today
+}
+
+func generateDailyQuestionsBG(today string) {
+	defer func() { generating = false }()
+
+	apiKey := os.Getenv("OPENROUTER_API_KEY")
+	if apiKey == "" {
+		return
+	}
+
+	url := "https://openrouter.ai/api/v1/chat/completions"
+	systemPrompt := `Kamu adalah generator kuisioner kesehatan mental. Hasilkan 10 pertanyaan dalam Bahasa Indonesia untuk mengukur burnout dan kesehatan mental. 
+Gunakan topik VARIATIF: kelelahan emosional, sinisme, efikasi diri, work-life balance, dukungan sosial, tidur, kecemasan, motivasi, hubungan kerja/kuliah, dan harapan masa depan.
+Setiap pertanyaan HARUS memiliki tipe: "fatigue", "cynicism", atau "efficacy".
+
+OUTPUT JSON:
+{
+  "questions": [
+    {"id": "q1", "text": "Pertanyaan di sini?", "construct_type": "fatigue"},
+    ...
+  ]
+}
+Bahasa Indonesia natural. Variasikan topik setiap hari.`
+
+	requestBody, _ := json.Marshal(map[string]interface{}{
+		"model":       "openai/gpt-4o-mini",
+		"messages":    []map[string]string{{"role": "system", "content": systemPrompt}, {"role": "user", "content": "Generate 10 unique burnout/mental health survey questions in Bahasa Indonesia for today: " + today}},
+		"max_tokens":  800,
+		"temperature": 0.5,
+		"response_format": map[string]string{"type": "json_object"},
+	})
+
+	req, _ := http.NewRequest("POST", url, bytes.NewBuffer(requestBody))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+	req.Header.Set("HTTP-Referer", "http://localhost:5173")
+
+	client := &http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Println("BG Question Gen Error:", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != 200 {
+		return
+	}
+
+	var result struct {
+		Choices []struct {
+			Message struct {
+				Content string `json:"content"`
+			} `json:"message"`
+		} `json:"choices"`
+	}
+	if err := json.Unmarshal(body, &result); err != nil || len(result.Choices) == 0 {
+		return
+	}
+
+	var gen struct {
+		Questions []struct {
+			ID            string `json:"id"`
+			Text          string `json:"text"`
+			ConstructType string `json:"construct_type"`
+		} `json:"questions"`
+	}
+	if err := json.Unmarshal([]byte(result.Choices[0].Message.Content), &gen); err != nil || len(gen.Questions) < 3 {
+		return
+	}
+
+	var questions []Question
+	for i, q := range gen.Questions {
+		questions = append(questions, Question{
+			ID:            fmt.Sprintf("q%d", i+1),
+			Text:          q.Text,
+			ConstructType: q.ConstructType,
+		})
+	}
+
+	cachedQuestions = questions
+	cachedDate = today
+	fmt.Println("AI questions generated for", today)
+}
+
+func getDefaultQuestions() []Question {
+	return []Question{
+		{ID: "q1", Text: "Saya merasa lelah secara emosional karena pekerjaan/kuliah.", ConstructType: "fatigue"},
+		{ID: "q2", Text: "Saya merasa kurang peduli dengan rekan kerja/teman.", ConstructType: "cynicism"},
+		{ID: "q3", Text: "Saya merasa mampu menyelesaikan masalah dengan baik.", ConstructType: "efficacy"},
+		{ID: "q4", Text: "Saya terbebani oleh tuntutan pekerjaan/kuliah yang terus meningkat.", ConstructType: "fatigue"},
+		{ID: "q5", Text: "Terkadang saya merasa ragu pada kemampuan saya sendiri.", ConstructType: "efficacy"},
+		{ID: "q6", Text: "Saya merasa kurang bersemangat saat memulai hari.", ConstructType: "cynicism"},
+		{ID: "q7", Text: "Saya sulit tidur karena memikirkan pekerjaan atau tugas.", ConstructType: "fatigue"},
+		{ID: "q8", Text: "Saya merasa didukung oleh orang-orang di sekitar saya.", ConstructType: "efficacy"},
+		{ID: "q9", Text: "Saya kehilangan minat pada hal-hal yang dulu saya nikmati.", ConstructType: "cynicism"},
+		{ID: "q10", Text: "Saya mampu mengelola stres dengan baik.", ConstructType: "efficacy"},
+	}
 }

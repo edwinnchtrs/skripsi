@@ -183,10 +183,10 @@ export default function Login() {
 
             <form onSubmit={submit}>
               <div className="field">
-                <label>Email</label>
+                <label>Username</label>
                 <div className="wrap">
                   <Mail size={14} className="icon-l" />
-                  <input type="text" value={u} onChange={e => setU(e.target.value)} placeholder="Masukkan email Anda" required />
+                  <input type="text" value={u} onChange={e => setU(e.target.value)} placeholder="Masukkan username Anda" required />
                 </div>
               </div>
               <div className="field">

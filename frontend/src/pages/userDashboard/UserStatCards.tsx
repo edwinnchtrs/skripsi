@@ -131,7 +131,7 @@ export default function UserStatCards({ predictions, assessments, loading }: Use
   // --- Burnout Score card ---
   const burnoutValue = latestPred ? latestPred.BurnoutScore.toFixed(1) : '—';
   const burnoutSub = latestPred
-    ? (latestPred.BurnoutScore < 50 ? 'Masih aman ✅' : latestPred.BurnoutScore < 75 ? 'Perlu perhatian ⚠️' : 'Kritis 🔴')
+    ? (latestPred.BurnoutScore < 4 ? 'Masih aman' : latestPred.BurnoutScore < 6 ? 'Perlu perhatian' : latestPred.BurnoutScore >= 7.5 ? 'Kritis' : 'Waspada')
     : 'Belum ada prediksi';
 
   // --- Streak card ---
