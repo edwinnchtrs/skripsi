@@ -47,7 +47,6 @@ export default function DashboardPage() {
   const filteredTrend = useMemo(() => {
     const data = analytics?.trendData || [];
     if (dateFilter === 'all' || !data.length) return data;
-    const now = new Date();
     const days: Record<string, number> = { '7d': 7, '30d': 30, '90d': 90, 'this-month': 30, 'last-month': 30 };
     const limit = days[dateFilter] || data.length;
     return data.slice(Math.max(0, data.length - limit));

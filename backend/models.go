@@ -96,6 +96,14 @@ type Notification struct {
 	IsRead  bool `gorm:"default:false"`
 }
 
+type Message struct {
+	gorm.Model
+	SenderID   uint      `json:"SenderID"`
+	ReceiverID uint      `json:"ReceiverID"`
+	Text       string    `json:"Text"`
+	Timestamp  time.Time `gorm:"autoCreateTime" json:"Timestamp"`
+}
+
 type SystemConfig struct {
 	gorm.Model
 	BurnoutThresholdLow    float64 `gorm:"default:34"`

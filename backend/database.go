@@ -38,6 +38,7 @@ func ConnectDatabase() {
 		&TherapyRecommendation{},
 		&Follow{},
 		&Affinity{},
+		&Message{},
 		&SystemConfig{},
 	)
 	if err != nil {

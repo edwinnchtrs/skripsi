@@ -2,6 +2,7 @@ package main
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -213,4 +214,136 @@ func GosipGetHandler(c *gin.Context) {
 	var curhats []Curhat
 	DB.Preload("Replies").Order("timestamp desc").Limit(20).Find(&curhats)
 	c.JSON(http.StatusOK, gin.H{"curhats": curhats})
+}
+
+func NetworkConversationsHandler(c *gin.Context) {
+	user := c.MustGet("user").(User)
+
+	type ConvResult struct {
+		ID         uint
+		Nama       string
+		Username   string
+		ProfilePic string
+		LastText   string
+		LastTime   time.Time
+		PartnerID  uint
+	}
+
+	var convs []ConvResult
+	// MySQL-compatible query: use subquery instead of LATERAL
+	DB.Raw(`
+		SELECT u.id, u.nama, u.username, u.profile_pic,
+			COALESCE(
+				(SELECT text FROM messages
+				 WHERE (sender_id = ? AND receiver_id = u.id) OR (sender_id = u.id AND receiver_id = ?)
+				 ORDER BY timestamp DESC LIMIT 1
+				), ''
+			) AS last_text,
+			COALESCE(
+				(SELECT timestamp FROM messages
+				 WHERE (sender_id = ? AND receiver_id = u.id) OR (sender_id = u.id AND receiver_id = ?)
+				 ORDER BY timestamp DESC LIMIT 1
+				), u.created_at
+			) AS last_time,
+			u.id AS partner_id
+		FROM users u
+		WHERE u.id != ?
+		  AND u.deleted_at IS NULL
+		  AND EXISTS (
+			  SELECT 1 FROM messages m
+			  WHERE (m.sender_id = ? AND m.receiver_id = u.id)
+			     OR (m.sender_id = u.id AND m.receiver_id = ?)
+		  )
+		ORDER BY last_time DESC
+		LIMIT 30
+	`, user.ID, user.ID, user.ID, user.ID, user.ID, user.ID, user.ID).Scan(&convs)
+
+	type ConversationDTO struct {
+		ID          uint      `json:"id"`
+		Nama        string    `json:"nama"`
+		Username    string    `json:"username"`
+		ProfilePic  string    `json:"profile_pic"`
+		LastMessage string    `json:"last_message"`
+		LastTime    time.Time `json:"last_time"`
+	}
+
+	var results []ConversationDTO
+	for _, conv := range convs {
+		results = append(results, ConversationDTO{
+			ID:          conv.ID,
+			Nama:        conv.Nama,
+			Username:    conv.Username,
+			ProfilePic:  conv.ProfilePic,
+			LastMessage: conv.LastText,
+			LastTime:    conv.LastTime,
+		})
+	}
+
+	if results == nil {
+		results = []ConversationDTO{}
+	}
+	c.JSON(http.StatusOK, gin.H{"conversations": results})
+}
+
+func NetworkMessagesHandler(c *gin.Context) {
+	user := c.MustGet("user").(User)
+	targetID := c.Param("userId")
+
+	var target User
+	if err := DB.First(&target, targetID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
+
+	var messages []Message
+	DB.Where(
+		"(sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)",
+		user.ID, targetID, targetID, user.ID,
+	).Order("timestamp ASC").Limit(100).Find(&messages)
+
+	if messages == nil {
+		messages = []Message{}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"messages": messages,
+		"partner": gin.H{
+			"id":          target.ID,
+			"nama":        target.Nama,
+			"username":    target.Username,
+			"profile_pic": target.ProfilePic,
+		},
+	})
+}
+
+func NetworkSendMessageHandler(c *gin.Context) {
+	user := c.MustGet("user").(User)
+	targetID := c.Param("userId")
+
+	var input struct {
+		Text string `json:"text" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Pesan tidak boleh kosong"})
+		return
+	}
+
+	var target User
+	if err := DB.First(&target, targetID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User tidak ditemukan"})
+		return
+	}
+
+	msg := Message{
+		SenderID:   user.ID,
+		ReceiverID: target.ID,
+		Text:       input.Text,
+	}
+
+	if err := DB.Create(&msg).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengirim pesan"})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"message": msg})
 }

@@ -59,12 +59,19 @@ export default function UserCurhat() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [chatRes, notifRes] = await Promise.all([
+      const [chatRes, notifRes, unreadRes] = await Promise.all([
         api.get('/user/curhat'),
         api.get('/user/notifications'),
+        api.get('/notifications/unread')
       ]);
       if (chatRes.data.curhats) setCurhats(chatRes.data.curhats);
       if (notifRes.data.notifications) setNotifications(notifRes.data.notifications);
+      
+      // Mark all unread notifications as read so the red badge disappears
+      const unread = unreadRes.data.notifications || [];
+      for (const n of unread) {
+        await api.post(`/notifications/${n.ID}/read`).catch(() => {});
+      }
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   };

@@ -45,6 +45,9 @@ func main() {
 			protected.GET("/network/users", NetworkUsersHandler)
 			protected.POST("/network/follow/:id", NetworkFollowHandler)
 			protected.POST("/network/affinity/:id", NetworkAffinityHandler)
+			protected.GET("/network/conversations", NetworkConversationsHandler)
+			protected.GET("/network/messages/:userId", NetworkMessagesHandler)
+			protected.POST("/network/messages/:userId", NetworkSendMessageHandler)
 			
 			// Curhat & Gossip
 			protected.GET("/gosip", GosipGetHandler)
