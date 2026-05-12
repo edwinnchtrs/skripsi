@@ -62,6 +62,12 @@ func main() {
 			protected.POST("/curhat/:id/reply", CurhatReplyHandler)
 			protected.POST("/post/create", PostCreateHandler)
 			protected.GET("/user/curhat", UserCurhatHandler)
+
+			// Feed & Post Interactions
+			protected.GET("/feed", FeedGetHandler)
+			protected.POST("/post/:id/like", PostLikeHandler)
+			protected.GET("/post/:id/comments", PostCommentsGetHandler)
+			protected.POST("/post/:id/comment", PostCommentCreateHandler)
 			
 			// Notifications
 			protected.GET("/notifications/unread", NotificationsUnreadHandler)

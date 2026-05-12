@@ -26,3 +26,5 @@ venv/
 __pycache__/
 *.pyc
 .env
+backend/nul.exe
+nul.exe

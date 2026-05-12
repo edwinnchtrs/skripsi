@@ -391,28 +391,30 @@ func NetworkUserProfileHandler(c *gin.Context) {
 	if mfDTO == nil { mfDTO = []MutualFriendDTO{} }
 
 	var postCount int64
-	DB.Model(&Curhat{}).Where("user_id = ? AND is_anonymous = ?", target.ID, false).Count(&postCount)
+	DB.Model(&Post{}).Where("user_id = ?", target.ID).Count(&postCount)
 
 	var assessmentCount int64
 	DB.Model(&Assessment{}).Where("user_id = ?", target.ID).Count(&assessmentCount)
 
-	var recentPosts []Curhat
-	DB.Where("user_id = ? AND is_anonymous = ?", target.ID, false).
-		Order("timestamp DESC").Limit(9).Find(&recentPosts)
+	var recentPosts []Post
+	DB.Where("user_id = ?", target.ID).
+		Order("created_at DESC").Limit(9).Find(&recentPosts)
 
 	type PostDTO struct {
-		ID        uint      `json:"id"`
-		Text      string    `json:"text"`
-		Image     string    `json:"image"`
-		Timestamp time.Time `json:"timestamp"`
-		Reactions int       `json:"reactions"`
+		ID        uint   `json:"ID"`
+		Text      string `json:"Text"`
+		Image     string `json:"Image"`
+		Timestamp string `json:"Timestamp"`
+		Reactions int    `json:"Reactions"`
 	}
 	var postsDTO []PostDTO
 	for _, p := range recentPosts {
-		var reactCount int64
-		DB.Model(&GossipReact{}).Where("curhat_id = ?", p.ID).Count(&reactCount)
+		var likeCount int64
+		DB.Model(&PostLike{}).Where("post_id = ?", p.ID).Count(&likeCount)
 		postsDTO = append(postsDTO, PostDTO{
-			ID: p.ID, Text: p.Text, Image: p.Image, Timestamp: p.Timestamp, Reactions: int(reactCount),
+			ID: p.ID, Text: p.Text, Image: p.Image,
+			Timestamp: p.Timestamp.Format("2006-01-02T15:04:05Z07:00"),
+			Reactions: int(likeCount),
 		})
 	}
 	if postsDTO == nil { postsDTO = []PostDTO{} }
@@ -448,3 +450,6 @@ func NetworkUserProfileHandler(c *gin.Context) {
 		"activity":         activityItems,
 	})
 }
+
+
+

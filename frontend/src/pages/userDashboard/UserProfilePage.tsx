@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -6,7 +6,7 @@ import {
   Heart, HeartHandshake, Smile, Sparkles, ArrowLeft, Grid3X3,
   Activity, Info, MoreHorizontal, Users, ChevronRight, Clock,
   TrendingUp, Shield, Zap, CheckCircle2, AlertTriangle, Loader2,
-  Send, ExternalLink, Brain, Target, Flame, Plus, Camera, Image,
+  Send, ExternalLink, Brain, Target, Flame, Plus, Camera, Image, X,
 } from 'lucide-react';
 import api from '../../api';
 import PhotoViewerModal from './PhotoViewerModal';
@@ -73,6 +73,17 @@ export default function UserProfilePage() {
   const [currentUser, setCurrentUser] = useState({ nama: '', profile_pic: '' });
   const [isOwnProfile, setIsOwnProfile] = useState(false);
 
+  /* ─── Chat / Messenger state ─── */
+  const [chatOpen, setChatOpen] = useState(false);
+  const [messages, setMessages] = useState<{ ID: number; SenderID: number; ReceiverID: number; Text: string; Timestamp: string }[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [sending, setSending] = useState(false);
+  const [chatLoading, setChatLoading] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState(0);
+  const chatScrollRef = useRef<HTMLDivElement>(null);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastMsgIdRef = useRef(0);
+
   useEffect(() => {
     if (!username) return;
     setLoading(true);
@@ -83,6 +94,7 @@ export default function UserProfilePage() {
 
     api.get('/user/profile').then(r => {
       setCurrentUser({ nama: r.data.nama, profile_pic: r.data.profile_pic || '' });
+      setCurrentUserId(r.data.id);
       setIsOwnProfile(r.data.username === username);
     }).catch(() => {});
   }, [username, navigate]);
@@ -100,6 +112,84 @@ export default function UserProfilePage() {
       setFollowLoading(false);
     }
   };
+
+  /* ─── Chat functions ─── */
+  const openChat = async () => {
+    if (!profile) return;
+    setChatOpen(true);
+    setChatLoading(true);
+    lastMsgIdRef.current = 0;
+    try {
+      const res = await api.get(`/network/messages/${profile.id}`);
+      setMessages(res.data.messages || []);
+      if (res.data.messages?.length) {
+        lastMsgIdRef.current = res.data.messages[res.data.messages.length - 1].ID;
+      }
+    } catch { setMessages([]); }
+    finally { setChatLoading(false); }
+  };
+
+  const closeChat = () => {
+    setChatOpen(false);
+    setMessages([]);
+    setChatInput('');
+    if (pollingRef.current) clearInterval(pollingRef.current);
+    pollingRef.current = null;
+  };
+
+  useEffect(() => {
+    if (chatOpen && profile) {
+      pollingRef.current = setInterval(async () => {
+        try {
+          const res = await api.get(`/network/messages/${profile.id}`);
+          const msgs = res.data.messages || [];
+          if (msgs.length > 0) {
+            const lastId = msgs[msgs.length - 1].ID;
+            if (lastId > lastMsgIdRef.current) {
+              setMessages(msgs);
+              lastMsgIdRef.current = lastId;
+            }
+          }
+        } catch { /* silent */ }
+      }, 2500);
+      return () => { if (pollingRef.current) clearInterval(pollingRef.current); };
+    }
+  }, [chatOpen, profile]);
+
+  useEffect(() => {
+    if (chatScrollRef.current) {
+      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+    }
+  }, [messages]);
+
+  const sendMessage = async () => {
+    if (!chatInput.trim() || !profile || sending) return;
+    setSending(true);
+    const text = chatInput.trim();
+    setChatInput('');
+    const tempMsg = { ID: Date.now(), SenderID: currentUserId, ReceiverID: profile.id, Text: text, Timestamp: new Date().toISOString() };
+    setMessages(prev => [...prev, tempMsg]);
+    try {
+      const res = await api.post(`/network/messages/${profile.id}`, { text });
+      if (res.data.message) {
+        setMessages(prev => prev.map(m => m.ID === tempMsg.ID ? { ...res.data.message } : m));
+        lastMsgIdRef.current = res.data.message.ID;
+      }
+    } catch {
+      setMessages(prev => prev.filter(m => m.ID !== tempMsg.ID));
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleChatKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+  };
+
+  function formatChatTime(ts: string) {
+    const d = new Date(ts);
+    return d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+  }
 
   if (loading) {
     return (
@@ -209,7 +299,7 @@ export default function UserProfilePage() {
                     {followLoading ? <Loader2 size={15} className="animate-spin" /> : profile.is_followed ? <UserCheck size={15} /> : <UserPlus size={15} />}
                     {profile.is_followed ? 'Mengikuti' : 'Ikuti'}
                   </button>
-                  <button onClick={() => { api.get(`/network/messages/${profile.id}`).then(() => {}); navigate('/user/network', { state: { openChat: profile.id } }); }} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-[13px] font-medium border border-[#1e293b] text-[#c0c9e0] hover:border-[#6c63ff]/30 hover:text-[#a89cff] hover:bg-[#6c63ff]/5 transition-all duration-200">
+                  <button onClick={openChat} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-[13px] font-medium border border-[#1e293b] text-[#c0c9e0] hover:border-[#6c63ff]/30 hover:text-[#a89cff] hover:bg-[#6c63ff]/5 transition-all duration-200">
                     <MessageCircle size={15} /> Pesan
                   </button>
                   <button className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-[13px] font-medium border border-[#1e293b] text-[#8890a4] hover:border-[#334155] hover:text-[#c0c9e0] transition-all duration-200">
@@ -424,6 +514,120 @@ export default function UserProfilePage() {
         onCreated={() => { if (username) api.get(`/network/user/${username}`).then(res => setProfile(res.data)).catch(() => {}); }}
         currentUser={currentUser}
       />
+
+      {/* ─── Messenger Panel (Instagram DM style) ─── */}
+      <AnimatePresence>
+        {chatOpen && profile && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/70 z-[90]"
+              onClick={closeChat}
+            />
+            <motion.div
+              initial={{ x: '100%', opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: '100%', opacity: 0 }}
+              transition={{ type: 'spring', damping: 28, stiffness: 320 }}
+              className="fixed right-0 top-0 bottom-0 w-full max-w-[400px] bg-[#000000] border-l border-[#262626] flex flex-col z-[95] shadow-2xl"
+            >
+              {/* Messenger header */}
+              <div className="flex items-center gap-3 px-4 py-3 border-b border-[#262626] shrink-0">
+                <button onClick={closeChat} className="p-1.5 text-[#a8a8a8] hover:text-white transition-colors">
+                  <ArrowLeft size={18} />
+                </button>
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#059669] to-[#06b6d4] p-[1.5px] shrink-0">
+                  <div className="w-full h-full rounded-full bg-black p-[1px]">
+                    {profile.profile_pic ? (
+                      <img src={profile.profile_pic} alt="" className="w-full h-full rounded-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full rounded-full bg-[#1a1a1a] flex items-center justify-center">
+                        <User size={12} color="#a8a8a8" />
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-[13px] font-semibold truncate">{profile.nama}</div>
+                  <div className="text-[10px] text-[#a8a8a8]">@{profile.username}</div>
+                </div>
+                <button
+                  onClick={() => navigate(`/user/profile/${profile.username}`)}
+                  className="p-1.5 text-[#a8a8a8] hover:text-white transition-colors"
+                >
+                  <ExternalLink size={16} />
+                </button>
+              </div>
+
+              {/* Messages */}
+              <div ref={chatScrollRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-3 scrollbar-thin">
+                {chatLoading ? (
+                  <div className="flex items-center justify-center h-full">
+                    <Loader2 size={20} className="animate-spin text-[#a8a8a8]" />
+                  </div>
+                ) : messages.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full gap-3">
+                    <div className="w-[62px] h-[62px] rounded-full border-2 border-[#262626] flex items-center justify-center">
+                      <MessageCircle size={24} color="#a8a8a8" />
+                    </div>
+                    <span className="text-[13px] text-[#a8a8a8] font-medium">Belum ada pesan</span>
+                    <span className="text-[11px] text-[#555]">Kirim pesan pertama</span>
+                  </div>
+                ) : (
+                  messages.map(msg => {
+                    const isMe = msg.SenderID === currentUserId;
+                    return (
+                      <motion.div
+                        key={msg.ID}
+                        initial={{ opacity: 0, y: 8, scale: 0.97 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}
+                      >
+                        <div className={`max-w-[75%] ${isMe ? 'order-1' : ''}`}>
+                          <div
+                            className={`px-3.5 py-2.5 rounded-[22px] text-[13px] leading-relaxed break-words ${
+                              isMe
+                                ? 'bg-[#3797f0] text-white rounded-br-[6px]'
+                                : 'bg-[#262626] text-[#f5f5f5] rounded-bl-[6px]'
+                            }`}
+                          >
+                            {msg.Text}
+                          </div>
+                          <div className={`text-[10px] text-[#555] mt-1 ${isMe ? 'text-right' : 'text-left'}`}>
+                            {formatChatTime(msg.Timestamp)}
+                          </div>
+                        </div>
+                      </motion.div>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* Input */}
+              <div className="px-3 py-3 border-t border-[#262626] shrink-0">
+                <div className="flex items-center gap-2 bg-[#1a1a1a] rounded-full px-4 py-2 border border-[#262626]">
+                  <input
+                    value={chatInput}
+                    onChange={e => setChatInput(e.target.value)}
+                    onKeyDown={handleChatKeyDown}
+                    placeholder="Ketik pesan..."
+                    className="flex-1 bg-transparent text-[13px] text-white placeholder:text-[#555] outline-none"
+                  />
+                  <button
+                    onClick={sendMessage}
+                    disabled={!chatInput.trim() || sending}
+                    className="shrink-0 text-[#0095f6] hover:text-white disabled:opacity-30 transition-colors p-1"
+                  >
+                    {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }

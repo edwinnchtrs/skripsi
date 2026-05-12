@@ -40,6 +40,9 @@ func ConnectDatabase() {
 		&Affinity{},
 		&Message{},
 		&SystemConfig{},
+		&Post{},
+		&PostLike{},
+		&PostComment{},
 	)
 	if err != nil {
 		log.Fatal("Failed to auto migrate database!", err)

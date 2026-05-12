@@ -48,6 +48,7 @@ type Assessment struct {
 type Curhat struct {
 	gorm.Model
 	UserID      uint
+	User        User `gorm:"foreignKey:UserID"`
 	IsAnonymous bool `gorm:"default:true"`
 	Text        string
 	Image       string
@@ -103,6 +104,30 @@ type Message struct {
 	ReceiverID uint      `json:"ReceiverID"`
 	Text       string    `json:"Text"`
 	Timestamp  time.Time `gorm:"autoCreateTime" json:"Timestamp"`
+}
+
+type Post struct {
+	gorm.Model
+	UserID    uint      `gorm:"index"`
+	Text      string
+	Image     string
+	Timestamp time.Time `gorm:"autoCreateTime"`
+	Likes     []PostLike
+	Comments  []PostComment
+}
+
+type PostLike struct {
+	gorm.Model
+	PostID uint `gorm:"index"`
+	UserID uint `gorm:"index"`
+}
+
+type PostComment struct {
+	gorm.Model
+	PostID    uint      `gorm:"index"`
+	UserID    uint      `gorm:"index"`
+	Text      string
+	Timestamp time.Time `gorm:"autoCreateTime"`
 }
 
 type SystemConfig struct {

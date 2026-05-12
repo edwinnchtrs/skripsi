@@ -100,12 +100,10 @@ func PostCreateHandler(c *gin.Context) {
 		return
 	}
 
-	post := Curhat{
-		UserID:      user.ID,
-		Text:        input.Text,
-		Image:       input.Image,
-		IsAnonymous: false,
-		StressScore: 0,
+	post := Post{
+		UserID: user.ID,
+		Text:   input.Text,
+		Image:  input.Image,
 	}
 	if err := DB.Create(&post).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat postingan"})
