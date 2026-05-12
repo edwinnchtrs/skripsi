@@ -89,6 +89,9 @@ export default function DashboardPage() {
             <ScatterPlot data={analytics?.scatterData} loading={loading} />
             <ModelPerformance />
           </div>
+          
+          {/* Table below Row 2 to fill the gap */}
+          <RespondentTable data={filteredRespondents} loading={loading} />
         </div>
 
         {/* Right Panel */}
@@ -96,9 +99,6 @@ export default function DashboardPage() {
           <RightPanel data={analytics} loading={loading} />
         </div>
       </div>
-
-      {/* Table full width */}
-      <RespondentTable data={filteredRespondents} loading={loading} />
     </div>
   );
 }

@@ -45,6 +45,31 @@ func ConnectDatabase() {
 	}
 
 	DB = database
+
+	SeedAdmin()
+}
+
+func SeedAdmin() {
+	var admin User
+	if err := DB.Where("username = ?", "admin").First(&admin).Error; err != nil {
+		// Admin not found, let's create one
+		hashedPassword, _ := HashPassword("admin123")
+		newAdmin := User{
+			Username:     "admin",
+			PasswordHash: hashedPassword,
+			Nama:         "Administrator",
+			Role:         "admin",
+		}
+		DB.Create(&newAdmin)
+		log.Println("Admin user created successfully (username: admin, password: admin123).")
+	} else {
+		// Admin exists, update password and role to ensure it works
+		hashedPassword, _ := HashPassword("admin123")
+		admin.PasswordHash = hashedPassword
+		admin.Role = "admin"
+		DB.Save(&admin)
+		log.Println("Admin user updated to ensure login works (username: admin, password: admin123).")
+	}
 }
 
 func getEnv(key, fallback string) string {
