@@ -82,3 +82,43 @@ func UserCurhatHandler(c *gin.Context) {
 	DB.Where("user_id = ?", user.ID).Order("timestamp asc").Find(&curhats)
 	c.JSON(http.StatusOK, gin.H{"curhats": curhats})
 }
+
+func PostCreateHandler(c *gin.Context) {
+	user := c.MustGet("user").(User)
+
+	var input struct {
+		Text  string `json:"text"`
+		Image string `json:"image"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if input.Text == "" && input.Image == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Text atau gambar harus diisi"})
+		return
+	}
+
+	post := Curhat{
+		UserID:      user.ID,
+		Text:        input.Text,
+		Image:       input.Image,
+		IsAnonymous: false,
+		StressScore: 0,
+	}
+	if err := DB.Create(&post).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat postingan"})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"status": "success",
+		"post": gin.H{
+			"id":        post.ID,
+			"text":      post.Text,
+			"image":     post.Image,
+			"timestamp": post.Timestamp,
+		},
+	})
+}

@@ -337,3 +337,114 @@ func NetworkSendMessageHandler(c *gin.Context) {
 
 	c.JSON(http.StatusCreated, gin.H{"message": msg})
 }
+
+func NetworkUserProfileHandler(c *gin.Context) {
+	currentUser := c.MustGet("user").(User)
+	username := c.Param("username")
+
+	var target User
+	if err := DB.Where("username = ?", username).First(&target).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User tidak ditemukan"})
+		return
+	}
+
+	var followerCount, followingCount int64
+	DB.Model(&Follow{}).Where("following_id = ?", target.ID).Count(&followerCount)
+	DB.Model(&Follow{}).Where("follower_id = ?", target.ID).Count(&followingCount)
+
+	var isFollowed bool
+	var followCount int64
+	DB.Model(&Follow{}).Where("follower_id = ? AND following_id = ?", currentUser.ID, target.ID).Count(&followCount)
+	isFollowed = followCount > 0
+
+	var affinityType string
+	var affinity Affinity
+	if err := DB.Where("user_id = ? AND target_user_id = ?", currentUser.ID, target.ID).First(&affinity).Error; err == nil {
+		affinityType = affinity.Type
+	}
+
+	var mutualFriendIDs []uint
+	DB.Raw(`
+		SELECT f1.following_id FROM follows f1
+		INNER JOIN follows f2 ON f1.following_id = f2.follower_id
+		WHERE f1.follower_id = ? AND f2.following_id = ? AND f1.following_id != ?
+		LIMIT 20
+	`, currentUser.ID, target.ID, currentUser.ID).Pluck("following_id", &mutualFriendIDs)
+
+	var mutualFriends []User
+	if len(mutualFriendIDs) > 0 {
+		DB.Where("id IN ?", mutualFriendIDs).Find(&mutualFriends)
+	}
+
+	type MutualFriendDTO struct {
+		ID         uint   `json:"id"`
+		Nama       string `json:"nama"`
+		Username   string `json:"username"`
+		ProfilePic string `json:"profile_pic"`
+	}
+	var mfDTO []MutualFriendDTO
+	for _, m := range mutualFriends {
+		mfDTO = append(mfDTO, MutualFriendDTO{
+			ID: m.ID, Nama: m.Nama, Username: m.Username, ProfilePic: m.ProfilePic,
+		})
+	}
+	if mfDTO == nil { mfDTO = []MutualFriendDTO{} }
+
+	var postCount int64
+	DB.Model(&Curhat{}).Where("user_id = ? AND is_anonymous = ?", target.ID, false).Count(&postCount)
+
+	var assessmentCount int64
+	DB.Model(&Assessment{}).Where("user_id = ?", target.ID).Count(&assessmentCount)
+
+	var recentPosts []Curhat
+	DB.Where("user_id = ? AND is_anonymous = ?", target.ID, false).
+		Order("timestamp DESC").Limit(9).Find(&recentPosts)
+
+	type PostDTO struct {
+		ID        uint      `json:"id"`
+		Text      string    `json:"text"`
+		Image     string    `json:"image"`
+		Timestamp time.Time `json:"timestamp"`
+		Reactions int       `json:"reactions"`
+	}
+	var postsDTO []PostDTO
+	for _, p := range recentPosts {
+		var reactCount int64
+		DB.Model(&GossipReact{}).Where("curhat_id = ?", p.ID).Count(&reactCount)
+		postsDTO = append(postsDTO, PostDTO{
+			ID: p.ID, Text: p.Text, Image: p.Image, Timestamp: p.Timestamp, Reactions: int(reactCount),
+		})
+	}
+	if postsDTO == nil { postsDTO = []PostDTO{} }
+
+	var activityItems []gin.H
+	var recentPredictions []Prediction
+	DB.Where("user_id = ?", target.ID).Order("timestamp DESC").Limit(10).Find(&recentPredictions)
+	for _, pred := range recentPredictions {
+		activityItems = append(activityItems, gin.H{
+			"type":      "prediction",
+			"timestamp": pred.Timestamp,
+			"detail":    pred.RiskLevel,
+			"score":     pred.BurnoutScore,
+		})
+	}
+	if activityItems == nil { activityItems = []gin.H{} }
+
+	c.JSON(http.StatusOK, gin.H{
+		"id":               target.ID,
+		"nama":             target.Nama,
+		"username":         target.Username,
+		"bio":              target.Bio,
+		"profile_pic":      target.ProfilePic,
+		"joined_at":        target.CreatedAt,
+		"follower_count":   followerCount,
+		"following_count":  followingCount,
+		"is_followed":      isFollowed,
+		"affinity":         affinityType,
+		"mutual_friends":   mfDTO,
+		"post_count":       postCount,
+		"assessment_count": assessmentCount,
+		"posts":            postsDTO,
+		"activity":         activityItems,
+	})
+}

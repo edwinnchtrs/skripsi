@@ -11,7 +11,12 @@ func main() {
 
 	// CORS
 	r.Use(func(c *gin.Context) {
-		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		origin := c.Request.Header.Get("Origin")
+		if origin != "" {
+			c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+		} else {
+			c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		}
 		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
 		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE")
@@ -49,11 +54,13 @@ func main() {
 			protected.GET("/network/conversations", NetworkConversationsHandler)
 			protected.GET("/network/messages/:userId", NetworkMessagesHandler)
 			protected.POST("/network/messages/:userId", NetworkSendMessageHandler)
+			protected.GET("/network/user/:username", NetworkUserProfileHandler)
 			
 			// Curhat & Gossip
 			protected.GET("/gosip", GosipGetHandler)
 			protected.POST("/curhat/submit", CurhatSubmitHandler)
 			protected.POST("/curhat/:id/reply", CurhatReplyHandler)
+			protected.POST("/post/create", PostCreateHandler)
 			protected.GET("/user/curhat", UserCurhatHandler)
 			
 			// Notifications

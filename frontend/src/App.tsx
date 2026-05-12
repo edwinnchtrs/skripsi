@@ -23,6 +23,7 @@ import UserAsesmenHistory from './pages/UserAsesmenHistory'
 import UserCurhat from './pages/UserCurhat'
 import UserProfileSettings from './pages/userDashboard/UserProfileSettings'
 import UserNetwork from './pages/userDashboard/UserNetwork'
+import UserProfilePage from './pages/userDashboard/UserProfilePage'
 import NotFound from './pages/NotFound'
 import ForgotPassword from './pages/ForgotPassword'
 
@@ -69,6 +70,7 @@ function App() {
           <Route path="/user/curhat" element={<UserCurhat />} />
           <Route path="/user/settings" element={<UserProfileSettings />} />
           <Route path="/user/network" element={<UserNetwork />} />
+          <Route path="/user/profile/:username" element={<UserProfilePage />} />
         </Route>
 
         {/* 404 — Catch All */}

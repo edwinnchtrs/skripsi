@@ -50,6 +50,7 @@ type Curhat struct {
 	UserID      uint
 	IsAnonymous bool `gorm:"default:true"`
 	Text        string
+	Image       string
 	StressScore float64
 	AIResponse  string
 	Timestamp   time.Time `gorm:"autoCreateTime"`
