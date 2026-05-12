@@ -29,6 +29,7 @@ func main() {
 		api.POST("/register", RegisterHandler)
 		api.POST("/login", LoginHandler)
 		api.POST("/google-login", GoogleLoginHandler)
+		api.POST("/forgot-password", ForgotPasswordHandler)
 
 		protected := api.Group("/")
 		protected.Use(AuthMiddleware())

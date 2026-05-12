@@ -24,6 +24,8 @@ import UserCurhat from './pages/UserCurhat'
 import UserProfileSettings from './pages/userDashboard/UserProfileSettings'
 import UserNetwork from './pages/userDashboard/UserNetwork'
 import NotFound from './pages/NotFound'
+import ForgotPassword from './pages/ForgotPassword'
+
 function App() {
   return (
     <BrowserRouter
@@ -36,6 +38,7 @@ function App() {
         {/* Public pages tanpa layout (Full Screen) */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
 
         {/* Public pages pakai layout lama */}
         <Route element={<Layout />}>

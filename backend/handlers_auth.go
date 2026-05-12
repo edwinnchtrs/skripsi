@@ -146,3 +146,30 @@ func GoogleLoginHandler(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"token": token, "user": gin.H{"username": user.Username, "nama": user.Nama, "role": user.Role}})
 }
+
+func ForgotPasswordHandler(c *gin.Context) {
+	var input struct {
+		Username    string `json:"username" binding:"required"`
+		NewPassword string `json:"new_password" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	var user User
+	if err := DB.Where("username = ?", input.Username).First(&user).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Username tidak ditemukan"})
+		return
+	}
+
+	hashedPassword, _ := HashPassword(input.NewPassword)
+	user.PasswordHash = hashedPassword
+
+	if err := DB.Save(&user).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mereset kata sandi"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Kata sandi berhasil direset. Silakan masuk dengan kata sandi baru."})
+}

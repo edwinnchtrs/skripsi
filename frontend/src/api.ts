@@ -1,7 +1,8 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: 'http://localhost:8080/api',
+  // Gunakan IP yang sama dengan web saat diakses dari HP (misal: 192.168.x.x)
+  baseURL: `http://${window.location.hostname}:8080/api`,
 });
 
 // Request: attach JWT token
