@@ -9,7 +9,7 @@ import (
 
 func UserHistoryHandler(c *gin.Context) {
 	user := c.MustGet("user").(User)
-	
+
 	var predictions []Prediction
 	if err := DB.Where("user_id = ?", user.ID).Order("timestamp DESC").Find(&predictions).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch predictions"})
@@ -30,7 +30,7 @@ func UserHistoryHandler(c *gin.Context) {
 
 func UserProfileGetHandler(c *gin.Context) {
 	user := c.MustGet("user").(User)
-	
+
 	var followerCount int64
 	DB.Model(&Follow{}).Where("following_id = ?", user.ID).Count(&followerCount)
 
@@ -38,12 +38,12 @@ func UserProfileGetHandler(c *gin.Context) {
 	DB.Model(&Follow{}).Where("follower_id = ?", user.ID).Count(&followingCount)
 
 	c.JSON(http.StatusOK, gin.H{
-		"id": user.ID,
-		"username": user.Username,
-		"nama": user.Nama,
-		"bio": user.Bio,
-		"profile_pic": user.ProfilePic,
-		"follower_count": followerCount,
+		"id":              user.ID,
+		"username":        user.Username,
+		"nama":            user.Nama,
+		"bio":             user.Bio,
+		"profile_pic":     user.ProfilePic,
+		"follower_count":  followerCount,
 		"following_count": followingCount,
 	})
 }
@@ -94,8 +94,8 @@ func UserProfilePutHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"status": "success", 
-		"message": "Profile updated",
+		"status":       "success",
+		"message":      "Profile updated",
 		"auth_changed": authChanged,
 	})
 }
@@ -121,7 +121,7 @@ func NetworkUsersHandler(c *gin.Context) {
 		// Check if current user follows this user
 		var count int64
 		DB.Model(&Follow{}).Where("follower_id = ? AND following_id = ?", user.ID, u.ID).Count(&count)
-		
+
 		// Check affinity
 		var affinity Affinity
 		affinityType := ""
@@ -155,7 +155,7 @@ func NetworkFollowHandler(c *gin.Context) {
 
 	var follow Follow
 	result := DB.Where("follower_id = ? AND following_id = ?", user.ID, targetUser.ID).First(&follow)
-	
+
 	if result.Error == nil {
 		// Already following, so unfollow
 		DB.Delete(&follow)
@@ -230,33 +230,22 @@ func NetworkConversationsHandler(c *gin.Context) {
 	}
 
 	var convs []ConvResult
-	// MySQL-compatible query: use subquery instead of LATERAL
 	DB.Raw(`
-		SELECT u.id, u.nama, u.username, u.profile_pic,
-			COALESCE(
-				(SELECT text FROM messages
-				 WHERE (sender_id = ? AND receiver_id = u.id) OR (sender_id = u.id AND receiver_id = ?)
-				 ORDER BY timestamp DESC LIMIT 1
-				), ''
-			) AS last_text,
-			COALESCE(
-				(SELECT timestamp FROM messages
-				 WHERE (sender_id = ? AND receiver_id = u.id) OR (sender_id = u.id AND receiver_id = ?)
-				 ORDER BY timestamp DESC LIMIT 1
-				), u.created_at
-			) AS last_time,
+		SELECT DISTINCT u.id, u.nama, u.username, u.profile_pic,
+			COALESCE(lm.text, '') AS last_text, COALESCE(lm.timestamp, u.created_at) AS last_time,
 			u.id AS partner_id
 		FROM users u
-		WHERE u.id != ?
-		  AND u.deleted_at IS NULL
-		  AND EXISTS (
-			  SELECT 1 FROM messages m
-			  WHERE (m.sender_id = ? AND m.receiver_id = u.id)
-			     OR (m.sender_id = u.id AND m.receiver_id = ?)
-		  )
+		INNER JOIN messages m ON (m.sender_id = u.id OR m.receiver_id = u.id)
+		LEFT JOIN LATERAL (
+			SELECT text, timestamp FROM messages
+			WHERE (sender_id = ? AND receiver_id = u.id) OR (sender_id = u.id AND receiver_id = ?)
+			ORDER BY timestamp DESC LIMIT 1
+		) lm ON true
+		WHERE (m.sender_id = ? OR m.receiver_id = ?) AND u.id != ?
+		GROUP BY u.id
 		ORDER BY last_time DESC
 		LIMIT 30
-	`, user.ID, user.ID, user.ID, user.ID, user.ID, user.ID, user.ID).Scan(&convs)
+	`, user.ID, user.ID, user.ID, user.ID, user.ID).Scan(&convs)
 
 	type ConversationDTO struct {
 		ID          uint      `json:"id"`
@@ -268,14 +257,14 @@ func NetworkConversationsHandler(c *gin.Context) {
 	}
 
 	var results []ConversationDTO
-	for _, conv := range convs {
+	for _, c := range convs {
 		results = append(results, ConversationDTO{
-			ID:          conv.ID,
-			Nama:        conv.Nama,
-			Username:    conv.Username,
-			ProfilePic:  conv.ProfilePic,
-			LastMessage: conv.LastText,
-			LastTime:    conv.LastTime,
+			ID:          c.ID,
+			Nama:        c.Nama,
+			Username:    c.Username,
+			ProfilePic:  c.ProfilePic,
+			LastMessage: c.LastText,
+			LastTime:    c.LastTime,
 		})
 	}
 
@@ -338,6 +327,7 @@ func NetworkSendMessageHandler(c *gin.Context) {
 		SenderID:   user.ID,
 		ReceiverID: target.ID,
 		Text:       input.Text,
+		Timestamp:  time.Now(),
 	}
 
 	if err := DB.Create(&msg).Error; err != nil {
