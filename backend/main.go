@@ -73,6 +73,7 @@ func main() {
 			protected.GET("/notifications/unread", NotificationsUnreadHandler)
 			protected.POST("/notifications/:id/read", NotificationsReadHandler)
 			protected.GET("/user/notifications", UserNotificationsHandler)
+			protected.PATCH("/user/treatment/:id/status", UserTreatmentStatusHandler)
 			
 			// Therapy Recommendation
 			protected.GET("/terapi", UserDashboardHandler) // Same output logic as dashboard for prediction
@@ -86,6 +87,7 @@ func main() {
 			protected.PUT("/admin/users/:id", AdminUsersPutHandler)
 			protected.DELETE("/admin/users/:id", AdminUsersDeleteHandler)
 			protected.POST("/admin/users/:id/treatment", AdminUsersTreatmentHandler)
+			protected.GET("/admin/users/:id/treatments", AdminUserTreatmentsHandler)
 			
 			protected.GET("/admin/analytics", AdminAnalyticsHandler)
 			protected.GET("/admin/config", AdminConfigGetHandler)

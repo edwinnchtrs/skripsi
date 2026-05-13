@@ -41,9 +41,23 @@ export default {
         }
       },
       fontFamily: {
-        serif: ['Copernicus', 'Tiempos Headline', 'Cormorant Garamond', 'serif'],
-        sans: ['StyreneB', 'Inter', 'sans-serif'],
-        mono: ['JetBrains Mono', 'ui-monospace', 'monospace']
+        sans: [
+          'Inter',
+          '-apple-system',
+          'BlinkMacSystemFont',
+          'Segoe UI',
+          'Roboto',
+          'system-ui',
+          'sans-serif',
+        ],
+        mono: [
+          'JetBrains Mono',
+          'Fira Code',
+          'Cascadia Code',
+          'ui-monospace',
+          'Consolas',
+          'monospace',
+        ],
       }
     },
   },

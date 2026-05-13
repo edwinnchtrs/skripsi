@@ -139,6 +139,36 @@ func NotificationsReadHandler(c *gin.Context) {
 func UserNotificationsHandler(c *gin.Context) {
 	user := c.MustGet("user").(User)
 	var recommendations []TherapyRecommendation
-	DB.Where("user_id = ?", user.ID).Order("created_at desc").Find(&recommendations)
+	DB.Where("user_id = ?", user.ID).Order("created_at desc").Limit(30).Find(&recommendations)
+	if recommendations == nil { recommendations = []TherapyRecommendation{} }
 	c.JSON(http.StatusOK, gin.H{"notifications": recommendations})
+}
+
+func UserTreatmentStatusHandler(c *gin.Context) {
+	user := c.MustGet("user").(User)
+	id := c.Param("id")
+
+	var input struct {
+		Status string `json:"status" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Status is required"})
+		return
+	}
+
+	var treatment TherapyRecommendation
+	if err := DB.Where("id = ? AND user_id = ?", id, user.ID).First(&treatment).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Treatment tidak ditemukan"})
+		return
+	}
+
+	if input.Status != "completed" && input.Status != "pending" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Status tidak valid"})
+		return
+	}
+
+	treatment.Status = input.Status
+	DB.Save(&treatment)
+
+	c.JSON(http.StatusOK, gin.H{"status": "success", "treatment": treatment})
 }

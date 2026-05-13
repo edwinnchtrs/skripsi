@@ -201,34 +201,68 @@ func AdminUsersTreatmentHandler(c *gin.Context) {
 		return
 	}
 	var input struct {
-		Message string `json:"message" binding:"required"`
+		Message      string `json:"message" binding:"required"`
+		Category     string `json:"category"`
+		Priority     string `json:"priority"`
+		Duration     string `json:"duration"`
+		FollowUpDate string `json:"follow_up_date"`
 	}
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Message is required"})
 		return
 	}
 
-	// Create therapy recommendation
 	var latestPrediction Prediction
 	DB.Where("user_id = ?", target.ID).Order("timestamp desc").First(&latestPrediction)
+
+	var followUp *time.Time
+	if input.FollowUpDate != "" {
+		t, err := time.Parse("2006-01-02", input.FollowUpDate)
+		if err == nil {
+			followUp = &t
+		}
+	}
+
+	cat := input.Category
+	if cat == "" { cat = "general" }
+	pri := input.Priority
+	if pri == "" { pri = "medium" }
+	dur := input.Duration
+	if dur == "" { dur = "1_week" }
 
 	therapy := TherapyRecommendation{
 		UserID:       target.ID,
 		PredictionID: latestPrediction.ID,
 		ModuleName:   input.Message,
+		Category:     cat,
+		Priority:     pri,
+		Duration:     dur,
+		FollowUpDate: followUp,
 		Status:       "pending",
 	}
 	DB.Create(&therapy)
 
-	// Create notification for the user
+	priLabel := map[string]string{"urgent": "URGENT", "high": "Tinggi", "medium": "Sedang", "low": "Rendah"}[pri]
+	durLabel := map[string]string{"1_week": "1 Minggu", "2_weeks": "2 Minggu", "1_month": "1 Bulan", "3_months": "3 Bulan"}[dur]
+
 	notification := Notification{
 		UserID:  target.ID,
 		Type:    "treatment",
-		Message: fmt.Sprintf("Admin mengirimkan rekomendasi penanganan: %s", input.Message),
+		Message: fmt.Sprintf("[%s] Rekomendasi Penanganan: %s (Durasi: %s)", priLabel, input.Message, durLabel),
 	}
 	DB.Create(&notification)
 
-	c.JSON(http.StatusOK, gin.H{"status": "success", "message": "Treatment sent to user"})
+	c.JSON(http.StatusOK, gin.H{"status": "success", "message": "Treatment sent to user", "notification": notification})
+}
+
+func AdminUserTreatmentsHandler(c *gin.Context) {
+	if !AdminGuard(c) { return }
+	id := c.Param("id")
+
+	var treatments []TherapyRecommendation
+	DB.Where("user_id = ?", id).Order("created_at DESC").Limit(20).Find(&treatments)
+
+	c.JSON(http.StatusOK, gin.H{"treatments": treatments})
 }
 
 func AdminAnalyticsHandler(c *gin.Context) {

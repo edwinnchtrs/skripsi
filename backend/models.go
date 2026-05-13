@@ -80,6 +80,10 @@ type TherapyRecommendation struct {
 	UserID       uint
 	PredictionID uint
 	ModuleName   string
+	Category     string `gorm:"default:general"`
+	Priority     string `gorm:"default:medium"`
+	Duration     string `gorm:"default:1_week"`
+	FollowUpDate *time.Time
 	Status       string `gorm:"default:pending"`
 }
 
