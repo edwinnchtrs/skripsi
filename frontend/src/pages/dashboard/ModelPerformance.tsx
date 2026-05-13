@@ -15,7 +15,7 @@ export default function ModelPerformance() {
   return (
     <div style={card}>
       <div style={sectionTitle}>Model Performance</div>
-      <ResponsiveContainer width="100%" height={190}>
+      <ResponsiveContainer width="100%" height={190} minWidth={1} minHeight={1}>
         <RadarChart data={radarData} margin={{ top: 10, right: 28, left: 28, bottom: 0 }}>
           <PolarGrid stroke="#2a2e42" />
           <PolarAngleAxis dataKey="subject" tick={{ fill: '#8890a4', fontSize: 9 }} />

@@ -174,7 +174,7 @@ export default function QuantumCognition() {
           {/* Probability Distribution */}
           <div style={{ ...card, padding: '16px 20px' }}>
             <h3 style={{ ...sectionTitle, margin: 0, fontSize: 14, marginBottom: 12 }}>Distribusi Probabilitas |ψ⟩² (Real Data)</h3>
-            <ResponsiveContainer width="100%" height={190}>
+            <ResponsiveContainer width="100%" height={190} minWidth={1} minHeight={1}>
               <BarChart data={probDist} margin={{ top: 5, right: 10, bottom: 5, left: -15 }} barSize={32} barGap={8}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1e2130" vertical={false} />
                 <XAxis dataKey="state" tick={{ fill: '#8890a4', fontSize: 11 }} axisLine={false} tickLine={false} />
@@ -189,7 +189,7 @@ export default function QuantumCognition() {
           {/* Interference Pattern */}
           <div style={{ ...card, padding: '16px 20px' }}>
             <h3 style={{ ...sectionTitle, margin: 0, fontSize: 14, marginBottom: 12 }}>Pola Interferensi Kuantum (μ={data.interference_avg.toFixed(2)})</h3>
-            <ResponsiveContainer width="100%" height={200}>
+            <ResponsiveContainer width="100%" height={200} minWidth={1} minHeight={1}>
               <AreaChart data={Array.from({ length: 24 }, (_, i) => ({
                 angle: i * 15,
                 amplitude: Math.abs(Math.sin(i * data.interference_avg * 0.4 + 0.8) * 0.7 + Math.cos(i * 0.31) * 0.3),
@@ -213,7 +213,7 @@ export default function QuantumCognition() {
           {data.order_effects.length > 1 && (
             <div style={{ ...card, padding: '16px 20px' }}>
               <h3 style={{ ...sectionTitle, margin: 0, fontSize: 14, marginBottom: 12 }}>Efek Urutan Pertanyaan ({data.order_effects.length} variasi)</h3>
-              <ResponsiveContainer width="100%" height={220}>
+              <ResponsiveContainer width="100%" height={220} minWidth={1} minHeight={1}>
                 <BarChart data={orderChartData} margin={{ top: 10, right: 10, bottom: 5, left: -15 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#1e2130" />
                   <XAxis dataKey="order" tick={{ fill: '#8890a4', fontSize: 9 }} axisLine={false} tickLine={false} />
@@ -234,7 +234,7 @@ export default function QuantumCognition() {
           {/* Radar Comparison */}
           <div style={card}>
             <h3 style={{ ...sectionTitle, margin: 0, fontSize: 14 }}>Kuantum vs Klasik</h3>
-            <ResponsiveContainer width="100%" height={240}>
+            <ResponsiveContainer width="100%" height={240} minWidth={1} minHeight={1}>
               <RadarChart data={radarData} margin={{ top: 5, right: 20, bottom: 5, left: 20 }}>
                 <PolarGrid stroke="#1e2130" />
                 <PolarAngleAxis dataKey="metric" tick={{ fill: '#8890a4', fontSize: 9 }} />

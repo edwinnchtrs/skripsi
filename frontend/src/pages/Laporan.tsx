@@ -451,7 +451,7 @@ export default function Laporan() {
 
               <div style={card}>
                 <h3 style={{ ...sectionTitle, margin: 0, fontSize: 14, marginBottom: 12 }}>Visualisasi Distribusi</h3>
-                <ResponsiveContainer width="100%" height={200}>
+                <ResponsiveContainer width="100%" height={200} minWidth={1} minHeight={1}>
                   <RePieChart>
                     <Pie data={[
                       { name: 'Rendah', value: analytics?.burnoutDist?.Rendah || 0 },
@@ -484,7 +484,7 @@ export default function Laporan() {
             </div>
             <div style={{ ...card, padding: '16px 20px' }}>
               <h3 style={{ ...sectionTitle, margin: 0, fontSize: 14, marginBottom: 12 }}>Distribusi Risiko Psikosomatis</h3>
-              <ResponsiveContainer width="100%" height={300}>
+              <ResponsiveContainer width="100%" height={300} minWidth={1} minHeight={1}>
                 <BarChart data={[
                   { name: 'Rendah', value: analytics?.psychoDist?.Rendah || 0, fill: '#22c55e' },
                   { name: 'Sedang', value: analytics?.psychoDist?.Sedang || 0, fill: '#f59e0b' },
@@ -549,7 +549,7 @@ export default function Laporan() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div style={{ ...card, padding: '16px 20px' }}>
               <h3 style={{ ...sectionTitle, margin: 0, fontSize: 14, marginBottom: 12 }}>Tren Rata-rata Burnout</h3>
-              <ResponsiveContainer width="100%" height={320}>
+              <ResponsiveContainer width="100%" height={320} minWidth={1} minHeight={1}>
                 <LineChart data={analytics?.trendData || []} margin={{ top: 10, right: 10, bottom: 5, left: -15 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#1e2130" />
                   <XAxis dataKey="date" tick={{ fill: '#8890a4', fontSize: 10 }} axisLine={false} tickLine={false} />

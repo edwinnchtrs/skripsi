@@ -693,8 +693,8 @@ export default function PrediksiIndividu() {
                       </span>
                     </div>
 
-                    <div className="h-[320px]">
-                      <ResponsiveContainer width="100%" height="100%">
+                    <div className="h-[320px] min-h-[320px] min-w-0 overflow-hidden">
+                      <ResponsiveContainer width="100%" height={320} minWidth={1} minHeight={1}>
                         {chartMode === 'area' ? (
                           <AreaChart data={history} margin={{ top: 8, right: 8, bottom: 0, left: -18 }}>
                             <defs>
@@ -752,8 +752,8 @@ export default function PrediksiIndividu() {
                       </div>
                       <Radar className="h-5 w-5 text-cyan-300" aria-hidden="true" />
                     </div>
-                    <div className="h-[290px]">
-                      <ResponsiveContainer width="100%" height="100%">
+                    <div className="h-[290px] min-h-[290px] min-w-0 overflow-hidden">
+                      <ResponsiveContainer width="100%" height={290} minWidth={1} minHeight={1}>
                         <RadarChart data={radarData}>
                           <PolarGrid stroke="#1e293b" />
                           <PolarAngleAxis dataKey="axis" tick={{ fill: '#94a3b8', fontSize: 10 }} />

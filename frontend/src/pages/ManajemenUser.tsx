@@ -288,7 +288,7 @@ export default function ManajemenUser() {
           {/* Role Distribution */}
           <div style={card}>
             <h3 style={{ ...sectionTitle, margin: 0, fontSize: 14 }}>Distribusi Role</h3>
-            <ResponsiveContainer width="100%" height={170}>
+            <ResponsiveContainer width="100%" height={170} minWidth={1} minHeight={1}>
               <PieChart>
                 <Pie data={rolePie} cx="50%" cy="50%" innerRadius={45} outerRadius={70} paddingAngle={4} dataKey="value">
                   {rolePie.map((entry, i) => (

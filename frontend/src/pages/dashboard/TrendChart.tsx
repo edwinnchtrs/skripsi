@@ -29,7 +29,7 @@ export default function TrendChart({ data, loading }: { data: any[], loading: bo
           Belum ada data tren
         </div>
       ) : (
-        <ResponsiveContainer width="100%" height={170}>
+        <ResponsiveContainer width="100%" height={170} minWidth={1} minHeight={1}>
           <LineChart data={chartData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#1e2130" />
             <XAxis dataKey="date" tick={{ fill: '#8890a4', fontSize: 9 }} />

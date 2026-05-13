@@ -263,7 +263,7 @@ export default function AnalitikRules() {
           {/* Rules Quality Distribution */}
           <div style={card}>
             <h3 style={{ ...sectionTitle, margin: 0, fontSize: 14 }}>Distribusi Kategori</h3>
-            <ResponsiveContainer width="100%" height={160}>
+            <ResponsiveContainer width="100%" height={160} minWidth={1} minHeight={1}>
               <PieChart>
                 <Pie data={categoryDist} cx="50%" cy="50%" innerRadius={40} outerRadius={65} paddingAngle={3} dataKey="value">
                   {categoryDist.map((entry, i) => (
@@ -309,7 +309,7 @@ export default function AnalitikRules() {
           {/* Rule Confidence Distribution */}
           <div style={card}>
             <h3 style={{ ...sectionTitle, margin: 0, fontSize: 14 }}>Confidence Distribution</h3>
-            <ResponsiveContainer width="100%" height={130}>
+            <ResponsiveContainer width="100%" height={130} minWidth={1} minHeight={1}>
               <BarChart data={[
                 { range: '70-80%', count: rulesData.filter(r => r.confidence >= 0.7 && r.confidence < 0.8).length },
                 { range: '80-85%', count: rulesData.filter(r => r.confidence >= 0.8 && r.confidence < 0.85).length },
@@ -331,7 +331,7 @@ export default function AnalitikRules() {
         {/* Support vs Confidence Scatter */}
         <div style={card}>
           <h3 style={{ ...sectionTitle, margin: 0, fontSize: 14 }}>Support vs Confidence (bubble: Lift)</h3>
-          <ResponsiveContainer width="100%" height={280}>
+          <ResponsiveContainer width="100%" height={280} minWidth={1} minHeight={1}>
             <ScatterChart margin={{ top: 10, right: 10, bottom: 20, left: -10 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#1e2130" />
               <XAxis dataKey="x" type="number" name="Support" unit="%" domain={[0.2, 0.5]} tick={{ fill: '#8890a4', fontSize: 10 }} axisLine={false} tickLine={false} />
@@ -364,7 +364,7 @@ export default function AnalitikRules() {
         {/* Rule Importance Ranking */}
         <div style={card}>
           <h3 style={{ ...sectionTitle, margin: 0, fontSize: 14 }}>Rule Importance (Lift & Confidence)</h3>
-          <ResponsiveContainer width="100%" height={280}>
+          <ResponsiveContainer width="100%" height={280} minWidth={1} minHeight={1}>
             <BarChart data={importanceData} layout="vertical" margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#1e2130" />
               <XAxis type="number" domain={[0, 3.5]} tick={{ fill: '#8890a4', fontSize: 10 }} axisLine={false} tickLine={false} />

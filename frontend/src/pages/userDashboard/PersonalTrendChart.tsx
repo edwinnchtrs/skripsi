@@ -65,7 +65,7 @@ export default function PersonalTrendChart({ predictions, assessments, loading }
         <>
           {/* Burnout & Psychosomatic Trend */}
           <div style={{ marginBottom: 8, fontSize: 11, color: '#8890a4' }}>Skor Burnout & Psikosomatik</div>
-          <ResponsiveContainer width="100%" height={180}>
+          <ResponsiveContainer width="100%" height={180} minWidth={1} minHeight={1}>
             <LineChart data={predData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#1e2130" />
               <XAxis dataKey="date" tick={{ fill: '#8890a4', fontSize: 9 }} />
@@ -89,7 +89,7 @@ export default function PersonalTrendChart({ predictions, assessments, loading }
               <div style={{ marginTop: 16, marginBottom: 8, fontSize: 11, color: '#8890a4' }}>
                 Efikasi & Kelelahan (dari Kuisioner)
               </div>
-              <ResponsiveContainer width="100%" height={160}>
+              <ResponsiveContainer width="100%" height={160} minWidth={1} minHeight={1}>
                 <LineChart data={asmtData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#1e2130" />
                   <XAxis dataKey="date" tick={{ fill: '#8890a4', fontSize: 9 }} />

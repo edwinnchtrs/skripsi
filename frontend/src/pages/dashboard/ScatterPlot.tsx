@@ -17,7 +17,7 @@ export default function ScatterPlot({ data, loading }: { data: any[], loading: b
           Belum ada data sebaran
         </div>
       ) : (
-        <ResponsiveContainer width="100%" height={190}>
+        <ResponsiveContainer width="100%" height={190} minWidth={1} minHeight={1}>
           <ScatterChart margin={{ top: 0, right: 0, left: -20, bottom: 14 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#1e2130" />
             <XAxis

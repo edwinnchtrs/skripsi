@@ -7,23 +7,13 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// GET /feed — returns posts from followed users + own posts
+// GET /feed — returns posts from all users so the community timeline is shared
 func FeedGetHandler(c *gin.Context) {
 	currentUser := c.MustGet("user").(User)
 
-	// Get list of following IDs
-	var followingIDs []uint
-	DB.Model(&Follow{}).
-		Where("follower_id = ?", currentUser.ID).
-		Pluck("following_id", &followingIDs)
-
-	// Include own posts
-	authorIDs := append(followingIDs, currentUser.ID)
-
 	// Fetch posts ordered by newest first
 	var posts []Post
-	DB.Where("user_id IN ?", authorIDs).
-		Order("created_at DESC").
+	DB.Order("created_at DESC").
 		Limit(50).
 		Find(&posts)
 

@@ -191,7 +191,7 @@ export default function ModelEvaluasi() {
               {/* Feature Importance */}
               <div style={{ ...card, padding: '16px 20px' }}>
                 <h3 style={{ ...sectionTitle, margin: 0, fontSize: 14, marginBottom: 12 }}>Feature Importance (Real Weights)</h3>
-                <ResponsiveContainer width="100%" height={220}>
+                <ResponsiveContainer width="100%" height={220} minWidth={1} minHeight={1}>
                   <BarChart data={data.feature_importance} layout="vertical" margin={{ top: 5, right: 15, bottom: 5, left: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#1e2130" horizontal={false} />
                     <XAxis type="number" domain={[0, 0.6]} tick={{ fill: '#8890a4', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => (v * 100).toFixed(0) + '%'} />
@@ -210,7 +210,7 @@ export default function ModelEvaluasi() {
               {/* Model Comparison */}
               <div style={card}>
                 <h3 style={{ ...sectionTitle, margin: 0, fontSize: 14 }}>Perbandingan R²</h3>
-                <ResponsiveContainer width="100%" height={200}>
+                <ResponsiveContainer width="100%" height={200} minWidth={1} minHeight={1}>
                   <BarChart data={compBarData} layout="vertical" margin={{ top: 5, right: 10, bottom: 5, left: -5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#1e2130" horizontal={false} />
                     <XAxis type="number" domain={[0, Math.max(modelCompare.qc_r2 * 1.1, 0.1)]} tick={{ fill: '#8890a4', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => v.toFixed(2)} />
@@ -267,7 +267,7 @@ export default function ModelEvaluasi() {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <div style={{ ...card, padding: '16px 20px' }}>
             <h3 style={{ ...sectionTitle, margin: 0, fontSize: 14, marginBottom: 12 }}>Perbandingan R² Antar Model</h3>
-            <ResponsiveContainer width="100%" height={320}>
+            <ResponsiveContainer width="100%" height={320} minWidth={1} minHeight={1}>
               <BarChart data={compBarData} margin={{ top: 10, right: 10, bottom: 5, left: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1e2130" />
                 <XAxis dataKey="model" tick={{ fill: '#8890a4', fontSize: 10, whiteSpace: 'pre' }} axisLine={false} tickLine={false} />
