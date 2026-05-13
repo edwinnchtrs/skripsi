@@ -1,12 +1,29 @@
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  ClipboardList, Brain, ArrowRight, Loader2, Sparkles,
-  CheckCircle2, Clock, ChevronLeft, ChevronRight,
-  TrendingUp, TrendingDown, Minus, Shield, Lightbulb
+  Activity,
+  ArrowRight,
+  BarChart3,
+  Brain,
+  CheckCircle2,
+  ChevronLeft,
+  ClipboardList,
+  Clock,
+  Gauge,
+  HeartPulse,
+  Lightbulb,
+  Loader2,
+  Minus,
+  RotateCcw,
+  Shield,
+  Sparkles,
+  Target,
+  TimerReset,
+  TrendingDown,
+  TrendingUp,
+  Zap,
 } from 'lucide-react';
 import api from '../api';
-import { card } from './dashboard/styles';
 
 interface Question {
   id: string;
@@ -21,444 +38,751 @@ interface Result {
   prediction_id: number;
 }
 
-const labels = ['Sangat Tidak Setuju', 'Tidak Setuju', 'Netral', 'Setuju', 'Sangat Setuju'];
+interface ResponseItem {
+  id: string;
+  construct_type: string;
+  value: number;
+  reaction_time_ms: number;
+}
+
+interface PreviousPrediction {
+  burnout: number;
+  psycho: number;
+  risk: string;
+}
+
+const answerOptions = [
+  { value: 1, label: 'Sangat Tidak Setuju', short: 'STS', tone: 'rose' },
+  { value: 2, label: 'Tidak Setuju', short: 'TS', tone: 'orange' },
+  { value: 3, label: 'Netral', short: 'N', tone: 'amber' },
+  { value: 4, label: 'Setuju', short: 'S', tone: 'emerald' },
+  { value: 5, label: 'Sangat Setuju', short: 'SS', tone: 'cyan' },
+];
+
+const constructMeta = {
+  fatigue: {
+    label: 'Kelelahan',
+    icon: HeartPulse,
+    text: 'text-rose-300',
+    bg: 'bg-rose-500/10',
+    border: 'border-rose-400/25',
+    helper: 'Energi, keletihan, dan kapasitas pemulihan.',
+  },
+  cynicism: {
+    label: 'Sinisme',
+    icon: Shield,
+    text: 'text-amber-300',
+    bg: 'bg-amber-500/10',
+    border: 'border-amber-400/25',
+    helper: 'Jarak emosional, kejenuhan, dan sikap terhadap aktivitas.',
+  },
+  efficacy: {
+    label: 'Efikasi',
+    icon: Target,
+    text: 'text-emerald-300',
+    bg: 'bg-emerald-500/10',
+    border: 'border-emerald-400/25',
+    helper: 'Keyakinan, performa, dan rasa mampu menyelesaikan tugas.',
+  },
+  default: {
+    label: 'Refleksi',
+    icon: Brain,
+    text: 'text-indigo-300',
+    bg: 'bg-indigo-500/10',
+    border: 'border-indigo-400/25',
+    helper: 'Respons kognitif untuk membaca pola kondisi hari ini.',
+  },
+};
+
+const riskMeta = {
+  Crisis: {
+    label: 'Krisis',
+    text: 'text-rose-200',
+    bg: 'bg-rose-500/15',
+    border: 'border-rose-300/35',
+    hex: '#fb7185',
+  },
+  High: {
+    label: 'Tinggi',
+    text: 'text-rose-300',
+    bg: 'bg-rose-500/10',
+    border: 'border-rose-400/30',
+    hex: '#fb7185',
+  },
+  Medium: {
+    label: 'Sedang',
+    text: 'text-amber-300',
+    bg: 'bg-amber-500/10',
+    border: 'border-amber-400/30',
+    hex: '#f59e0b',
+  },
+  Low: {
+    label: 'Rendah',
+    text: 'text-emerald-300',
+    bg: 'bg-emerald-500/10',
+    border: 'border-emerald-400/30',
+    hex: '#34d399',
+  },
+};
+
+const getConstructMeta = (type: string) =>
+  constructMeta[type as keyof typeof constructMeta] ?? constructMeta.default;
+
+const getRiskMeta = (risk: string) =>
+  riskMeta[risk as keyof typeof riskMeta] ?? riskMeta.Low;
+
+const formatReactionTime = (ms: number) => {
+  if (!Number.isFinite(ms)) return '-';
+  return `${(ms / 1000).toFixed(1)}s`;
+};
 
 export default function UserKuisioner() {
   const nav = useNavigate();
   const [questions, setQuestions] = useState<Question[]>([]);
   const [orderType, setOrderType] = useState('');
   const [currentIdx, setCurrentIdx] = useState(0);
-  const [responses, setResponses] = useState<any[]>([]);
+  const [responses, setResponses] = useState<ResponseItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
-  const [prevPrediction, setPrevPrediction] = useState<{ burnout: number; psycho: number; risk: string } | null>(null);
+  const [prevPrediction, setPrevPrediction] = useState<PreviousPrediction | null>(null);
   const [selectedVal, setSelectedVal] = useState<number | null>(null);
   const [animating, setAnimating] = useState(false);
   const startRef = useRef(Date.now());
 
-  useEffect(() => { fetchQuestions(); }, []);
+  useEffect(() => {
+    fetchQuestions();
+  }, []);
 
   const fetchQuestions = async () => {
     setLoading(true);
+
     try {
-      const res = await api.get('/assessment');
-      setQuestions(res.data.questions || []);
-      setOrderType(res.data.order_type);
+      const response = await api.get('/assessment');
+      setQuestions(response.data.questions || []);
+      setOrderType(response.data.order_type || '');
       startRef.current = Date.now();
-    } catch (e) { console.error(e); }
-    finally { setLoading(false); }
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const submitAssessment = async (finalResponses: ResponseItem[]) => {
+    setSubmitting(true);
+
+    try {
+      let previous: PreviousPrediction | null = null;
+
+      try {
+        const historyResponse = await api.get('/user/history');
+        const predictions = historyResponse.data.predictions || [];
+
+        if (predictions.length > 0) {
+          previous = {
+            burnout: predictions[0].BurnoutScore,
+            psycho: predictions[0].PsychosomaticScore,
+            risk: predictions[0].RiskLevel,
+          };
+        }
+      } catch {
+        previous = null;
+      }
+
+      const response = await api.post('/assessment/submit', {
+        order_type: orderType,
+        responses: finalResponses,
+      });
+
+      setPrevPrediction(previous);
+      setResult(response.data);
+    } catch (error) {
+      console.error(error);
+      alert('Gagal mengirim hasil kuisioner. Silakan coba lagi.');
+      setAnimating(false);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleAnswer = (value: number) => {
-    if (animating) return;
+    if (animating || questions.length === 0) return;
+
     setSelectedVal(value);
     setAnimating(true);
 
-    const rt = Date.now() - startRef.current;
-    const q = questions[currentIdx];
-    const newR = [...responses, { id: q.id, construct_type: q.construct_type, value, reaction_time_ms: rt }];
-    setResponses(newR);
+    const reactionTime = Date.now() - startRef.current;
+    const question = questions[currentIdx];
+    const nextResponses = [
+      ...responses,
+      {
+        id: question.id,
+        construct_type: question.construct_type,
+        value,
+        reaction_time_ms: reactionTime,
+      },
+    ];
+
+    setResponses(nextResponses);
 
     setTimeout(() => {
       if (currentIdx < questions.length - 1) {
-        setCurrentIdx(currentIdx + 1);
+        setCurrentIdx((index) => index + 1);
         setSelectedVal(null);
         setAnimating(false);
         startRef.current = Date.now();
       } else {
-        submitAssessment(newR);
+        submitAssessment(nextResponses);
       }
-    }, 350);
+    }, 340);
   };
 
   const goBack = () => {
-    if (currentIdx > 0 && !animating) {
-      setResponses(responses.slice(0, -1));
-      setCurrentIdx(currentIdx - 1);
-      setSelectedVal(null);
-      startRef.current = Date.now();
-    }
+    if (currentIdx === 0 || animating) return;
+
+    setResponses((items) => items.slice(0, -1));
+    setCurrentIdx((index) => index - 1);
+    setSelectedVal(null);
+    startRef.current = Date.now();
   };
 
-  const submitAssessment = async (finalR: any[]) => {
-    setSubmitting(true);
-    try {
-      // Fetch previous prediction for comparison BEFORE submitting new one
-      let prev: { burnout: number; psycho: number; risk: string } | null = null;
-      try {
-        const histRes = await api.get('/user/history');
-        const preds = histRes.data.predictions || [];
-        if (preds.length > 0) {
-          prev = { burnout: preds[0].BurnoutScore, psycho: preds[0].PsychosomaticScore, risk: preds[0].RiskLevel };
-        }
-      } catch {}
-
-      const res = await api.post('/assessment/submit', { order_type: orderType, responses: finalR });
-      setPrevPrediction(prev);
-      setResult(res.data);
-      setSubmitting(false);
-    } catch (e) {
-      console.error(e);
-      alert('Gagal mengirim hasil kuisioner. Silakan coba lagi.');
-      setSubmitting(false);
-    }
+  const resetQuestionnaire = () => {
+    setResult(null);
+    setCurrentIdx(0);
+    setResponses([]);
+    setSelectedVal(null);
+    setPrevPrediction(null);
+    setAnimating(false);
+    startRef.current = Date.now();
   };
 
-  const progress = questions.length > 0 ? ((currentIdx) / questions.length) * 100 : 0;
+  const progress = questions.length > 0 ? (responses.length / questions.length) * 100 : 0;
+  const displayProgress = questions.length > 0 ? ((currentIdx + 1) / questions.length) * 100 : 0;
+  const currentQuestion = questions[currentIdx];
+  const currentMeta = currentQuestion ? getConstructMeta(currentQuestion.construct_type) : constructMeta.default;
+  const CurrentIcon = currentMeta.icon;
 
-  const riskColor = (r: string) =>
-    r === 'High' || r === 'Crisis' ? '#ef4444' : r === 'Medium' ? '#f59e0b' : '#22c55e';
+  const responseStats = useMemo(() => {
+    const totalMs = responses.reduce((total, item) => total + item.reaction_time_ms, 0);
+    const averageMs = responses.length > 0 ? totalMs / responses.length : 0;
+    const averageValue =
+      responses.length > 0
+        ? responses.reduce((total, item) => total + item.value, 0) / responses.length
+        : 0;
+    const constructCounts = responses.reduce<Record<string, number>>((acc, item) => {
+      acc[item.construct_type] = (acc[item.construct_type] || 0) + 1;
+      return acc;
+    }, {});
 
-  const riskLabel = (r: string) =>
-    r === 'High' || r === 'Crisis' ? 'Tinggi' : r === 'Medium' ? 'Sedang' : 'Rendah';
+    return { averageMs, averageValue, constructCounts };
+  }, [responses]);
 
-  const typeIcon = (t: string) => {
-    if (t === 'fatigue') return { icon: '😴', label: 'Kelelahan' };
-    if (t === 'cynicism') return { icon: '😤', label: 'Sinisme' };
-    return { icon: '💪', label: 'Efikasi' };
-  };
-
-  // Loading
   if (loading) {
     return (
-      <div style={{ padding: '22px 24px', background: '#0b0d14', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Inter, sans-serif' }}>
-        <div style={{ textAlign: 'center' }}>
-          <Loader2 size={28} color="#8890a4" style={{ animation: 'spin 1s linear infinite', marginBottom: 12 }} />
-          <div style={{ color: '#8890a4', fontSize: 13 }}>Menyiapkan pertanyaan hari ini...</div>
+      <div className="flex min-h-screen items-center justify-center bg-[#0b0d14] px-6 text-slate-100">
+        <div className="w-full max-w-md rounded-xl border border-slate-800 bg-slate-900/70 p-8 text-center shadow-2xl shadow-black/20">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-xl border border-emerald-400/20 bg-emerald-500/10">
+            <Loader2 className="h-8 w-8 animate-spin text-emerald-300" aria-hidden="true" />
+          </div>
+          <h2 className="mt-5 text-xl font-semibold tracking-normal text-white">Menyiapkan pertanyaan</h2>
+          <p className="mt-2 text-sm leading-6 text-slate-400">
+            Sistem sedang mengambil kuisioner harian dan mengacak urutan asesmen.
+          </p>
         </div>
       </div>
     );
   }
 
-  // Submitting (only show if no result yet)
   if (submitting && !result) {
     return (
-      <div style={{ padding: '22px 24px', background: '#0b0d14', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Inter, sans-serif' }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ width: 60, height: 60, borderRadius: 16, background: 'linear-gradient(135deg, rgba(108,99,255,0.2), rgba(62,207,207,0.2))', border: '1px solid rgba(108,99,255,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
-            <Loader2 size={28} color="#a89cff" style={{ animation: 'spin 1s linear infinite' }} />
+      <div className="flex min-h-screen items-center justify-center bg-[#0b0d14] px-6 text-slate-100">
+        <div className="w-full max-w-lg overflow-hidden rounded-xl border border-slate-800 bg-slate-900/70 p-8 text-center shadow-2xl shadow-black/20">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-xl border border-indigo-400/25 bg-indigo-500/10">
+            <Loader2 className="h-8 w-8 animate-spin text-indigo-300" aria-hidden="true" />
           </div>
-          <h2 style={{ fontSize: 18, fontWeight: 700, color: '#e2e8f0', margin: '0 0 6px' }}>Menganalisis Respon</h2>
-          <p style={{ color: '#8890a4', fontSize: 13 }}>Quantum engine sedang memproses pola jawabanmu...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Result (must be before submitting to avoid stuck state)
-  if (result) {
-    const color = riskColor(result.risk_level);
-    const burnoutScore = result.burnout_score || 0;
-    const psychoScore = result.psychosomatic_score || 0;
-    const gaugePercent = Math.min(burnoutScore / 10 * 100, 100);
-    const diff = prevPrediction ? burnoutScore - prevPrediction.burnout : 0;
-    const trendIcon = Math.abs(diff) < 0.3 ? Minus : diff > 0 ? TrendingUp : TrendingDown;
-    const trendColor = Math.abs(diff) < 0.3 ? '#8890a4' : diff > 0 ? '#ef4444' : '#22c55e';
-    const trendLabel = Math.abs(diff) < 0.3 ? 'Stabil' : diff > 0 ? `Naik ${diff.toFixed(1)}` : `Turun ${Math.abs(diff).toFixed(1)}`;
-
-    const recommendations = result.risk_level === 'High' || result.risk_level === 'Crisis'
-      ? ['Segera konsultasi dengan psikolog', 'Kurangi beban kerja berlebih', 'Latihan pernapasan & meditasi harian', 'Perbanyak istirahat dan tidur cukup']
-      : result.risk_level === 'Medium'
-        ? ['Pantau kondisi secara berkala', 'Jaga work-life balance', 'Olahraga ringan 3x seminggu', 'Bicarakan dengan teman terpercaya']
-        : ['Pertahankan pola hidup sehat', 'Tetap jaga work-life balance', 'Lanjutkan olahraga rutin', 'Apresiasi diri sendiri'];
-
-    return (
-      <div style={{ padding: '22px 24px', background: '#0b0d14', minHeight: '100vh', color: '#e2e8f0', fontFamily: 'Inter, sans-serif' }}>
-        <style>{`
-          @keyframes fadeUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
-          @keyframes gaugeFill { from{stroke-dasharray:0 314} }
-          .result-anim { animation: fadeUp 0.5s ease-out; }
-          .result-anim-d1 { animation: fadeUp 0.5s ease-out both; animation-delay: 0.1s; }
-          .result-anim-d2 { animation: fadeUp 0.5s ease-out both; animation-delay: 0.2s; }
-          .result-anim-d3 { animation: fadeUp 0.5s ease-out both; animation-delay: 0.3s; }
-          .gauge-ring { animation: gaugeFill 1s ease-out; }
-        `}</style>
-
-        <div style={{ maxWidth: 720, margin: '0 auto' }}>
-          {/* Success Header */}
-          <div className="result-anim" style={{ textAlign: 'center', marginBottom: 24 }}>
-            <div style={{ width: 64, height: 64, borderRadius: 18, background: 'linear-gradient(135deg, #22c55e, #3ecfcf)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px', boxShadow: '0 8px 28px rgba(34,197,94,0.35)' }}>
-              <CheckCircle2 size={30} color="#fff" />
-            </div>
-            <h2 style={{ fontSize: 22, fontWeight: 700, color: '#e2e8f0', margin: '0 0 4px' }}>Analisis Selesai!</h2>
-            <p style={{ color: '#8890a4', fontSize: 13, margin: 0 }}>
-              Quantum Cognition + Regresi Linier — data tersimpan di database
-            </p>
-          </div>
-
-          {/* Main Card: Gauge + Scores */}
-          <div className="result-anim-d1" style={{ ...card, marginBottom: 12 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: 24, alignItems: 'center' }}>
-              {/* Gauge */}
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ position: 'relative', width: 130, height: 130, margin: '0 auto' }}>
-                  <svg viewBox="0 0 130 130" style={{ transform: 'rotate(-90deg)' }}>
-                    <circle cx="65" cy="65" r="56" fill="none" stroke="#1e2130" strokeWidth="10" />
-                    <circle className="gauge-ring" cx="65" cy="65" r="56" fill="none" stroke={`url(#rg)`} strokeWidth="10"
-                      strokeDasharray={`${352 * gaugePercent / 100} 352`} strokeLinecap="round" />
-                    <defs>
-                      <linearGradient id="rg" x1="0%" y1="0%" x2="100%" y2="0%">
-                        <stop offset="0%" stopColor="#22c55e" />
-                        <stop offset="50%" stopColor="#f59e0b" />
-                        <stop offset="100%" stopColor="#ef4444" />
-                      </linearGradient>
-                    </defs>
-                  </svg>
-                  <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                    <span style={{ fontSize: 30, fontWeight: 800, color }}>{burnoutScore.toFixed(1)}</span>
-                    <span style={{ fontSize: 10, color: '#8890a4' }}>/ 10</span>
-                  </div>
-                </div>
-                <div style={{ marginTop: 4 }}>
-                  <span style={{ padding: '4px 14px', borderRadius: 14, fontSize: 11, fontWeight: 700, background: color + '15', color, border: `1px solid ${color}30` }}>
-                    {riskLabel(result.risk_level)}
-                  </span>
-                </div>
+          <h2 className="mt-5 text-xl font-semibold tracking-normal text-white">Menganalisis respons</h2>
+          <p className="mt-2 text-sm leading-6 text-slate-400">
+            Quantum Cognition dan model prediksi sedang membaca pola jawaban, waktu reaksi,
+            serta sinyal risiko psikosomatis.
+          </p>
+          <div className="mt-6 grid grid-cols-3 gap-3">
+            {['Interference', 'Regression', 'Risk map'].map((item) => (
+              <div key={item} className="rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-3 text-xs text-slate-400">
+                {item}
               </div>
-
-              {/* Scores + Trend */}
-              <div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
-                  <div style={{ padding: '14px', background: '#0f1117', borderRadius: 10, border: '1px solid #1e2130' }}>
-                    <div style={{ fontSize: 10, color: '#8890a4', marginBottom: 4 }}>Skor Burnout</div>
-                    <div style={{ fontSize: 22, fontWeight: 800, color: '#e2e8f0' }}>{burnoutScore.toFixed(1)}<span style={{ fontSize: 12, color: '#4a5068' }}>/10</span></div>
-                    <div style={{ fontSize: 10, color: '#8890a4', marginTop: 2 }}>Regresi Linier</div>
-                  </div>
-                  <div style={{ padding: '14px', background: '#0f1117', borderRadius: 10, border: '1px solid #1e2130' }}>
-                    <div style={{ fontSize: 10, color: '#8890a4', marginBottom: 4 }}>Psikosomatis</div>
-                    <div style={{ fontSize: 22, fontWeight: 800, color: '#e2e8f0' }}>{psychoScore.toFixed(1)}<span style={{ fontSize: 12, color: '#4a5068' }}>/10</span></div>
-                    <div style={{ fontSize: 10, color: '#8890a4', marginTop: 2 }}>Quantum × 1.5</div>
-                  </div>
-                </div>
-
-                {/* Previous Comparison */}
-                {prevPrediction && (
-                  <div style={{ padding: '10px 14px', background: '#0f1117', borderRadius: 10, border: '1px solid #1e2130', display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{ fontSize: 10, color: '#8890a4' }}>vs Sebelumnya ({prevPrediction.burnout.toFixed(1)})</span>
-                    <trendIcon size={14} color={trendColor} />
-                    <span style={{ fontSize: 12, fontWeight: 700, color: trendColor }}>{trendLabel}</span>
-                    {prevPrediction.risk !== result.risk_level && (
-                      <span style={{ marginLeft: 'auto', fontSize: 10, color: '#f59e0b' }}>
-                        Risk berubah: {riskLabel(prevPrediction.risk)} → {riskLabel(result.risk_level)}
-                      </span>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Algorithm Breakdown + Recommendations */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
-            {/* How it works */}
-            <div className="result-anim-d2" style={card}>
-              <h4 style={{ fontSize: 13, fontWeight: 700, color: '#e2e8f0', margin: '0 0 12px', display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Brain size={14} color="#6c63ff" /> Cara Kerja Analisis
-              </h4>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {[
-                  { step: '1', title: 'Quantum Cognition', desc: 'Interference score dihitung dari variansi reaction time jawaban Anda', color: '#a855f7' },
-                  { step: '2', title: 'Regresi Linier', desc: 'Formula: 0.4F + 0.3C + 0.2(5−E) + 0.1I + 2.0S → skor burnout', color: '#3ecfcf' },
-                  { step: '3', title: 'Klasifikasi Risiko', desc: `Skor ${burnoutScore.toFixed(1)} → ${riskLabel(result.risk_level)} (${result.risk_level === 'High' ? '>7.5' : result.risk_level === 'Medium' ? '4-6' : '<4'})`, color },
-                ].map(s => (
-                  <div key={s.step} style={{ display: 'flex', gap: 10 }}>
-                    <div style={{ width: 24, height: 24, borderRadius: '50%', background: s.color + '18', border: `1px solid ${s.color}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 11, fontWeight: 700, color: s.color }}>{s.step}</div>
-                    <div>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: '#c0c9e0' }}>{s.title}</div>
-                      <div style={{ fontSize: 10, color: '#8890a4', lineHeight: 1.4 }}>{s.desc}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Recommendations */}
-            <div className="result-anim-d2" style={card}>
-              <h4 style={{ fontSize: 13, fontWeight: 700, color: '#e2e8f0', margin: '0 0 12px', display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Lightbulb size={14} color="#f59e0b" /> Rekomendasi
-              </h4>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {recommendations.map((rec, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', background: '#0f1117', borderRadius: 8, border: '1px solid #1e2130', fontSize: 11, color: '#c0c9e0' }}>
-                    <Shield size={12} color={color} style={{ flexShrink: 0 }} />
-                    {rec}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Score Bar */}
-          <div className="result-anim-d3" style={card}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-              <span style={{ fontSize: 11, color: '#8890a4' }}>Level Burnout</span>
-              <span style={{ fontSize: 11, fontWeight: 600, color }}>{burnoutScore.toFixed(1)} / 10</span>
-            </div>
-            <div style={{ height: 10, background: '#1e2130', borderRadius: 5, overflow: 'hidden', position: 'relative' }}>
-              <div style={{ width: `${gaugePercent}%`, height: '100%', borderRadius: 5,
-                background: 'linear-gradient(90deg, #22c55e, #f59e0b, #ef4444)',
-                backgroundSize: '200% 100%', backgroundPosition: `${100 - gaugePercent}% 0`,
-                transition: 'width 1s ease' }} />
-              {/* Threshold markers */}
-              <div style={{ position: 'absolute', top: 0, left: '40%', width: 1, height: '100%', background: '#f59e0b60' }} />
-              <div style={{ position: 'absolute', top: 0, left: '75%', width: 1, height: '100%', background: '#ef444460' }} />
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
-              <span style={{ fontSize: 9, color: '#22c55e' }}>Rendah (0-4)</span>
-              <span style={{ fontSize: 9, color: '#f59e0b' }}>Sedang (4-7.5)</span>
-              <span style={{ fontSize: 9, color: '#ef4444' }}>Tinggi (7.5-10)</span>
-            </div>
-          </div>
-
-          {/* Actions */}
-          <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
-            <button onClick={() => nav('/user/dashboard')} style={{
-              flex: 1, padding: '12px', borderRadius: 10, background: 'linear-gradient(135deg, #6c63ff, #8b5cf6)',
-              border: 'none', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-            }}>
-              Lihat Dashboard <ArrowRight size={15} />
-            </button>
-            <button onClick={() => { setResult(null); setCurrentIdx(0); setResponses([]); setSelectedVal(null); setPrevPrediction(null); startRef.current = Date.now(); }} style={{
-              padding: '12px 20px', borderRadius: 10, background: '#131722', border: '1px solid #1e2130',
-              color: '#8890a4', fontSize: 13, fontWeight: 500, cursor: 'pointer',
-            }}>
-              Ulangi Kuisioner
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // No questions
-  if (questions.length === 0) {
-    return (
-      <div style={{ padding: '22px 24px', background: '#0b0d14', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Inter, sans-serif' }}>
-        <div style={{ textAlign: 'center', color: '#8890a4' }}>
-          <ClipboardList size={36} color="#4a5068" />
-          <div style={{ marginTop: 12 }}>Belum ada pertanyaan. Coba lagi nanti.</div>
-        </div>
-      </div>
-    );
-  }
-
-  const q = questions[currentIdx];
-  const ti = typeIcon(q.construct_type);
-
-  return (
-    <div style={{ padding: '22px 24px', background: '#0b0d14', minHeight: '100vh', color: '#e2e8f0', fontFamily: 'Inter, sans-serif' }}>
-      <style>{`
-        @keyframes slideUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.04); } }
-        .q-slide { animation: slideUp 0.3s ease-out; }
-        .btn-pulse { animation: pulse 0.35s ease; }
-      `}</style>
-
-      <div style={{ maxWidth: 720, margin: '0 auto' }}>
-        {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-          <div style={{ width: 38, height: 38, borderRadius: 10, background: 'linear-gradient(135deg, #6c63ff, #3ecfcf)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <ClipboardList size={20} color="#fff" />
-          </div>
-          <div>
-            <h1 style={{ fontSize: 22, fontWeight: 700, color: '#e2e8f0', margin: 0 }}>Kuisioner Harian</h1>
-            <p style={{ color: '#8890a4', fontSize: 12, margin: '2px 0 0' }}>
-              {questions.length} pertanyaan — AI-generated · {new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long' })}
-            </p>
-          </div>
-          <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(168,85,247,0.1)', padding: '4px 10px', borderRadius: 14, fontSize: 10, color: '#c4b5fd' }}>
-            <Sparkles size={11} /> AI
-          </span>
-        </div>
-
-        {/* Progress */}
-        <div style={{ ...card, marginBottom: 16 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-            <span style={{ fontSize: 12, color: '#8890a4', fontWeight: 500 }}>
-              Pertanyaan {currentIdx + 1} / {questions.length}
-            </span>
-            <span style={{ fontSize: 12, color: '#a89cff', fontWeight: 600 }}>{Math.round(progress)}%</span>
-          </div>
-          <div style={{ height: 6, background: '#1e2130', borderRadius: 3, overflow: 'hidden' }}>
-            <div style={{ width: `${progress}%`, height: '100%', background: 'linear-gradient(90deg, #6c63ff, #3ecfcf)', borderRadius: 3, transition: 'width 0.4s' }} />
-          </div>
-          {/* Dots */}
-          <div style={{ display: 'flex', gap: 6, marginTop: 10, justifyContent: 'center' }}>
-            {questions.map((_, i) => (
-              <div key={i} style={{
-                width: 8, height: 8, borderRadius: '50%',
-                background: i < currentIdx ? '#6c63ff' : i === currentIdx ? '#a89cff' : '#1e2130',
-                transition: 'all 0.3s',
-              }} />
             ))}
           </div>
         </div>
+      </div>
+    );
+  }
 
-        {/* Question Card */}
-        <div className="q-slide" key={q.id} style={{ ...card, padding: 28 }}>
-          {/* Category badge */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 16 }}>
-            <span style={{
-              padding: '4px 10px', borderRadius: 10, fontSize: 10, fontWeight: 600,
-              background: q.construct_type === 'fatigue' ? 'rgba(239,68,68,0.1)' : q.construct_type === 'cynicism' ? 'rgba(245,158,11,0.1)' : 'rgba(34,197,94,0.1)',
-              color: q.construct_type === 'fatigue' ? '#f87171' : q.construct_type === 'cynicism' ? '#fbbf24' : '#4ade80',
-              border: `1px solid ${q.construct_type === 'fatigue' ? 'rgba(239,68,68,0.2)' : q.construct_type === 'cynicism' ? 'rgba(245,158,11,0.2)' : 'rgba(34,197,94,0.2)'}`,
-            }}>
-              {ti.icon} {ti.label}
-            </span>
-            <Clock size={11} color="#4a5068" />
-            <span style={{ fontSize: 10, color: '#4a5068' }}>Jawab spontan</span>
-          </div>
+  if (result) {
+    const risk = getRiskMeta(result.risk_level);
+    const burnoutScore = result.burnout_score || 0;
+    const psychoScore = result.psychosomatic_score || 0;
+    const gaugePercent = Math.min((burnoutScore / 10) * 100, 100);
+    const diff = prevPrediction ? burnoutScore - prevPrediction.burnout : 0;
+    const stable = Math.abs(diff) < 0.3;
+    const TrendIcon = stable ? Minus : diff > 0 ? TrendingUp : TrendingDown;
+    const trendColor = stable ? 'text-slate-400' : diff > 0 ? 'text-rose-300' : 'text-emerald-300';
+    const trendLabel = stable
+      ? 'Stabil'
+      : diff > 0
+        ? `Naik ${diff.toFixed(1)}`
+        : `Turun ${Math.abs(diff).toFixed(1)}`;
+    const recommendations =
+      result.risk_level === 'High' || result.risk_level === 'Crisis'
+        ? [
+            'Ambil jeda pemulihan dan kurangi aktivitas yang paling menguras energi.',
+            'Bicarakan kondisi ini dengan orang tepercaya atau pendamping profesional.',
+            'Pantau kembali skor harian, terutama jika keluhan fisik ikut meningkat.',
+          ]
+        : result.risk_level === 'Medium'
+          ? [
+              'Jadwalkan check-in diri singkat selama beberapa hari ke depan.',
+              'Atur prioritas tugas dan sisihkan waktu pemulihan yang benar-benar bebas.',
+              'Catat pemicu stres yang paling sering muncul setelah aktivitas harian.',
+            ]
+          : [
+              'Pertahankan ritme tidur, makan, dan aktivitas fisik yang sudah membantu.',
+              'Gunakan skor hari ini sebagai baseline untuk membaca perubahan berikutnya.',
+              'Tetap lakukan refleksi berkala agar kenaikan risiko terbaca lebih awal.',
+            ];
 
-          {/* Question Text */}
-          <h2 style={{ fontSize: 22, fontWeight: 700, color: '#e2e8f0', lineHeight: 1.5, margin: '0 0 28px', minHeight: 60 }}>
-            {q.text}
-          </h2>
+    return (
+      <div className="min-h-screen bg-[#0b0d14] px-5 py-6 text-slate-100 md:px-8">
+        <div className="mx-auto max-w-6xl space-y-5">
+          <header className="overflow-hidden rounded-xl border border-slate-800 bg-slate-950/70">
+            <div className="relative grid gap-6 p-6 md:grid-cols-[1fr_320px]">
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(34,197,94,0.20),transparent_28%),radial-gradient(circle_at_88%_8%,rgba(99,102,241,0.18),transparent_26%)]" />
+              <div className="relative">
+                <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-200">
+                  <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
+                  Analisis selesai
+                </div>
+                <h1 className="text-2xl font-semibold tracking-normal text-white md:text-3xl">
+                  Hasil Kuisioner Harian
+                </h1>
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
+                  Data respons berhasil diproses menjadi skor burnout, risiko psikosomatis,
+                  dan rekomendasi tindak lanjut yang bisa kamu pantau dari dashboard.
+                </p>
+              </div>
 
-          {/* Scale buttons */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8 }}>
-            {[1, 2, 3, 4, 5].map(val => {
-              const isSelected = selectedVal === val;
-              const accent = val <= 2 ? '#ef4444' : val === 3 ? '#f59e0b' : '#22c55e';
-              return (
+              <div className={`relative rounded-xl border p-4 ${risk.border} ${risk.bg}`}>
+                <p className="text-xs font-semibold uppercase text-slate-400">Status risiko</p>
+                <div className={`mt-2 text-3xl font-semibold ${risk.text}`}>{risk.label}</div>
+                <p className="mt-2 text-xs leading-5 text-slate-400">Prediction ID #{result.prediction_id}</p>
+              </div>
+            </div>
+          </header>
+
+          <section className="grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
+            <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-6">
+              <div className="mb-5 flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase text-slate-500">Skor utama</p>
+                  <h2 className="mt-1 text-lg font-semibold tracking-normal text-white">Burnout gauge</h2>
+                </div>
+                <Gauge className="h-5 w-5 text-emerald-300" aria-hidden="true" />
+              </div>
+
+              <div className="relative mx-auto h-52 w-52">
+                <svg className="-rotate-90" viewBox="0 0 180 180">
+                  <circle cx="90" cy="90" r="74" fill="none" stroke="#1e293b" strokeWidth="14" />
+                  <circle
+                    cx="90"
+                    cy="90"
+                    r="74"
+                    fill="none"
+                    stroke={risk.hex}
+                    strokeDasharray={`${465 * (gaugePercent / 100)} 465`}
+                    strokeLinecap="round"
+                    strokeWidth="14"
+                  />
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <span className={`text-5xl font-semibold ${risk.text}`}>{burnoutScore.toFixed(1)}</span>
+                  <span className="text-xs text-slate-500">dari 10</span>
+                </div>
+              </div>
+
+              {prevPrediction && (
+                <div className="mt-5 flex items-center justify-center gap-2 rounded-lg border border-slate-800 bg-slate-950/70 px-4 py-3">
+                  <TrendIcon className={`h-4 w-4 ${trendColor}`} aria-hidden="true" />
+                  <span className={`text-sm font-semibold ${trendColor}`}>{trendLabel}</span>
+                  <span className="text-xs text-slate-500">dari skor sebelumnya {prevPrediction.burnout.toFixed(1)}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="grid gap-5 lg:grid-cols-2">
+              <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-5">
+                <div className="mb-4 flex items-center gap-2">
+                  <BarChart3 className="h-5 w-5 text-indigo-300" aria-hidden="true" />
+                  <h2 className="text-base font-semibold tracking-normal text-white">Breakdown skor</h2>
+                </div>
+
+                <div className="space-y-4">
+                  {[
+                    { label: 'Burnout', value: burnoutScore, icon: Zap, color: risk.hex },
+                    { label: 'Psikosomatis', value: psychoScore, icon: Activity, color: '#22d3ee' },
+                    { label: 'Rata-rata respons', value: responseStats.averageValue * 2, icon: Target, color: '#a78bfa' },
+                  ].map((item) => {
+                    const Icon = item.icon;
+                    const width = `${Math.min((item.value / 10) * 100, 100)}%`;
+
+                    return (
+                      <div key={item.label} className="rounded-lg border border-slate-800 bg-slate-950/70 p-4">
+                        <div className="mb-3 flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2 text-sm font-medium text-slate-300">
+                            <Icon className="h-4 w-4" style={{ color: item.color }} aria-hidden="true" />
+                            {item.label}
+                          </div>
+                          <span className="text-sm font-semibold text-white">{item.value.toFixed(1)}</span>
+                        </div>
+                        <div className="h-2 overflow-hidden rounded-full bg-slate-800">
+                          <div className="h-full rounded-full" style={{ width, backgroundColor: item.color }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-5">
+                <div className="mb-4 flex items-center gap-2">
+                  <Lightbulb className="h-5 w-5 text-amber-300" aria-hidden="true" />
+                  <h2 className="text-base font-semibold tracking-normal text-white">Rekomendasi</h2>
+                </div>
+
+                <div className="space-y-3">
+                  {recommendations.map((item) => (
+                    <div key={item} className="flex gap-3 rounded-lg border border-slate-800 bg-slate-950/70 p-3">
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" aria-hidden="true" />
+                      <p className="text-sm leading-6 text-slate-400">{item}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
+            <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-5">
+              <div className="mb-5 flex items-center gap-2">
+                <Brain className="h-5 w-5 text-violet-300" aria-hidden="true" />
+                <h2 className="text-base font-semibold tracking-normal text-white">Cara kerja analisis</h2>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-3">
+                {[
+                  {
+                    title: 'Reaction time',
+                    body: `Rata-rata ${formatReactionTime(responseStats.averageMs)} per pertanyaan sebagai sinyal konsistensi respons.`,
+                    icon: TimerReset,
+                    color: 'text-cyan-300',
+                  },
+                  {
+                    title: 'Quantum cognition',
+                    body: 'Variasi jawaban dan urutan pertanyaan dipakai untuk membaca interference effect.',
+                    icon: Brain,
+                    color: 'text-violet-300',
+                  },
+                  {
+                    title: 'Prediksi risiko',
+                    body: 'Skor burnout dan psikosomatis dihitung lalu diklasifikasikan menjadi status risiko.',
+                    icon: Shield,
+                    color: 'text-emerald-300',
+                  },
+                ].map((item) => {
+                  const Icon = item.icon;
+
+                  return (
+                    <article key={item.title} className="rounded-lg border border-slate-800 bg-slate-950/70 p-4">
+                      <Icon className={`mb-4 h-5 w-5 ${item.color}`} aria-hidden="true" />
+                      <h3 className="text-sm font-semibold tracking-normal text-white">{item.title}</h3>
+                      <p className="mt-2 text-xs leading-5 text-slate-500">{item.body}</p>
+                    </article>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-5">
+              <h2 className="text-base font-semibold tracking-normal text-white">Aksi berikutnya</h2>
+              <p className="mt-2 text-sm leading-6 text-slate-400">
+                Lanjutkan ke dashboard untuk melihat tren personal, atau ulangi kuisioner jika
+                kamu merasa ada jawaban yang kurang mewakili kondisi saat ini.
+              </p>
+              <div className="mt-5 grid gap-3">
                 <button
-                  key={val}
-                  onClick={() => handleAnswer(val)}
-                  disabled={animating}
-                  className={isSelected ? 'btn-pulse' : ''}
-                  style={{
-                    padding: '16px 8px', borderRadius: 14, cursor: 'pointer', border: 'none',
-                    background: isSelected ? accent + '20' : '#0f1117',
-                    border: isSelected ? `2px solid ${accent}60` : '1px solid #1e2130',
-                    color: isSelected ? accent : '#8890a4',
-                    transition: 'all 0.2s', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-                    transform: isSelected ? 'translateY(-3px)' : 'none',
-                  }}
-                  onMouseEnter={e => !isSelected && (e.currentTarget.style.background = '#1a1e2e', e.currentTarget.style.borderColor = '#2a2e42')}
-                  onMouseLeave={e => !isSelected && (e.currentTarget.style.background = '#0f1117', e.currentTarget.style.borderColor = '#1e2130')}
+                  onClick={() => nav('/user/dashboard')}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-emerald-500 px-4 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400"
                 >
-                  <span style={{ fontSize: 24, fontWeight: 800 }}>{val}</span>
-                  <span style={{ fontSize: 9, whiteSpace: 'nowrap', textAlign: 'center', lineHeight: 1.3 }}>
-                    {labels[val - 1]}
-                  </span>
+                  Lihat dashboard
+                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
                 </button>
-              );
-            })}
-          </div>
-
-          {/* Back button */}
-          {currentIdx > 0 && (
-            <button onClick={goBack} disabled={animating} style={{
-              marginTop: 14, padding: '7px 14px', borderRadius: 8, background: 'transparent',
-              border: '1px solid #1e2130', color: '#8890a4', fontSize: 11, cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: 4,
-            }}>
-              <ChevronLeft size={13} /> Kembali
-            </button>
-          )}
+                <button
+                  onClick={resetQuestionnaire}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-950 px-4 text-sm font-semibold text-slate-300 transition hover:border-slate-500 hover:text-white"
+                >
+                  <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                  Ulangi kuisioner
+                </button>
+              </div>
+            </div>
+          </section>
         </div>
+      </div>
+    );
+  }
+
+  if (questions.length === 0) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#0b0d14] px-6 text-slate-100">
+        <div className="w-full max-w-md rounded-xl border border-slate-800 bg-slate-900/70 p-8 text-center">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-xl border border-slate-700 bg-slate-950 text-slate-400">
+            <ClipboardList className="h-6 w-6" aria-hidden="true" />
+          </div>
+          <h2 className="mt-5 text-lg font-semibold tracking-normal text-white">Belum ada pertanyaan</h2>
+          <p className="mt-2 text-sm leading-6 text-slate-400">
+            Kuisioner harian belum tersedia. Coba buka kembali beberapa saat lagi.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-[#0b0d14] px-5 py-6 text-slate-100 md:px-8">
+      <div className="mx-auto max-w-6xl space-y-5">
+        <header className="overflow-hidden rounded-xl border border-slate-800 bg-slate-950/70">
+          <div className="relative grid gap-6 p-6 md:grid-cols-[1fr_330px]">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(34,197,94,0.18),transparent_28%),radial-gradient(circle_at_84%_16%,rgba(45,212,191,0.16),transparent_26%)]" />
+            <div className="relative">
+              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-200">
+                <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+                Kuisioner harian adaptif
+              </div>
+              <h1 className="text-2xl font-semibold tracking-normal text-white md:text-3xl">
+                Refleksi kondisi hari ini
+              </h1>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
+                Jawab spontan sesuai kondisi saat ini. Sistem membaca nilai jawaban dan
+                waktu respons untuk menghasilkan skor burnout dan rekomendasi personal.
+              </p>
+            </div>
+
+            <div className="relative grid grid-cols-3 gap-3">
+              {[
+                { label: 'Pertanyaan', value: questions.length, icon: ClipboardList, color: 'text-emerald-300' },
+                { label: 'Terjawab', value: responses.length, icon: CheckCircle2, color: 'text-cyan-300' },
+                { label: 'Urutan', value: orderType || '-', icon: Brain, color: 'text-violet-300' },
+              ].map((item) => {
+                const Icon = item.icon;
+
+                return (
+                  <div key={item.label} className="rounded-lg border border-slate-800 bg-slate-900/70 p-3">
+                    <Icon className={`mb-3 h-4 w-4 ${item.color}`} aria-hidden="true" />
+                    <div className="truncate text-xl font-semibold text-white">{item.value}</div>
+                    <div className="mt-1 text-[11px] leading-4 text-slate-500">{item.label}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </header>
+
+        <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+          <main className="rounded-xl border border-slate-800 bg-slate-900/70 p-5 shadow-2xl shadow-black/20 md:p-6">
+            <div className="mb-6">
+              <div className="mb-3 flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase text-slate-500">
+                    Pertanyaan {currentIdx + 1} dari {questions.length}
+                  </p>
+                  <p className="mt-1 text-sm text-slate-400">{Math.round(displayProgress)}% menuju hasil analisis</p>
+                </div>
+                <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold ${currentMeta.border} ${currentMeta.bg} ${currentMeta.text}`}>
+                  <CurrentIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                  {currentMeta.label}
+                </div>
+              </div>
+
+              <div className="h-2 overflow-hidden rounded-full bg-slate-950">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-emerald-400 via-cyan-300 to-indigo-400 transition-all duration-500"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+            </div>
+
+            <div key={currentQuestion.id} className="rounded-xl border border-slate-800 bg-slate-950/60 p-5 md:p-7">
+              <div className="mb-5 flex items-start gap-4">
+                <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border ${currentMeta.border} ${currentMeta.bg}`}>
+                  <CurrentIcon className={`h-6 w-6 ${currentMeta.text}`} aria-hidden="true" />
+                </div>
+                <div>
+                  <p className={`text-sm font-semibold ${currentMeta.text}`}>{currentMeta.label}</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">{currentMeta.helper}</p>
+                </div>
+              </div>
+
+              <h2 className="min-h-[88px] text-2xl font-semibold leading-snug tracking-normal text-white md:text-3xl">
+                {currentQuestion.text}
+              </h2>
+
+              <div className="mt-7 grid gap-3 sm:grid-cols-5">
+                {answerOptions.map((option) => {
+                  const selected = selectedVal === option.value;
+                  const toneClass =
+                    option.tone === 'rose'
+                      ? 'hover:border-rose-400/40 hover:text-rose-200'
+                      : option.tone === 'orange'
+                        ? 'hover:border-orange-400/40 hover:text-orange-200'
+                        : option.tone === 'amber'
+                          ? 'hover:border-amber-400/40 hover:text-amber-200'
+                          : option.tone === 'emerald'
+                            ? 'hover:border-emerald-400/40 hover:text-emerald-200'
+                            : 'hover:border-cyan-400/40 hover:text-cyan-200';
+                  const selectedClass =
+                    option.tone === 'rose'
+                      ? 'border-rose-400/60 bg-rose-500/15 text-rose-200'
+                      : option.tone === 'orange'
+                        ? 'border-orange-400/60 bg-orange-500/15 text-orange-200'
+                        : option.tone === 'amber'
+                          ? 'border-amber-400/60 bg-amber-500/15 text-amber-200'
+                          : option.tone === 'emerald'
+                            ? 'border-emerald-400/60 bg-emerald-500/15 text-emerald-200'
+                            : 'border-cyan-400/60 bg-cyan-500/15 text-cyan-200';
+
+                  return (
+                    <button
+                      key={option.value}
+                      onClick={() => handleAnswer(option.value)}
+                      disabled={animating}
+                      className={`min-h-[116px] rounded-xl border p-3 text-center transition ${
+                        selected
+                          ? `${selectedClass} -translate-y-1 shadow-lg shadow-black/20`
+                          : `border-slate-800 bg-slate-900 text-slate-400 ${toneClass}`
+                      } disabled:cursor-not-allowed disabled:opacity-80`}
+                    >
+                      <span className="block text-3xl font-semibold">{option.value}</span>
+                      <span className="mt-2 block text-xs font-semibold">{option.short}</span>
+                      <span className="mt-1 block text-[11px] leading-4">{option.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <button
+                  onClick={goBack}
+                  disabled={currentIdx === 0 || animating}
+                  className="inline-flex h-10 w-fit items-center gap-2 rounded-lg border border-slate-700 bg-slate-950 px-4 text-sm font-medium text-slate-400 transition hover:border-slate-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+                  Kembali
+                </button>
+
+                <div className="flex items-center gap-2 text-xs text-slate-500">
+                  <Clock className="h-4 w-4" aria-hidden="true" />
+                  Pilihan langsung tersimpan setelah diklik
+                </div>
+              </div>
+            </div>
+          </main>
+
+          <aside className="space-y-5">
+            <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-5">
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <h2 className="text-base font-semibold tracking-normal text-white">Peta progres</h2>
+                  <p className="mt-1 text-xs text-slate-500">Jejak jawaban sesi ini</p>
+                </div>
+                <Activity className="h-5 w-5 text-cyan-300" aria-hidden="true" />
+              </div>
+
+              <div className="grid grid-cols-8 gap-2">
+                {questions.map((question, index) => {
+                  const answered = index < responses.length;
+                  const active = index === currentIdx;
+                  const meta = getConstructMeta(question.construct_type);
+
+                  return (
+                    <div
+                      key={question.id}
+                      className={`h-9 rounded-lg border ${
+                        answered
+                          ? `${meta.border} ${meta.bg}`
+                          : active
+                            ? 'border-cyan-400/50 bg-cyan-500/10'
+                            : 'border-slate-800 bg-slate-950'
+                      }`}
+                      title={`Pertanyaan ${index + 1}`}
+                    />
+                  );
+                })}
+              </div>
+
+              <div className="mt-5 grid grid-cols-2 gap-3">
+                <div className="rounded-lg border border-slate-800 bg-slate-950/70 p-3">
+                  <p className="text-xs text-slate-500">Rata-rata respons</p>
+                  <p className="mt-1 text-xl font-semibold text-white">
+                    {responses.length > 0 ? responseStats.averageValue.toFixed(1) : '-'}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-slate-800 bg-slate-950/70 p-3">
+                  <p className="text-xs text-slate-500">Waktu rata-rata</p>
+                  <p className="mt-1 text-xl font-semibold text-white">
+                    {responses.length > 0 ? formatReactionTime(responseStats.averageMs) : '-'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-5">
+              <div className="mb-4 flex items-center gap-2">
+                <Brain className="h-5 w-5 text-violet-300" aria-hidden="true" />
+                <h2 className="text-base font-semibold tracking-normal text-white">Dimensi terjawab</h2>
+              </div>
+
+              <div className="space-y-3">
+                {(['fatigue', 'cynicism', 'efficacy'] as const).map((type) => {
+                  const meta = getConstructMeta(type);
+                  const Icon = meta.icon;
+                  const count = responseStats.constructCounts[type] || 0;
+
+                  return (
+                    <div key={type} className="flex items-center gap-3 rounded-lg border border-slate-800 bg-slate-950/70 p-3">
+                      <div className={`flex h-9 w-9 items-center justify-center rounded-lg border ${meta.border} ${meta.bg}`}>
+                        <Icon className={`h-4 w-4 ${meta.text}`} aria-hidden="true" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-slate-200">{meta.label}</p>
+                        <p className="text-xs text-slate-500">{count} respons</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-emerald-400/20 bg-emerald-500/10 p-5">
+              <div className="mb-3 flex items-center gap-2 text-emerald-200">
+                <Lightbulb className="h-5 w-5" aria-hidden="true" />
+                <h2 className="text-sm font-semibold tracking-normal">Tips menjawab</h2>
+              </div>
+              <p className="text-sm leading-6 text-slate-400">
+                Tidak ada jawaban benar atau salah. Pilih yang paling mendekati kondisi
+                hari ini agar prediksi lebih jujur dan berguna.
+              </p>
+            </div>
+          </aside>
+        </section>
       </div>
     </div>
   );

@@ -105,10 +105,10 @@ func AssessmentSubmitHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"status": "success", 
-		"prediction_id": prediction.ID, 
-		"risk_level": risk,
-		"burnout_score": bScore,
+		"status":              "success",
+		"prediction_id":       prediction.ID,
+		"risk_level":          risk,
+		"burnout_score":       bScore,
 		"psychosomatic_score": pScore,
 	})
 }
@@ -140,7 +140,9 @@ func UserNotificationsHandler(c *gin.Context) {
 	user := c.MustGet("user").(User)
 	var recommendations []TherapyRecommendation
 	DB.Where("user_id = ?", user.ID).Order("created_at desc").Limit(30).Find(&recommendations)
-	if recommendations == nil { recommendations = []TherapyRecommendation{} }
+	if recommendations == nil {
+		recommendations = []TherapyRecommendation{}
+	}
 	c.JSON(http.StatusOK, gin.H{"notifications": recommendations})
 }
 
@@ -171,4 +173,55 @@ func UserTreatmentStatusHandler(c *gin.Context) {
 	DB.Save(&treatment)
 
 	c.JSON(http.StatusOK, gin.H{"status": "success", "treatment": treatment})
+}
+
+func UserTreatmentRepliesHandler(c *gin.Context) {
+	user := c.MustGet("user").(User)
+	id := c.Param("id")
+
+	var treatment TherapyRecommendation
+	if err := DB.Where("id = ? AND user_id = ?", id, user.ID).First(&treatment).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Treatment tidak ditemukan"})
+		return
+	}
+
+	var replies []TreatmentReply
+	DB.Where("therapy_recommendation_id = ? AND user_id = ?", treatment.ID, user.ID).
+		Order("created_at ASC").
+		Find(&replies)
+	if replies == nil {
+		replies = []TreatmentReply{}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"replies": replies})
+}
+
+func UserTreatmentReplyCreateHandler(c *gin.Context) {
+	user := c.MustGet("user").(User)
+	id := c.Param("id")
+
+	var input struct {
+		Text string `json:"text" binding:"required"`
+		Mood string `json:"mood"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Balasan tidak boleh kosong"})
+		return
+	}
+
+	var treatment TherapyRecommendation
+	if err := DB.Where("id = ? AND user_id = ?", id, user.ID).First(&treatment).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Treatment tidak ditemukan"})
+		return
+	}
+
+	reply := TreatmentReply{
+		TherapyRecommendationID: treatment.ID,
+		UserID:                  user.ID,
+		Text:                    input.Text,
+		Mood:                    input.Mood,
+	}
+	DB.Create(&reply)
+
+	c.JSON(http.StatusCreated, gin.H{"status": "success", "reply": reply})
 }

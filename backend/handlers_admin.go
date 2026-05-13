@@ -29,13 +29,13 @@ func RespondenGetHandler(c *gin.Context) {
 	}
 
 	type RespondenDTO struct {
-		ID                 uint      `json:"id"`
-		Nama               string    `json:"nama"`
-		Username           string    `json:"username"`
-		LatestBurnout      float64   `json:"latest_burnout"`
-		LatestRisk         string    `json:"latest_risk"`
+		ID                  uint      `json:"id"`
+		Nama                string    `json:"nama"`
+		Username            string    `json:"username"`
+		LatestBurnout       float64   `json:"latest_burnout"`
+		LatestRisk          string    `json:"latest_risk"`
 		LatestPsychosomatic float64   `json:"latest_psychosomatic"`
-		LastActivity       time.Time `json:"last_activity"`
+		LastActivity        time.Time `json:"last_activity"`
 	}
 
 	var result []RespondenDTO
@@ -43,13 +43,13 @@ func RespondenGetHandler(c *gin.Context) {
 		if u.Role == "admin" {
 			continue
 		}
-		
+
 		dto := RespondenDTO{
 			ID:       u.ID,
 			Nama:     u.Nama,
 			Username: u.Username,
 		}
-		
+
 		if len(u.Predictions) > 0 {
 			latest := u.Predictions[0]
 			dto.LatestBurnout = latest.BurnoutScore
@@ -57,7 +57,7 @@ func RespondenGetHandler(c *gin.Context) {
 			dto.LatestPsychosomatic = latest.PsychosomaticScore
 			dto.LastActivity = latest.Timestamp
 		}
-		
+
 		result = append(result, dto)
 	}
 
@@ -85,19 +85,21 @@ func RespondenHistoryHandler(c *gin.Context) {
 }
 
 func AdminUsersGetHandler(c *gin.Context) {
-	if !AdminGuard(c) { return }
+	if !AdminGuard(c) {
+		return
+	}
 	var users []User
 	DB.Order("id ASC").Find(&users)
 
 	type UserDTO struct {
-		ID           uint      `json:"id"`
-		Username     string    `json:"username"`
-		Nama         string    `json:"nama"`
-		Role         string    `json:"role"`
-		Bio          string    `json:"bio"`
-		ProfilePic   string    `json:"profile_pic"`
-		CreatedAt    time.Time `json:"created_at"`
-		UpdatedAt    time.Time `json:"updated_at"`
+		ID         uint      `json:"id"`
+		Username   string    `json:"username"`
+		Nama       string    `json:"nama"`
+		Role       string    `json:"role"`
+		Bio        string    `json:"bio"`
+		ProfilePic string    `json:"profile_pic"`
+		CreatedAt  time.Time `json:"created_at"`
+		UpdatedAt  time.Time `json:"updated_at"`
 	}
 	var result []UserDTO
 	for _, u := range users {
@@ -111,7 +113,9 @@ func AdminUsersGetHandler(c *gin.Context) {
 }
 
 func AdminUsersGetByIDHandler(c *gin.Context) {
-	if !AdminGuard(c) { return }
+	if !AdminGuard(c) {
+		return
+	}
 	id := c.Param("id")
 	var user User
 	if err := DB.First(&user, id).Error; err != nil {
@@ -126,7 +130,9 @@ func AdminUsersGetByIDHandler(c *gin.Context) {
 }
 
 func AdminUsersPutHandler(c *gin.Context) {
-	if !AdminGuard(c) { return }
+	if !AdminGuard(c) {
+		return
+	}
 	id := c.Param("id")
 	var target User
 	if err := DB.First(&target, id).Error; err != nil {
@@ -154,9 +160,15 @@ func AdminUsersPutHandler(c *gin.Context) {
 		}
 		updates["username"] = input.Username
 	}
-	if input.Nama != "" { updates["nama"] = input.Nama }
-	if input.Role != "" { updates["role"] = input.Role }
-	if input.Bio != "" { updates["bio"] = input.Bio }
+	if input.Nama != "" {
+		updates["nama"] = input.Nama
+	}
+	if input.Role != "" {
+		updates["role"] = input.Role
+	}
+	if input.Bio != "" {
+		updates["bio"] = input.Bio
+	}
 	if input.Password != "" {
 		hashedPassword, _ := HashPassword(input.Password)
 		updates["password_hash"] = hashedPassword
@@ -168,7 +180,9 @@ func AdminUsersPutHandler(c *gin.Context) {
 }
 
 func AdminUsersDeleteHandler(c *gin.Context) {
-	if !AdminGuard(c) { return }
+	if !AdminGuard(c) {
+		return
+	}
 	id := c.Param("id")
 	var target User
 	if err := DB.First(&target, id).Error; err != nil {
@@ -193,7 +207,9 @@ func AdminUsersDeleteHandler(c *gin.Context) {
 }
 
 func AdminUsersTreatmentHandler(c *gin.Context) {
-	if !AdminGuard(c) { return }
+	if !AdminGuard(c) {
+		return
+	}
 	id := c.Param("id")
 	var target User
 	if err := DB.First(&target, id).Error; err != nil {
@@ -224,11 +240,17 @@ func AdminUsersTreatmentHandler(c *gin.Context) {
 	}
 
 	cat := input.Category
-	if cat == "" { cat = "general" }
+	if cat == "" {
+		cat = "general"
+	}
 	pri := input.Priority
-	if pri == "" { pri = "medium" }
+	if pri == "" {
+		pri = "medium"
+	}
 	dur := input.Duration
-	if dur == "" { dur = "1_week" }
+	if dur == "" {
+		dur = "1_week"
+	}
 
 	therapy := TherapyRecommendation{
 		UserID:       target.ID,
@@ -256,17 +278,99 @@ func AdminUsersTreatmentHandler(c *gin.Context) {
 }
 
 func AdminUserTreatmentsHandler(c *gin.Context) {
-	if !AdminGuard(c) { return }
+	if !AdminGuard(c) {
+		return
+	}
 	id := c.Param("id")
 
 	var treatments []TherapyRecommendation
-	DB.Where("user_id = ?", id).Order("created_at DESC").Limit(20).Find(&treatments)
+	DB.Preload("Replies").
+		Where("user_id = ?", id).
+		Order("created_at DESC").
+		Limit(20).
+		Find(&treatments)
 
 	c.JSON(http.StatusOK, gin.H{"treatments": treatments})
 }
 
+func AdminTreatmentRepliesHandler(c *gin.Context) {
+	if !AdminGuard(c) {
+		return
+	}
+
+	type ReplyDTO struct {
+		ID          uint      `json:"id"`
+		TreatmentID uint      `json:"treatment_id"`
+		UserID      uint      `json:"user_id"`
+		UserName    string    `json:"user_name"`
+		Username    string    `json:"username"`
+		Text        string    `json:"text"`
+		Mood        string    `json:"mood"`
+		AdminSeen   bool      `json:"admin_seen"`
+		CreatedAt   time.Time `json:"created_at"`
+		ModuleName  string    `json:"module_name"`
+		Category    string    `json:"category"`
+		Priority    string    `json:"priority"`
+		Status      string    `json:"status"`
+	}
+
+	var replies []TreatmentReply
+	DB.Order("created_at DESC").Limit(80).Find(&replies)
+
+	var result []ReplyDTO
+	for _, reply := range replies {
+		var treatment TherapyRecommendation
+		DB.First(&treatment, reply.TherapyRecommendationID)
+
+		var user User
+		DB.First(&user, reply.UserID)
+
+		result = append(result, ReplyDTO{
+			ID:          reply.ID,
+			TreatmentID: reply.TherapyRecommendationID,
+			UserID:      reply.UserID,
+			UserName:    user.Nama,
+			Username:    user.Username,
+			Text:        reply.Text,
+			Mood:        reply.Mood,
+			AdminSeen:   reply.AdminSeen,
+			CreatedAt:   reply.CreatedAt,
+			ModuleName:  treatment.ModuleName,
+			Category:    treatment.Category,
+			Priority:    treatment.Priority,
+			Status:      treatment.Status,
+		})
+	}
+
+	if result == nil {
+		result = []ReplyDTO{}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"replies": result})
+}
+
+func AdminTreatmentReplyReadHandler(c *gin.Context) {
+	if !AdminGuard(c) {
+		return
+	}
+	id := c.Param("id")
+
+	var reply TreatmentReply
+	if err := DB.First(&reply, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Balasan tidak ditemukan"})
+		return
+	}
+
+	reply.AdminSeen = true
+	DB.Save(&reply)
+
+	c.JSON(http.StatusOK, gin.H{"status": "success", "reply": reply})
+}
+
 func AdminAnalyticsHandler(c *gin.Context) {
-	if !AdminGuard(c) { return }
+	if !AdminGuard(c) {
+		return
+	}
 
 	var users []User
 	if err := DB.Preload("Predictions", func(db *gorm.DB) *gorm.DB {
@@ -357,14 +461,16 @@ func AdminAnalyticsHandler(c *gin.Context) {
 	for _, d := range orderedDates {
 		scores := dateGroups[d]
 		sum := 0.0
-		for _, s := range scores { sum += s }
+		for _, s := range scores {
+			sum += s
+		}
 		avg := sum / float64(len(scores))
 
 		trendData = append(trendData, TrendDay{
-			Date: d,
-			Semua: avg,
+			Date:      d,
+			Semua:     avg,
 			Mahasiswa: avg + 5.0,
-			Karyawan: avg - 3.0,
+			Karyawan:  avg - 3.0,
 		})
 	}
 
@@ -374,18 +480,20 @@ func AdminAnalyticsHandler(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"totalRespondents": totalRespondents,
-		"avgBurnout": avgBurnout,
-		"highRiskCount": highRiskCount,
+		"avgBurnout":       avgBurnout,
+		"highRiskCount":    highRiskCount,
 		"totalPredictions": totalPredictions,
-		"burnoutDist": burnoutCounts,
-		"psychoDist": psychoCounts,
-		"scatterData": scatterData,
-		"trendData": trendData,
+		"burnoutDist":      burnoutCounts,
+		"psychoDist":       psychoCounts,
+		"scatterData":      scatterData,
+		"trendData":        trendData,
 	})
 }
 
 func AdminConfigGetHandler(c *gin.Context) {
-	if !AdminGuard(c) { return }
+	if !AdminGuard(c) {
+		return
+	}
 	var config SystemConfig
 	if err := DB.First(&config).Error; err != nil {
 		config = SystemConfig{}
@@ -395,7 +503,9 @@ func AdminConfigGetHandler(c *gin.Context) {
 }
 
 func AdminConfigPutHandler(c *gin.Context) {
-	if !AdminGuard(c) { return }
+	if !AdminGuard(c) {
+		return
+	}
 	var config SystemConfig
 	if err := DB.First(&config).Error; err != nil {
 		config = SystemConfig{}
@@ -411,7 +521,9 @@ func AdminConfigPutHandler(c *gin.Context) {
 }
 
 func AdminQuantumHandler(c *gin.Context) {
-	if !AdminGuard(c) { return }
+	if !AdminGuard(c) {
+		return
+	}
 
 	var assessments []Assessment
 	DB.Find(&assessments)
@@ -425,8 +537,12 @@ func AdminQuantumHandler(c *gin.Context) {
 	minI = 999
 	for _, a := range assessments {
 		sumI += a.InterferenceScore
-		if a.InterferenceScore < minI { minI = a.InterferenceScore }
-		if a.InterferenceScore > maxI { maxI = a.InterferenceScore }
+		if a.InterferenceScore < minI {
+			minI = a.InterferenceScore
+		}
+		if a.InterferenceScore > maxI {
+			maxI = a.InterferenceScore
+		}
 	}
 	avgI := sumI / float64(len(assessments))
 
@@ -446,11 +562,11 @@ func AdminQuantumHandler(c *gin.Context) {
 		orderGroups[a.OrderType] = append(orderGroups[a.OrderType], a)
 	}
 	type OrderEffect struct {
-		OrderType    string  `json:"order_type"`
-		Count        int     `json:"count"`
-		AvgFatigue   float64 `json:"avg_fatigue"`
-		AvgCynicism  float64 `json:"avg_cynicism"`
-		AvgEfficacy  float64 `json:"avg_efficacy"`
+		OrderType       string  `json:"order_type"`
+		Count           int     `json:"count"`
+		AvgFatigue      float64 `json:"avg_fatigue"`
+		AvgCynicism     float64 `json:"avg_cynicism"`
+		AvgEfficacy     float64 `json:"avg_efficacy"`
 		AvgInterference float64 `json:"avg_interference"`
 	}
 	var orderEffects []OrderEffect
@@ -469,7 +585,7 @@ func AdminQuantumHandler(c *gin.Context) {
 		}
 		orderEffects = append(orderEffects, OrderEffect{
 			OrderType: otDisplay, Count: len(group),
-			AvgFatigue: sf/n, AvgCynicism: sc/n, AvgEfficacy: se/n, AvgInterference: si/n,
+			AvgFatigue: sf / n, AvgCynicism: sc / n, AvgEfficacy: se / n, AvgInterference: si / n,
 		})
 	}
 
@@ -480,7 +596,9 @@ func AdminQuantumHandler(c *gin.Context) {
 			means = append(means, oe.AvgInterference)
 		}
 		avgM := 0.0
-		for _, m := range means { avgM += m }
+		for _, m := range means {
+			avgM += m
+		}
 		avgM /= float64(len(means))
 		for _, m := range means {
 			contextuality += (m - avgM) * (m - avgM)
@@ -488,7 +606,9 @@ func AdminQuantumHandler(c *gin.Context) {
 		contextuality = contextuality / float64(len(means))
 	}
 	contextualityNorm := contextuality / (contextuality + 0.5)
-	if contextualityNorm > 1 { contextualityNorm = 1 }
+	if contextualityNorm > 1 {
+		contextualityNorm = 1
+	}
 
 	entanglement := 0.0
 	if len(assessments) > 1 {
@@ -497,8 +617,12 @@ func AdminQuantumHandler(c *gin.Context) {
 			cross += a.FatigueScore * a.CynicismScore * a.EfficacyScore / 125.0
 		}
 		entanglement = cross / float64(len(assessments))
-		if entanglement > 1 { entanglement = 1 }
-		if entanglement < 0 { entanglement = 0 }
+		if entanglement > 1 {
+			entanglement = 1
+		}
+		if entanglement < 0 {
+			entanglement = 0
+		}
 	}
 
 	type ScoreDist struct {
@@ -507,7 +631,10 @@ func AdminQuantumHandler(c *gin.Context) {
 		Pct   float64 `json:"pct"`
 	}
 	var dist []ScoreDist
-	ranges := []struct{ lo, hi float64; label string }{
+	ranges := []struct {
+		lo, hi float64
+		label  string
+	}{
 		{0, 33, "Rendah"}, {34, 66, "Sedang"}, {67, 100, "Tinggi"},
 	}
 	var predictions []Prediction
@@ -515,29 +642,35 @@ func AdminQuantumHandler(c *gin.Context) {
 	for _, r := range ranges {
 		cnt := 0
 		for _, p := range predictions {
-			if p.BurnoutScore >= r.lo && p.BurnoutScore <= r.hi { cnt++ }
+			if p.BurnoutScore >= r.lo && p.BurnoutScore <= r.hi {
+				cnt++
+			}
 		}
 		pct := 0.0
-		if len(predictions) > 0 { pct = float64(cnt) / float64(len(predictions)) * 100 }
+		if len(predictions) > 0 {
+			pct = float64(cnt) / float64(len(predictions)) * 100
+		}
 		dist = append(dist, ScoreDist{Label: r.label, Count: cnt, Pct: pct})
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"total_assessments":     len(assessments),
-		"total_predictions":     len(predictions),
-		"interference_avg":      avgI,
-		"interference_min":      minI,
-		"interference_max":      maxI,
-		"superposition":         gin.H{"alpha": alpha, "beta": beta, "gamma": gamma},
-		"order_effects":         orderEffects,
-		"contextuality_index":   contextualityNorm,
-		"entanglement_degree":   entanglement,
-		"score_distribution":    dist,
+		"total_assessments":   len(assessments),
+		"total_predictions":   len(predictions),
+		"interference_avg":    avgI,
+		"interference_min":    minI,
+		"interference_max":    maxI,
+		"superposition":       gin.H{"alpha": alpha, "beta": beta, "gamma": gamma},
+		"order_effects":       orderEffects,
+		"contextuality_index": contextualityNorm,
+		"entanglement_degree": entanglement,
+		"score_distribution":  dist,
 	})
 }
 
 func AdminModelEvaluationHandler(c *gin.Context) {
-	if !AdminGuard(c) { return }
+	if !AdminGuard(c) {
+		return
+	}
 
 	var predictions []Prediction
 	var assessments []Assessment
@@ -587,9 +720,15 @@ func AdminModelEvaluationHandler(c *gin.Context) {
 	totalClassified := 0
 
 	baselineRisk := func(score float64) string {
-		if score > 7.5 { return "Crisis" }
-		if score > 6.0 { return "High" }
-		if score > 4.0 { return "Medium" }
+		if score > 7.5 {
+			return "Crisis"
+		}
+		if score > 6.0 {
+			return "High"
+		}
+		if score > 4.0 {
+			return "Medium"
+		}
 		return "Low"
 	}
 
@@ -602,15 +741,21 @@ func AdminModelEvaluationHandler(c *gin.Context) {
 		meanBurnout += ud.BurnoutScore
 		count++
 	}
-	if count > 0 { meanBurnout /= count }
+	if count > 0 {
+		meanBurnout /= count
+	}
 
 	for _, ud := range userMap {
 		if ud.BurnoutScore == 0 && ud.PsychoScore == 0 {
 			continue
 		}
 		baseline := 0.4*ud.F + 0.3*ud.C + 0.2*(5.0-ud.E)
-		if baseline < 0 { baseline = 0 }
-		if baseline > 10 { baseline = 10 }
+		if baseline < 0 {
+			baseline = 0
+		}
+		if baseline > 10 {
+			baseline = 10
+		}
 
 		err := ud.BurnoutScore - baseline
 		maeSum += math.Abs(err)
@@ -622,23 +767,31 @@ func AdminModelEvaluationHandler(c *gin.Context) {
 		}
 
 		actualRisk := ud.RiskLevel
-		if actualRisk == "Crisis" { actualRisk = "High" }
+		if actualRisk == "Crisis" {
+			actualRisk = "High"
+		}
 		predRisk := baselineRisk(baseline)
-		if predRisk == "Crisis" { predRisk = "High" }
+		if predRisk == "Crisis" {
+			predRisk = "High"
+		}
 		key := actualRisk + "_" + predRisk
 		matrix[key]++
-		if actualRisk == predRisk { correct++ }
+		if actualRisk == predRisk {
+			correct++
+		}
 		totalClassified++
 
 		featContrib["Fatigue (F)"] += 0.4 * ud.F
 		featContrib["Cynicism (C)"] += 0.3 * ud.C
 		featContrib["Efficacy (E)"] += 0.2 * (5.0 - ud.E)
 		featContrib["Interference (I)"] += 0.1 * ud.I
-		featContrib["NLP Stress (S)"] += 2.0 * 0 
+		featContrib["NLP Stress (S)"] += 2.0 * 0
 	}
 
 	r2 := 0.0
-	if sumSqTotal > 0 { r2 = 1 - sumSqResidual/sumSqTotal }
+	if sumSqTotal > 0 {
+		r2 = 1 - sumSqResidual/sumSqTotal
+	}
 
 	n := count
 	mae := 0.0
@@ -657,7 +810,9 @@ func AdminModelEvaluationHandler(c *gin.Context) {
 	f1 := accuracy
 
 	totalFeat := 0.0
-	for _, v := range featContrib { totalFeat += v }
+	for _, v := range featContrib {
+		totalFeat += v
+	}
 
 	type FeatImportance struct {
 		Feature    string  `json:"feature"`
@@ -672,37 +827,59 @@ func AdminModelEvaluationHandler(c *gin.Context) {
 	}
 	for name, val := range featContrib {
 		imp := 0.0
-		if totalFeat > 0 { imp = val / totalFeat }
+		if totalFeat > 0 {
+			imp = val / totalFeat
+		}
 		featList = append(featList, FeatImportance{Feature: name, Importance: imp, Color: featColors[name]})
 	}
 
 	cvScores := []float64{}
 	if len(userMap) >= 5 {
 		userIDs := make([]uint, 0, len(userMap))
-		for uid := range userMap { userIDs = append(userIDs, uid) }
+		for uid := range userMap {
+			userIDs = append(userIDs, uid)
+		}
 		foldSize := len(userIDs) / 5
-		if foldSize < 1 { foldSize = 1 }
+		if foldSize < 1 {
+			foldSize = 1
+		}
 
 		for fold := 0; fold < 5; fold++ {
 			start := fold * foldSize
 			end := start + foldSize
-			if fold == 4 { end = len(userIDs) }
-			if start >= len(userIDs) { break }
+			if fold == 4 {
+				end = len(userIDs)
+			}
+			if start >= len(userIDs) {
+				break
+			}
 
 			foldCorrect := 0
 			foldTotal := 0
 			for i := start; i < end && i < len(userIDs); i++ {
 				uid := userIDs[i]
 				ud := userMap[uid]
-				if ud == nil || ud.BurnoutScore == 0 { continue }
+				if ud == nil || ud.BurnoutScore == 0 {
+					continue
+				}
 				bl := 0.4*ud.F + 0.3*ud.C + 0.2*(5.0-ud.E)
-				if bl < 0 { bl = 0 }
-				if bl > 10 { bl = 10 }
+				if bl < 0 {
+					bl = 0
+				}
+				if bl > 10 {
+					bl = 10
+				}
 				ar := ud.RiskLevel
-				if ar == "Crisis" { ar = "High" }
+				if ar == "Crisis" {
+					ar = "High"
+				}
 				pr := baselineRisk(bl)
-				if pr == "Crisis" { pr = "High" }
-				if ar == pr { foldCorrect++ }
+				if pr == "Crisis" {
+					pr = "High"
+				}
+				if ar == pr {
+					foldCorrect++
+				}
 				foldTotal++
 			}
 			if foldTotal > 0 {
@@ -712,21 +889,21 @@ func AdminModelEvaluationHandler(c *gin.Context) {
 	}
 
 	qcR2 := r2
-	simpleR2 := qcR2 * 0.82 
-	rfR2 := qcR2 * 0.91      
-	svmR2 := qcR2 * 0.78     
+	simpleR2 := qcR2 * 0.82
+	rfR2 := qcR2 * 0.91
+	svmR2 := qcR2 * 0.78
 
 	c.JSON(http.StatusOK, gin.H{
-		"r2_score":          r2,
-		"accuracy":          accuracy,
-		"mae":               mae,
-		"rmse":              rmse,
-		"mape":              mape,
-		"f1_score":          f1,
-		"n_samples":         int(n),
-		"confusion_matrix":  matrix,
+		"r2_score":           r2,
+		"accuracy":           accuracy,
+		"mae":                mae,
+		"rmse":               rmse,
+		"mape":               mape,
+		"f1_score":           f1,
+		"n_samples":          int(n),
+		"confusion_matrix":   matrix,
 		"feature_importance": featList,
-		"cross_val_scores":  cvScores,
+		"cross_val_scores":   cvScores,
 		"model_comparison": gin.H{
 			"qc_r2":  qcR2,
 			"lr_r2":  simpleR2,

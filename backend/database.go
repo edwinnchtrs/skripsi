@@ -36,6 +36,7 @@ func ConnectDatabase() {
 		&GossipReact{},
 		&Prediction{},
 		&TherapyRecommendation{},
+		&TreatmentReply{},
 		&Follow{},
 		&Affinity{},
 		&Message{},

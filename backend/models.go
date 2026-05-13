@@ -85,12 +85,22 @@ type TherapyRecommendation struct {
 	Duration     string `gorm:"default:1_week"`
 	FollowUpDate *time.Time
 	Status       string `gorm:"default:pending"`
+	Replies      []TreatmentReply
+}
+
+type TreatmentReply struct {
+	gorm.Model
+	TherapyRecommendationID uint
+	UserID                  uint
+	Text                    string
+	Mood                    string
+	AdminSeen               bool `gorm:"default:false"`
 }
 
 type CurhatReply struct {
 	gorm.Model
 	CurhatID uint
-	UserID   uint   // if 0, maybe anonymous? We will keep it but still anonymous display
+	UserID   uint // if 0, maybe anonymous? We will keep it but still anonymous display
 	Text     string
 }
 
@@ -112,7 +122,7 @@ type Message struct {
 
 type Post struct {
 	gorm.Model
-	UserID    uint      `gorm:"index"`
+	UserID    uint `gorm:"index"`
 	Text      string
 	Image     string
 	Timestamp time.Time `gorm:"autoCreateTime"`
@@ -128,8 +138,8 @@ type PostLike struct {
 
 type PostComment struct {
 	gorm.Model
-	PostID    uint      `gorm:"index"`
-	UserID    uint      `gorm:"index"`
+	PostID    uint `gorm:"index"`
+	UserID    uint `gorm:"index"`
 	Text      string
 	Timestamp time.Time `gorm:"autoCreateTime"`
 }

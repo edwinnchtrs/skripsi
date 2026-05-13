@@ -1,12 +1,36 @@
-import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useEffect, useMemo, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
-  Search, FileText, Send, User, Loader2, CheckCircle2, X, AlertCircle, Clock,
-  Target, Shield, Zap, Calendar, Clock3, Flame, Heart, Brain, Info, ChevronDown,
-  History, TrendingUp, Activity, Bell, Users,
+  Activity,
+  AlertCircle,
+  Bell,
+  BellRing,
+  Brain,
+  Calendar,
+  CheckCircle2,
+  ChevronDown,
+  Clock,
+  Clock3,
+  FileText,
+  Gauge,
+  Heart,
+  History,
+  Inbox,
+  Info,
+  Loader2,
+  MessageCircleReply,
+  Search,
+  Send,
+  Shield,
+  Sparkles,
+  Target,
+  User,
+  Users,
+  X,
+  Zap,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import api from '../api';
-import { card, sectionTitle } from './dashboard/styles';
 
 interface Responden {
   id: number;
@@ -18,6 +42,19 @@ interface Responden {
   last_activity: string;
 }
 
+interface TreatmentReply {
+  ID?: number;
+  id?: number;
+  Text?: string;
+  text?: string;
+  Mood?: string;
+  mood?: string;
+  AdminSeen?: boolean;
+  admin_seen?: boolean;
+  CreatedAt?: string;
+  created_at?: string;
+}
+
 interface TreatmentHistory {
   ID: number;
   ModuleName: string;
@@ -27,26 +64,68 @@ interface TreatmentHistory {
   Status: string;
   FollowUpDate: string;
   CreatedAt: string;
+  Replies?: TreatmentReply[];
 }
 
-const riskColor = (r: string) => r === 'High' || r === 'Crisis' ? '#ef4444' : r === 'Medium' ? '#f59e0b' : r === 'Low' ? '#22c55e' : '#8890a4';
-const riskLabel = (r: string) => r === 'High' || r === 'Crisis' ? 'Tinggi' : r === 'Medium' ? 'Sedang' : r === 'Low' ? 'Rendah' : 'N/A';
-const riskBadge = (r: string) => ({ background: riskColor(r) + '15', color: riskColor(r), border: `1px solid ${riskColor(r)}30` });
+interface AdminReply {
+  id: number;
+  treatment_id: number;
+  user_id: number;
+  user_name: string;
+  username: string;
+  text: string;
+  mood: string;
+  admin_seen: boolean;
+  created_at: string;
+  module_name: string;
+  category: string;
+  priority: string;
+  status: string;
+}
+
+type RiskFilter = 'all' | 'Crisis' | 'High' | 'Medium' | 'Low' | 'empty';
+type ModalTab = 'compose' | 'history' | 'replies';
+type ReplyFilter = 'unread' | 'all';
+
+const riskMeta = {
+  Crisis: { label: 'Krisis', text: 'text-rose-200', bg: 'bg-rose-500/15', border: 'border-rose-300/35', hex: '#fb7185' },
+  High: { label: 'Tinggi', text: 'text-rose-300', bg: 'bg-rose-500/10', border: 'border-rose-400/30', hex: '#fb7185' },
+  Medium: { label: 'Sedang', text: 'text-amber-300', bg: 'bg-amber-500/10', border: 'border-amber-400/30', hex: '#f59e0b' },
+  Low: { label: 'Rendah', text: 'text-emerald-300', bg: 'bg-emerald-500/10', border: 'border-emerald-400/30', hex: '#34d399' },
+  Unknown: { label: 'Belum ada data', text: 'text-slate-400', bg: 'bg-slate-500/10', border: 'border-slate-700', hex: '#94a3b8' },
+};
+
+const categoryConfig: Record<string, { icon: LucideIcon; label: string; text: string; bg: string; border: string }> = {
+  konseling: { icon: Heart, label: 'Konseling Psikologis', text: 'text-rose-300', bg: 'bg-rose-500/10', border: 'border-rose-400/25' },
+  meditasi: { icon: Brain, label: 'Meditasi & Mindfulness', text: 'text-violet-300', bg: 'bg-violet-500/10', border: 'border-violet-400/25' },
+  olahraga: { icon: Activity, label: 'Aktivitas Fisik', text: 'text-emerald-300', bg: 'bg-emerald-500/10', border: 'border-emerald-400/25' },
+  istirahat: { icon: Clock, label: 'Manajemen Istirahat', text: 'text-amber-300', bg: 'bg-amber-500/10', border: 'border-amber-400/25' },
+  sosial: { icon: Users, label: 'Dukungan Sosial', text: 'text-cyan-300', bg: 'bg-cyan-500/10', border: 'border-cyan-400/25' },
+  edukasi: { icon: Info, label: 'Edukasi Kesehatan Mental', text: 'text-indigo-300', bg: 'bg-indigo-500/10', border: 'border-indigo-400/25' },
+  general: { icon: Sparkles, label: 'Rekomendasi Umum', text: 'text-slate-300', bg: 'bg-slate-500/10', border: 'border-slate-700' },
+};
 
 const categories = [
-  { value: 'konseling', label: 'Konseling Psikologis', icon: Heart, color: '#ef4444' },
-  { value: 'meditasi', label: 'Meditasi & Mindfulness', icon: Brain, color: '#a855f7' },
-  { value: 'olahraga', label: 'Aktivitas Fisik', icon: Activity, color: '#22c55e' },
-  { value: 'istirahat', label: 'Manajemen Istirahat', icon: Clock, color: '#f59e0b' },
-  { value: 'sosial', label: 'Dukungan Sosial', icon: Users, color: '#3ecfcf' },
-  { value: 'edukasi', label: 'Edukasi Kesehatan Mental', icon: Info, color: '#6c63ff' },
+  { value: 'konseling', label: 'Konseling Psikologis' },
+  { value: 'meditasi', label: 'Meditasi & Mindfulness' },
+  { value: 'olahraga', label: 'Aktivitas Fisik' },
+  { value: 'istirahat', label: 'Manajemen Istirahat' },
+  { value: 'sosial', label: 'Dukungan Sosial' },
+  { value: 'edukasi', label: 'Edukasi Kesehatan Mental' },
 ];
 
+const priorityConfig: Record<string, { label: string; className: string; dot: string }> = {
+  urgent: { label: 'Urgent', className: 'border-rose-400/30 bg-rose-500/10 text-rose-300', dot: 'bg-rose-300' },
+  high: { label: 'Tinggi', className: 'border-orange-400/30 bg-orange-500/10 text-orange-300', dot: 'bg-orange-300' },
+  medium: { label: 'Sedang', className: 'border-cyan-400/30 bg-cyan-500/10 text-cyan-300', dot: 'bg-cyan-300' },
+  low: { label: 'Rendah', className: 'border-slate-600 bg-slate-800/70 text-slate-300', dot: 'bg-slate-400' },
+};
+
 const priorities = [
-  { value: 'urgent', label: 'URGENT - Segera', color: '#ef4444' },
-  { value: 'high', label: 'Tinggi', color: '#f59e0b' },
-  { value: 'medium', label: 'Sedang', color: '#3ecfcf' },
-  { value: 'low', label: 'Rendah', color: '#8890a4' },
+  { value: 'urgent', label: 'URGENT - Segera' },
+  { value: 'high', label: 'Tinggi' },
+  { value: 'medium', label: 'Sedang' },
+  { value: 'low', label: 'Rendah' },
 ];
 
 const durations = [
@@ -56,18 +135,60 @@ const durations = [
   { value: '3_months', label: '3 Bulan' },
 ];
 
-const templates: Record<string, string> = {
-  'Crisis': 'INTERVENSI KRITIS: Responden memerlukan tindakan segera. 1) Rujuk ke psikolog/psikiater dalam 24 jam. 2) Evaluasi beban kerja/akademik dan kurangi signifikan. 3) Sesi konseling intensif 2x/minggu. 4) Monitoring harian melalui check-in wajib. 5) Libatkan keluarga/orang terdekat untuk dukungan.',
-  'High': 'RENCANA PENANGANAN: 1) Sesi konseling 1-on-1 mingguan. 2) Program manajemen stres terstruktur. 3) Penyesuaian beban kerja dengan supervisi ketat. 4) Jadwalkan aktivitas fisik rutin 3x/minggu. 5) Evaluasi perkembangan setiap 2 minggu.',
-  'Medium': 'PROGRAM PEMULIHAN: 1) Ikuti workshop manajemen stres. 2) Jadwalkan waktu istirahat teratur (teknik pomodoro). 3) Aktivitas kelompok dukungan sebaya. 4) Journaling harian untuk tracking mood. 5) Evaluasi bulanan.',
-  'Low': 'PROGRAM PREVENTIF: 1) Lanjutkan kuisioner pemantauan harian. 2) Pertahankan rutinitas olahraga ringan. 3) Praktikkan teknik pernapasan 5 menit/hari. 4) Ikuti sesi grup bulanan. 5) Tetap terhubung dengan support system.',
+const durationLabel: Record<string, string> = {
+  '1_week': '1 Minggu',
+  '2_weeks': '2 Minggu',
+  '1_month': '1 Bulan',
+  '3_months': '3 Bulan',
 };
+
+const templates: Record<string, string> = {
+  Crisis: 'INTERVENSI KRITIS: 1) Hubungi konselor/psikolog dalam 24 jam. 2) Kurangi beban akademik/kerja secara signifikan. 3) Buat check-in harian dengan pendamping. 4) Libatkan support system terdekat. 5) Evaluasi ulang setelah 3 hari.',
+  High: 'RENCANA PENANGANAN: 1) Jadwalkan konseling mingguan. 2) Terapkan manajemen stres terstruktur. 3) Atur ulang prioritas tugas. 4) Aktivitas fisik ringan 3x/minggu. 5) Follow-up dalam 2 minggu.',
+  Medium: 'PROGRAM PEMULIHAN: 1) Lakukan check-in diri harian. 2) Terapkan jeda terarah dan teknik pomodoro. 3) Journaling mood singkat. 4) Bergabung dengan dukungan sebaya. 5) Evaluasi bulanan.',
+  Low: 'PROGRAM PREVENTIF: 1) Lanjutkan pemantauan harian. 2) Pertahankan rutinitas sehat. 3) Latihan napas 5 menit/hari. 4) Tetap terhubung dengan teman/keluarga. 5) Gunakan asesmen sebagai baseline.',
+};
+
+const moodLabel: Record<string, { label: string; className: string }> = {
+  better: { label: 'Lebih baik', className: 'border-emerald-400/30 bg-emerald-500/10 text-emerald-300' },
+  same: { label: 'Masih sama', className: 'border-cyan-400/30 bg-cyan-500/10 text-cyan-300' },
+  worse: { label: 'Memburuk', className: 'border-rose-400/30 bg-rose-500/10 text-rose-300' },
+};
+
+const getRisk = (risk?: string) => riskMeta[risk as keyof typeof riskMeta] ?? riskMeta.Unknown;
+const hasData = (responden: Responden) => Boolean(responden.latest_risk);
+
+const formatDate = (date: string) => {
+  if (!date || date.startsWith('0001')) return '-';
+  return new Date(date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+};
+
+const formatFullDate = (date?: string) => {
+  if (!date || date.startsWith('0001')) return '-';
+  return new Date(date).toLocaleString('id-ID', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
+
+const replyId = (reply: TreatmentReply) => reply.id ?? reply.ID ?? 0;
+const replyText = (reply: TreatmentReply) => reply.text ?? reply.Text ?? '';
+const replyMood = (reply: TreatmentReply) => reply.mood ?? reply.Mood ?? 'same';
+const replySeen = (reply: TreatmentReply) => reply.admin_seen ?? reply.AdminSeen ?? false;
+const replyDate = (reply: TreatmentReply) => reply.created_at ?? reply.CreatedAt;
 
 export default function Responden() {
   const [data, setData] = useState<Responden[]>([]);
+  const [repliesInbox, setRepliesInbox] = useState<AdminReply[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [riskFilter, setRiskFilter] = useState<RiskFilter>('all');
+  const [replyFilter, setReplyFilter] = useState<ReplyFilter>('unread');
   const [selected, setSelected] = useState<Responden | null>(null);
+  const [modalTab, setModalTab] = useState<ModalTab>('compose');
   const [message, setMessage] = useState('');
   const [category, setCategory] = useState('konseling');
   const [priority, setPriority] = useState('medium');
@@ -78,51 +199,73 @@ export default function Responden() {
   const [toast, setToast] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [history, setHistory] = useState<TreatmentHistory[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
+  const [replyReadLoading, setReplyReadLoading] = useState<number | null>(null);
 
-  useEffect(() => { fetchData(); }, []);
-  useEffect(() => { if (toast) { const t = setTimeout(() => setToast(null), 3500); return () => clearTimeout(t); } }, [toast]);
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timeout = setTimeout(() => setToast(null), 3500);
+    return () => clearTimeout(timeout);
+  }, [toast]);
 
   const fetchData = async () => {
     setLoading(true);
+
     try {
-      const res = await api.get('/responden');
-      setData(res.data.respondents || []);
-    } catch (e) { console.error(e); }
-    finally { setLoading(false); }
-  };
-
-  const filtered = data.filter(r =>
-    r.nama.toLowerCase().includes(search.toLowerCase()) ||
-    r.username.toLowerCase().includes(search.toLowerCase())
-  );
-
-  const openModal = (r: Responden) => {
-    setSelected(r);
-    setSent(false);
-    setShowHistory(false);
-    setHistory([]);
-    const template = templates[r.latest_risk] || templates['Medium'];
-    setMessage(template);
-    setCategory('konseling');
-    setPriority(r.latest_risk === 'Crisis' ? 'urgent' : r.latest_risk === 'High' ? 'high' : 'medium');
-    setDuration('1_week');
-    setFollowUpDate('');
-    loadHistory(r.id);
+      const [respondentsRes, repliesRes] = await Promise.all([
+        api.get('/responden'),
+        api.get('/admin/treatment-replies').catch(() => ({ data: { replies: [] } })),
+      ]);
+      setData(respondentsRes.data.respondents || []);
+      setRepliesInbox(repliesRes.data.replies || []);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const loadHistory = async (userId: number) => {
     setLoadingHistory(true);
+
     try {
-      const res = await api.get(`/admin/users/${userId}/treatments`);
-      setHistory(res.data.treatments || []);
-    } catch { setHistory([]); }
-    finally { setLoadingHistory(false); }
+      const response = await api.get(`/admin/users/${userId}/treatments`);
+      setHistory(response.data.treatments || []);
+    } catch {
+      setHistory([]);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  const openModal = (responden: Responden, tab: ModalTab = 'compose') => {
+    setSelected(responden);
+    setModalTab(tab);
+    setSent(false);
+    setHistory([]);
+    setMessage(templates[responden.latest_risk] || templates.Medium);
+    setCategory('konseling');
+    setPriority(responden.latest_risk === 'Crisis' ? 'urgent' : responden.latest_risk === 'High' ? 'high' : 'medium');
+    setDuration('1_week');
+    setFollowUpDate('');
+    loadHistory(responden.id);
+  };
+
+  const openReplyOwner = (reply: AdminReply) => {
+    const responden = data.find((item) => item.id === reply.user_id);
+    if (responden) {
+      openModal(responden, 'replies');
+    }
   };
 
   const handleSend = async () => {
     if (!selected || !message.trim() || sending) return;
+
     setSending(true);
+
     try {
       await api.post(`/admin/users/${selected.id}/treatment`, {
         message: message.trim(),
@@ -134,398 +277,690 @@ export default function Responden() {
       setSent(true);
       setToast({ type: 'success', text: `Rekomendasi terkirim ke ${selected.nama}` });
       loadHistory(selected.id);
-    } catch (x: any) {
-      setToast({ type: 'error', text: x.response?.data?.error || 'Gagal mengirim rekomendasi' });
+      fetchData();
+    } catch (error: any) {
+      setToast({ type: 'error', text: error.response?.data?.error || 'Gagal mengirim rekomendasi' });
+    } finally {
+      setSending(false);
     }
-    finally { setSending(false); }
   };
 
-  const formatDate = (d: string) => {
-    if (!d || d.startsWith('0001')) return '-';
-    return new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+  const markReplyRead = async (id: number) => {
+    if (!id || replyReadLoading === id) return;
+    setReplyReadLoading(id);
+
+    try {
+      await api.patch(`/admin/treatment-replies/${id}/read`);
+      setRepliesInbox((prev) => prev.map((reply) => (reply.id === id ? { ...reply, admin_seen: true } : reply)));
+      setHistory((prev) =>
+        prev.map((item) => ({
+          ...item,
+          Replies: item.Replies?.map((reply) => (replyId(reply) === id ? { ...reply, AdminSeen: true, admin_seen: true } : reply)),
+        })),
+      );
+    } catch {
+      setToast({ type: 'error', text: 'Gagal menandai balasan sebagai terbaca' });
+    } finally {
+      setReplyReadLoading(null);
+    }
   };
 
-  const formatFullDate = (d: string) => {
-    if (!d || d.startsWith('0001')) return '-';
-    return new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-  };
+  const stats = useMemo(() => {
+    const withData = data.filter(hasData);
+    const high = withData.filter((item) => item.latest_risk === 'High' || item.latest_risk === 'Crisis').length;
+    const medium = withData.filter((item) => item.latest_risk === 'Medium').length;
+    const low = withData.filter((item) => item.latest_risk === 'Low').length;
+    const avgBurnout = withData.length
+      ? withData.reduce((sum, item) => sum + item.latest_burnout, 0) / withData.length
+      : 0;
+    const unreadReplies = repliesInbox.filter((reply) => !reply.admin_seen).length;
+    return { withData, high, medium, low, avgBurnout, unreadReplies };
+  }, [data, repliesInbox]);
 
-  const hasData = (r: Responden) => r.latest_risk && r.latest_risk !== '';
+  const filtered = useMemo(() => {
+    return data.filter((responden) => {
+      const keyword = search.toLowerCase();
+      const matchSearch =
+        responden.nama.toLowerCase().includes(keyword) ||
+        responden.username.toLowerCase().includes(keyword);
+      const matchRisk =
+        riskFilter === 'all' ||
+        (riskFilter === 'empty' && !hasData(responden)) ||
+        responden.latest_risk === riskFilter;
+      return matchSearch && matchRisk;
+    });
+  }, [data, riskFilter, search]);
 
-  const priConf: Record<string, { color: string; label: string }> = {
-    urgent: { color: '#ef4444', label: 'URGENT' },
-    high: { color: '#f59e0b', label: 'Tinggi' },
-    medium: { color: '#3ecfcf', label: 'Sedang' },
-    low: { color: '#8890a4', label: 'Rendah' },
-  };
+  const filteredReplies = useMemo(() => {
+    if (replyFilter === 'unread') return repliesInbox.filter((reply) => !reply.admin_seen);
+    return repliesInbox;
+  }, [repliesInbox, replyFilter]);
+
+  const selectedReplies = useMemo(() => {
+    if (!selected) return [];
+    return history.flatMap((item) => (item.Replies || []).map((reply) => ({ reply, treatment: item })));
+  }, [history, selected]);
 
   return (
-    <div style={{ padding: '22px 24px', background: '#0b0d14', minHeight: '100vh', color: '#e2e8f0', fontFamily: 'Inter, sans-serif' }}>
-      <style>{`
-        .scrollbar-thin { scrollbar-width: thin; scrollbar-color: #1e2130 transparent; }
-        .scrollbar-thin::-webkit-scrollbar { width: 4px; }
-        .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
-        .scrollbar-thin::-webkit-scrollbar-thumb { background: #1e2130; border-radius: 4px; }
-      `}</style>
-
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-            <div style={{ width: 38, height: 38, borderRadius: 10, background: 'linear-gradient(135deg, #6c63ff, #22c55e)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <User size={20} color="#fff" />
+    <div className="min-h-screen bg-[#0b0d14] px-5 py-6 text-slate-100 md:px-8">
+      <div className="mx-auto max-w-7xl space-y-5">
+        <header className="overflow-hidden rounded-xl border border-slate-800 bg-slate-950/70">
+          <div className="relative grid gap-6 p-6 md:grid-cols-[1fr_460px]">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_14%_18%,rgba(99,102,241,0.20),transparent_28%),radial-gradient(circle_at_82%_12%,rgba(34,197,94,0.14),transparent_26%),radial-gradient(circle_at_65%_90%,rgba(251,191,36,0.10),transparent_24%)]" />
+            <div className="relative">
+              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-indigo-400/20 bg-indigo-500/10 px-3 py-1.5 text-xs font-medium text-indigo-200">
+                <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+                Admin response center
+              </div>
+              <h1 className="text-2xl font-semibold tracking-normal text-white md:text-3xl">
+                Data Responden
+              </h1>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
+                Pantau risiko burnout, kirim rekomendasi terapi, dan tanggapi balasan user
+                dari notifikasi terapi dalam satu ruang kerja admin.
+              </p>
             </div>
-            <h1 style={{ fontSize: 22, fontWeight: 700, color: '#e2e8f0', margin: 0 }}>Data Responden</h1>
-            <span style={{ background: 'rgba(34,197,94,0.12)', color: '#4ade80', padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600 }}>{data.length} orang</span>
-            {data.filter(r => r.latest_risk === 'Crisis').length > 0 && (
-              <span style={{ background: 'rgba(239,68,68,0.12)', color: '#f87171', padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600 }}>
-                {data.filter(r => r.latest_risk === 'Crisis').length} krisis
-              </span>
-            )}
+
+            <div className="relative grid grid-cols-2 gap-3 md:grid-cols-4">
+              {[
+                { label: 'Responden', value: data.length, icon: Users, color: 'text-indigo-300' },
+                { label: 'Data aktif', value: stats.withData.length, icon: CheckCircle2, color: 'text-emerald-300' },
+                { label: 'Risiko tinggi', value: stats.high, icon: Shield, color: 'text-rose-300' },
+                { label: 'Balasan baru', value: stats.unreadReplies, icon: Inbox, color: 'text-amber-300' },
+              ].map((item) => {
+                const Icon = item.icon;
+                return (
+                  <div key={item.label} className="rounded-lg border border-slate-800 bg-slate-900/70 p-3">
+                    <Icon className={`mb-3 h-4 w-4 ${item.color}`} aria-hidden="true" />
+                    <div className="text-xl font-semibold text-white">{item.value}</div>
+                    <div className="mt-1 text-[11px] leading-4 text-slate-500">{item.label}</div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-          <p style={{ color: '#8890a4', fontSize: 12, margin: '2px 0 0' }}>Pantau kesehatan mental responden & kirim rekomendasi penanganan personal</p>
-        </div>
-      </div>
+        </header>
 
-      {/* Toast */}
-      <AnimatePresence>
-        {toast && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, padding: '10px 16px', borderRadius: 8, fontSize: 12, fontWeight: 500,
-              background: toast.type === 'success' ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
-              border: `1px solid ${toast.type === 'success' ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`,
-              color: toast.type === 'success' ? '#4ade80' : '#f87171',
-            }}
-          >
-            {toast.type === 'success' ? <CheckCircle2 size={15} /> : <AlertCircle size={15} />}
-            {toast.text}
-          </motion.div>
-        )}
-      </AnimatePresence>
+        <AnimatePresence>
+          {toast && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              className={`flex items-center gap-2 rounded-lg border px-4 py-3 text-sm font-medium ${
+                toast.type === 'success'
+                  ? 'border-emerald-400/30 bg-emerald-500/10 text-emerald-300'
+                  : 'border-rose-400/30 bg-rose-500/10 text-rose-300'
+              }`}
+            >
+              {toast.type === 'success' ? <CheckCircle2 className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
+              {toast.text}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-      {/* Search */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#131722', borderRadius: 10, padding: '8px 14px', border: '1px solid #1e2130', maxWidth: 400, marginBottom: 16 }}>
-        <Search size={14} color="#8890a4" />
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Cari nama atau username..."
-          style={{ background: 'none', border: 'none', color: '#e2e8f0', fontSize: 13, outline: 'none', flex: 1 }} />
-        <span style={{ fontSize: 10, color: '#4a5068', whiteSpace: 'nowrap' }}>{filtered.length} dari {data.length}</span>
-      </div>
-
-      {loading ? (
-        <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}>
-          <Loader2 size={24} color="#8890a4" style={{ animation: 'spin 1s linear infinite' }} />
-        </div>
-      ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 12 }}>
-          {filtered.map(r => {
-            const badge = hasData(r) ? riskBadge(r.latest_risk) : { background: 'transparent', color: '#4a5068', border: '1px solid #1e2130' };
-            const crisis = r.latest_risk === 'Crisis';
-            return (
-              <div key={r.id} style={{ ...card, display: 'flex', flexDirection: 'column', gap: 12, padding: '18px 20px', transition: 'all 0.2s', borderColor: crisis ? 'rgba(239,68,68,0.3)' : '#1e2130' }}
-                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.borderColor = crisis ? 'rgba(239,68,68,0.5)' : '#2a2e42'; }}
-                onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.borderColor = crisis ? 'rgba(239,68,68,0.3)' : '#1e2130'; }}>
-                {/* User info */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{
-                    width: 40, height: 40, borderRadius: '50%', flexShrink: 0,
-                    background: `linear-gradient(135deg, ${riskColor(r.latest_risk)}25, ${riskColor(r.latest_risk)}08)`,
-                    border: `1.5px solid ${riskColor(r.latest_risk)}35`,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 15, fontWeight: 700, color: riskColor(r.latest_risk),
-                  }}>
-                    {r.nama.charAt(0).toUpperCase()}
-                  </div>
-                  <div style={{ overflow: 'hidden' }}>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: '#e2e8f0' }}>{r.nama}</div>
-                    <div style={{ fontSize: 11, color: '#8890a4' }}>{r.username}</div>
-                  </div>
-                  {hasData(r) && (
-                    <span style={{ marginLeft: 'auto', padding: '3px 10px', borderRadius: 12, fontSize: 10, fontWeight: 600, ...badge }}>
-                      {riskLabel(r.latest_risk)}
-                    </span>
-                  )}
+        <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
+          <main className="space-y-5">
+            <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex min-w-0 flex-1 items-center gap-3 rounded-lg border border-slate-800 bg-slate-950 px-4 py-3 focus-within:border-indigo-400/50 focus-within:ring-4 focus-within:ring-indigo-500/10">
+                  <Search className="h-4 w-4 text-slate-500" aria-hidden="true" />
+                  <input
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    placeholder="Cari nama atau username..."
+                    className="min-w-0 flex-1 bg-transparent text-sm text-slate-100 outline-none placeholder:text-slate-600"
+                  />
+                  <span className="text-xs text-slate-600">{filtered.length}/{data.length}</span>
                 </div>
 
-                {/* Scores */}
-                {hasData(r) ? (
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                    <div style={{ padding: '10px', background: '#0f1117', borderRadius: 8, border: '1px solid #1e2130' }}>
-                      <div style={{ fontSize: 9, color: '#8890a4', marginBottom: 2 }}>Burnout</div>
-                      <div style={{ fontSize: 18, fontWeight: 700, color: '#e2e8f0' }}>{r.latest_burnout.toFixed(1)}<span style={{ fontSize: 10, color: '#4a5068' }}>/10</span></div>
-                    </div>
-                    <div style={{ padding: '10px', background: '#0f1117', borderRadius: 8, border: '1px solid #1e2130' }}>
-                      <div style={{ fontSize: 9, color: '#8890a4', marginBottom: 2 }}>Psikosomatis</div>
-                      <div style={{ fontSize: 18, fontWeight: 700, color: '#e2e8f0' }}>{r.latest_psychosomatic.toFixed(1)}<span style={{ fontSize: 10, color: '#4a5068' }}>/10</span></div>
-                    </div>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { key: 'all' as const, label: 'Semua' },
+                    { key: 'Crisis' as const, label: 'Krisis' },
+                    { key: 'High' as const, label: 'Tinggi' },
+                    { key: 'Medium' as const, label: 'Sedang' },
+                    { key: 'Low' as const, label: 'Rendah' },
+                    { key: 'empty' as const, label: 'Tanpa data' },
+                  ].map((item) => (
+                    <button
+                      key={item.key}
+                      onClick={() => setRiskFilter(item.key)}
+                      className={`rounded-lg border px-3 py-2 text-xs font-semibold transition ${
+                        riskFilter === item.key
+                          ? 'border-indigo-400/40 bg-indigo-500/15 text-indigo-200'
+                          : 'border-slate-800 bg-slate-950 text-slate-500 hover:text-slate-300'
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {loading ? (
+              <div className="flex h-[420px] items-center justify-center rounded-xl border border-slate-800 bg-slate-900/70">
+                <Loader2 className="h-8 w-8 animate-spin text-slate-500" aria-hidden="true" />
+              </div>
+            ) : filtered.length === 0 ? (
+              <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-12 text-center">
+                <Users className="mx-auto h-10 w-10 text-slate-600" aria-hidden="true" />
+                <h2 className="mt-4 text-lg font-semibold tracking-normal text-white">Responden tidak ditemukan</h2>
+                <p className="mt-2 text-sm text-slate-500">Coba ubah kata kunci atau filter risiko.</p>
+              </div>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+                {filtered.map((responden) => {
+                  const risk = getRisk(responden.latest_risk);
+                  const inboxCount = repliesInbox.filter((reply) => reply.user_id === responden.id && !reply.admin_seen).length;
+
+                  return (
+                    <motion.article
+                      key={responden.id}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className={`rounded-xl border bg-slate-900/70 p-5 transition hover:-translate-y-0.5 hover:border-slate-700 ${
+                        responden.latest_risk === 'Crisis' ? 'border-rose-400/30' : 'border-slate-800'
+                      }`}
+                    >
+                      <div className="mb-4 flex items-start gap-3">
+                        <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border ${risk.border} ${risk.bg}`}>
+                          <span className={`text-lg font-semibold ${risk.text}`}>{responden.nama.charAt(0).toUpperCase()}</span>
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <h2 className="truncate text-base font-semibold tracking-normal text-white">{responden.nama}</h2>
+                          <p className="truncate text-xs text-slate-500">@{responden.username} · ID {responden.id}</p>
+                        </div>
+                        {inboxCount > 0 && (
+                          <button
+                            onClick={() => openModal(responden, 'replies')}
+                            className="inline-flex items-center gap-1 rounded-full border border-amber-400/25 bg-amber-500/10 px-2.5 py-1 text-xs font-semibold text-amber-300"
+                          >
+                            <BellRing className="h-3.5 w-3.5" />
+                            {inboxCount}
+                          </button>
+                        )}
+                      </div>
+
+                      {hasData(responden) ? (
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <div className="rounded-lg border border-slate-800 bg-slate-950/70 p-3">
+                            <div className="mb-2 flex items-center gap-2 text-xs text-slate-500">
+                              <Gauge className="h-3.5 w-3.5" />
+                              Burnout
+                            </div>
+                            <div className="text-2xl font-semibold text-white">{responden.latest_burnout.toFixed(1)}</div>
+                            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-800">
+                              <div
+                                className="h-full rounded-full"
+                                style={{ width: `${Math.min(responden.latest_burnout * 10, 100)}%`, backgroundColor: risk.hex }}
+                              />
+                            </div>
+                          </div>
+                          <div className="rounded-lg border border-slate-800 bg-slate-950/70 p-3">
+                            <div className="mb-2 flex items-center gap-2 text-xs text-slate-500">
+                              <Activity className="h-3.5 w-3.5" />
+                              Psikosomatis
+                            </div>
+                            <div className="text-2xl font-semibold text-white">{responden.latest_psychosomatic.toFixed(1)}</div>
+                            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-800">
+                              <div
+                                className="h-full rounded-full bg-cyan-300"
+                                style={{ width: `${Math.min(responden.latest_psychosomatic * 10, 100)}%` }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="rounded-lg border border-slate-800 bg-slate-950/70 p-5 text-center text-sm text-slate-500">
+                          Belum ada data asesmen
+                        </div>
+                      )}
+
+                      <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+                        <span className={`rounded-full border px-2.5 py-1 font-semibold ${risk.border} ${risk.bg} ${risk.text}`}>
+                          {risk.label}
+                        </span>
+                        <span>Aktivitas: {formatDate(responden.last_activity)}</span>
+                      </div>
+
+                      <div className="mt-4 grid grid-cols-2 gap-2">
+                        <button
+                          onClick={() => openModal(responden, 'compose')}
+                          className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-indigo-500 text-sm font-semibold text-white transition hover:bg-indigo-400"
+                        >
+                          <FileText className="h-4 w-4" />
+                          Penanganan
+                        </button>
+                        <button
+                          onClick={() => openModal(responden, 'history')}
+                          className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-950 text-sm font-semibold text-slate-300 transition hover:border-slate-500 hover:text-white"
+                        >
+                          <History className="h-4 w-4" />
+                          Riwayat
+                        </button>
+                      </div>
+                    </motion.article>
+                  );
+                })}
+              </div>
+            )}
+          </main>
+
+          <aside className="space-y-5">
+            <section className="rounded-xl border border-slate-800 bg-slate-900/70 p-5">
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <h2 className="text-base font-semibold tracking-normal text-white">Notifikasi balasan</h2>
+                  <p className="text-xs text-slate-500">Balasan user dari saran terapi</p>
+                </div>
+                <Inbox className="h-5 w-5 text-amber-300" />
+              </div>
+
+              <div className="mb-4 flex w-fit rounded-lg border border-slate-800 bg-slate-950 p-1">
+                {[
+                  { key: 'unread' as const, label: `Baru (${stats.unreadReplies})` },
+                  { key: 'all' as const, label: `Semua (${repliesInbox.length})` },
+                ].map((item) => (
+                  <button
+                    key={item.key}
+                    onClick={() => setReplyFilter(item.key)}
+                    className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${
+                      replyFilter === item.key ? 'bg-amber-500/15 text-amber-200' : 'text-slate-500 hover:text-slate-300'
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="max-h-[540px] space-y-3 overflow-y-auto pr-1">
+                {filteredReplies.length === 0 ? (
+                  <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-8 text-center">
+                    <Bell className="mx-auto h-8 w-8 text-slate-600" />
+                    <p className="mt-3 text-sm text-slate-500">Belum ada balasan pada filter ini.</p>
                   </div>
                 ) : (
-                  <div style={{ padding: '10px', background: '#0f1117', borderRadius: 8, border: '1px solid #1e2130', textAlign: 'center', fontSize: 11, color: '#4a5068' }}>
-                    Belum ada data asesmen
-                  </div>
+                  filteredReplies.map((reply) => {
+                    const mood = moodLabel[reply.mood] || moodLabel.same;
+                    const category = categoryConfig[reply.category] || categoryConfig.general;
+                    const CategoryIcon = category.icon;
+
+                    return (
+                      <article
+                        key={reply.id}
+                        className={`rounded-xl border p-4 transition ${
+                          reply.admin_seen ? 'border-slate-800 bg-slate-950/60' : 'border-amber-400/30 bg-amber-500/10'
+                        }`}
+                      >
+                        <div className="mb-3 flex items-start gap-3">
+                          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border ${category.border} ${category.bg}`}>
+                            <CategoryIcon className={`h-5 w-5 ${category.text}`} />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <h3 className="truncate text-sm font-semibold text-white">{reply.user_name || 'User'}</h3>
+                            <p className="truncate text-xs text-slate-500">@{reply.username}</p>
+                          </div>
+                          {!reply.admin_seen && <span className="h-2.5 w-2.5 rounded-full bg-amber-300" />}
+                        </div>
+
+                        <p className="line-clamp-3 text-sm leading-6 text-slate-300">{reply.text}</p>
+
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${mood.className}`}>{mood.label}</span>
+                          <span className="rounded-full border border-slate-800 bg-slate-950 px-2.5 py-1 text-[11px] text-slate-500">
+                            {formatFullDate(reply.created_at)}
+                          </span>
+                        </div>
+
+                        <div className="mt-3 grid grid-cols-2 gap-2">
+                          <button
+                            onClick={() => openReplyOwner(reply)}
+                            className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-950 text-xs font-semibold text-slate-300 transition hover:border-indigo-400/40 hover:text-indigo-200"
+                          >
+                            <MessageCircleReply className="h-3.5 w-3.5" />
+                            Buka thread
+                          </button>
+                          {!reply.admin_seen ? (
+                            <button
+                              onClick={() => markReplyRead(reply.id)}
+                              disabled={replyReadLoading === reply.id}
+                              className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-emerald-500 text-xs font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:opacity-60"
+                            >
+                              {replyReadLoading === reply.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                              Terbaca
+                            </button>
+                          ) : (
+                            <span className="inline-flex h-9 items-center justify-center rounded-lg border border-slate-800 bg-slate-950 text-xs font-semibold text-slate-600">
+                              Sudah dibaca
+                            </span>
+                          )}
+                        </div>
+                      </article>
+                    );
+                  })
                 )}
-
-                <div style={{ fontSize: 10, color: '#4a5068', display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Aktivitas: {formatDate(r.last_activity)}</span>
-                  <span>ID: #{r.id}</span>
-                </div>
-
-                <button onClick={() => openModal(r)} style={{
-                  width: '100%', padding: '10px', borderRadius: 10, border: 'none', cursor: 'pointer',
-                  background: crisis ? 'linear-gradient(135deg, #ef4444, #dc2626)' : 'linear-gradient(135deg, #6c63ff, #8b5cf6)',
-                  color: '#fff', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-                }}>
-                  <FileText size={14} /> Berikan Penanganan
-                </button>
               </div>
-            );
-          })}
-        </div>
-      )}
+            </section>
 
-      {/* Treatment Modal */}
+            <section className="rounded-xl border border-slate-800 bg-slate-900/70 p-5">
+              <h2 className="mb-4 text-base font-semibold tracking-normal text-white">Ringkasan risiko</h2>
+              <div className="space-y-4">
+                {[
+                  { label: 'Tinggi/Krisis', value: stats.high, color: 'bg-rose-300' },
+                  { label: 'Sedang', value: stats.medium, color: 'bg-amber-300' },
+                  { label: 'Rendah', value: stats.low, color: 'bg-emerald-300' },
+                ].map((item) => {
+                  const width = `${Math.min((item.value / Math.max(stats.withData.length, 1)) * 100, 100)}%`;
+                  return (
+                    <div key={item.label}>
+                      <div className="mb-2 flex items-center justify-between text-xs">
+                        <span className="text-slate-500">{item.label}</span>
+                        <span className="font-semibold text-white">{item.value}</span>
+                      </div>
+                      <div className="h-2 overflow-hidden rounded-full bg-slate-950">
+                        <div className={`h-full rounded-full ${item.color}`} style={{ width }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="mt-5 rounded-lg border border-slate-800 bg-slate-950/70 p-4">
+                <p className="text-xs text-slate-500">Rata-rata burnout</p>
+                <p className="mt-1 text-2xl font-semibold text-white">{stats.avgBurnout.toFixed(1)}</p>
+              </div>
+            </section>
+          </aside>
+        </section>
+      </div>
+
       <AnimatePresence>
         {selected && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
-            onClick={() => { if (!sending) { setSelected(null); setSent(false); } }}
+            className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm"
+            onClick={() => !sending && setSelected(null)}
           >
             <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
+              initial={{ scale: 0.96, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              style={{ ...card, width: 620, maxWidth: '94vw', maxHeight: '90vh', overflowY: 'auto', padding: 24 }}
-              className="scrollbar-thin"
-              onClick={e => e.stopPropagation()}
+              exit={{ scale: 0.96, opacity: 0 }}
+              onClick={(event) => event.stopPropagation()}
+              className="max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-xl border border-slate-800 bg-slate-950 p-5 shadow-2xl shadow-black/60"
             >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <div className="mb-5 flex items-start justify-between gap-4">
                 <div>
-                  <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: '#e2e8f0' }}>Rekomendasi Penanganan</h3>
-                  <p style={{ margin: '2px 0 0', fontSize: 12, color: '#8890a4' }}>
-                    Untuk: <span style={{ color: '#a89cff', fontWeight: 600 }}>{selected.nama}</span>
-                    {hasData(selected) && <span style={{ marginLeft: 8, padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 600, ...riskBadge(selected.latest_risk) }}>{riskLabel(selected.latest_risk)}</span>}
+                  <h2 className="text-xl font-semibold tracking-normal text-white">Pusat Penanganan Responden</h2>
+                  <p className="mt-1 text-sm text-slate-400">
+                    {selected.nama} · @{selected.username}
+                    {hasData(selected) && (
+                      <span className={`ml-2 rounded-full border px-2.5 py-1 text-xs font-semibold ${getRisk(selected.latest_risk).border} ${getRisk(selected.latest_risk).bg} ${getRisk(selected.latest_risk).text}`}>
+                        {getRisk(selected.latest_risk).label}
+                      </span>
+                    )}
                   </p>
                 </div>
-                <button onClick={() => { if (!sending) { setSelected(null); setSent(false); } }} style={{ background: 'none', border: 'none', color: '#8890a4', cursor: 'pointer', padding: 4 }}>
-                  <X size={18} />
+                <button
+                  onClick={() => !sending && setSelected(null)}
+                  className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-900 hover:text-white"
+                >
+                  <X className="h-5 w-5" />
                 </button>
               </div>
 
-              {/* Risk alert */}
-              {hasData(selected) && (
-                <div style={{ padding: '12px 14px', background: riskColor(selected.latest_risk) + '08', borderRadius: 10, border: `1px solid ${riskColor(selected.latest_risk)}20`, marginBottom: 16, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                  <AlertCircle size={16} color={riskColor(selected.latest_risk)} style={{ flexShrink: 0, marginTop: 1 }} />
-                  <div style={{ fontSize: 11, color: '#8890a4', lineHeight: 1.5 }}>
-                    Burnout: <strong style={{ color: riskColor(selected.latest_risk) }}>{selected.latest_burnout.toFixed(1)}/10</strong> · Psikosomatis: <strong style={{ color: '#3ecfcf' }}>{selected.latest_psychosomatic.toFixed(1)}/10</strong>
-                  </div>
+              <div className="mb-5 grid gap-3 md:grid-cols-3">
+                <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-4">
+                  <p className="text-xs text-slate-500">Burnout</p>
+                  <p className="mt-1 text-2xl font-semibold text-white">{hasData(selected) ? selected.latest_burnout.toFixed(1) : '-'}</p>
                 </div>
-              )}
+                <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-4">
+                  <p className="text-xs text-slate-500">Psikosomatis</p>
+                  <p className="mt-1 text-2xl font-semibold text-white">{hasData(selected) ? selected.latest_psychosomatic.toFixed(1) : '-'}</p>
+                </div>
+                <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-4">
+                  <p className="text-xs text-slate-500">Balasan user</p>
+                  <p className="mt-1 text-2xl font-semibold text-white">{selectedReplies.length}</p>
+                </div>
+              </div>
 
-              {/* Treatment History */}
-              <button
-                onClick={() => setShowHistory(!showHistory)}
-                style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', color: '#8890a4', cursor: 'pointer', fontSize: 11, fontWeight: 600, padding: '6px 10px', borderRadius: 6, marginBottom: 10 }}
-              >
-                <History size={13} />
-                Riwayat Penanganan ({history.length})
-                <ChevronDown size={12} style={{ transform: showHistory ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
-              </button>
-              <AnimatePresence>
-                {showHistory && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    style={{ overflow: 'hidden', marginBottom: 12 }}
+              <div className="mb-5 flex flex-wrap gap-2 border-b border-slate-800 pb-4">
+                {[
+                  { key: 'compose' as const, label: 'Kirim saran', icon: Send },
+                  { key: 'history' as const, label: `Riwayat (${history.length})`, icon: History },
+                  { key: 'replies' as const, label: `Balasan (${selectedReplies.length})`, icon: Inbox },
+                ].map((tab) => {
+                  const Icon = tab.icon;
+                  return (
+                    <button
+                      key={tab.key}
+                      onClick={() => setModalTab(tab.key)}
+                      className={`inline-flex h-10 items-center gap-2 rounded-lg border px-4 text-sm font-semibold transition ${
+                        modalTab === tab.key
+                          ? 'border-indigo-400/40 bg-indigo-500/15 text-indigo-200'
+                          : 'border-slate-800 bg-slate-900 text-slate-500 hover:text-slate-300'
+                      }`}
+                    >
+                      <Icon className="h-4 w-4" />
+                      {tab.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {sent && modalTab === 'compose' ? (
+                <div className="rounded-xl border border-emerald-400/25 bg-emerald-500/10 p-10 text-center">
+                  <CheckCircle2 className="mx-auto h-12 w-12 text-emerald-300" />
+                  <h3 className="mt-4 text-lg font-semibold tracking-normal text-white">Rekomendasi terkirim</h3>
+                  <p className="mt-2 text-sm text-slate-400">{selected.nama} akan menerima saran ini di halaman curhat/notifikasi terapi.</p>
+                  <button
+                    onClick={() => setSelected(null)}
+                    className="mt-5 rounded-lg bg-emerald-500 px-5 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400"
                   >
-                    {loadingHistory ? (
-                      <div style={{ padding: 16, textAlign: 'center' }}>
-                        <Loader2 size={16} color="#8890a4" style={{ animation: 'spin 1s linear infinite' }} />
-                      </div>
-                    ) : history.length === 0 ? (
-                      <div style={{ padding: 12, textAlign: 'center', fontSize: 11, color: '#4a5068', background: '#0f1117', borderRadius: 8 }}>
-                        Belum ada riwayat penanganan
-                      </div>
-                    ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 180, overflowY: 'auto' }} className="scrollbar-thin">
-                        {history.map(h => {
-                          const pc = priConf[h.Priority] || priConf['medium'];
-                          return (
-                            <div key={h.ID} style={{ padding: '10px 12px', background: '#0f1117', borderRadius: 8, border: '1px solid #1e2130', fontSize: 11 }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                                <span style={{ padding: '1px 6px', borderRadius: 4, fontSize: 9, fontWeight: 700, background: pc.color + '15', color: pc.color, border: `1px solid ${pc.color}30` }}>{pc.label}</span>
-                                <span style={{ color: '#4a5068' }}>{formatFullDate(h.CreatedAt)}</span>
-                                <span style={{ marginLeft: 'auto', fontSize: 9, padding: '1px 6px', borderRadius: 4, background: h.Status === 'completed' ? 'rgba(34,197,94,0.1)' : 'rgba(245,158,11,0.1)', color: h.Status === 'completed' ? '#4ade80' : '#f59e0b', border: `1px solid ${h.Status === 'completed' ? 'rgba(34,197,94,0.2)' : 'rgba(245,158,11,0.2)'}` }}>
-                                  {h.Status === 'completed' ? 'Selesai' : 'Pending'}
-                                </span>
-                              </div>
-                              <div style={{ color: '#8890a4', lineHeight: 1.4, maxHeight: 60, overflow: 'hidden' }}>{h.ModuleName}</div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              {sent ? (
-                <div style={{ textAlign: 'center', padding: '24px 0' }}>
-                  <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
-                    <CheckCircle2 size={26} color="#4ade80" />
-                  </div>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: '#e2e8f0', marginBottom: 4 }}>Rekomendasi Terkirim!</div>
-                  <p style={{ fontSize: 12, color: '#8890a4', margin: 0 }}>
-                    {selected.nama} akan menerima notifikasi di dashboard mereka.
-                  </p>
-                  <button onClick={() => { setSelected(null); setSent(false); }} style={{
-                    marginTop: 16, padding: '10px 24px', borderRadius: 8, background: '#6c63ff', border: 'none', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                  }}>
-                    Kembali
+                    Selesai
                   </button>
                 </div>
-              ) : (
-                <>
-                  {/* Category + Priority + Duration rows */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
-                    {/* Category */}
-                    <div>
-                      <label style={{ display: 'block', fontSize: 10, fontWeight: 600, color: '#8890a4', marginBottom: 5, textTransform: 'uppercase', letterSpacing: 0.5 }}>Kategori</label>
-                      <select
-                        value={category}
-                        onChange={e => setCategory(e.target.value)}
-                        style={{ width: '100%', padding: '8px 10px', background: '#0f1117', border: '1px solid #1e2130', borderRadius: 8, color: '#e2e8f0', fontSize: 12, outline: 'none', cursor: 'pointer' }}
-                      >
-                        {categories.map(c => (
-                          <option key={c.value} value={c.value}>{c.label}</option>
-                        ))}
-                      </select>
-                    </div>
+              ) : modalTab === 'compose' ? (
+                <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+                  <div className="space-y-4">
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <label className="block">
+                        <span className="mb-2 block text-xs font-semibold uppercase text-slate-500">Kategori</span>
+                        <select
+                          value={category}
+                          onChange={(event) => setCategory(event.target.value)}
+                          className="h-11 w-full rounded-lg border border-slate-800 bg-slate-900 px-3 text-sm text-slate-100 outline-none focus:border-indigo-400/50"
+                        >
+                          {categories.map((item) => (
+                            <option key={item.value} value={item.value}>{item.label}</option>
+                          ))}
+                        </select>
+                      </label>
 
-                    {/* Priority */}
-                    <div>
-                      <label style={{ display: 'block', fontSize: 10, fontWeight: 600, color: '#8890a4', marginBottom: 5, textTransform: 'uppercase', letterSpacing: 0.5 }}>Prioritas</label>
-                      <select
-                        value={priority}
-                        onChange={e => setPriority(e.target.value)}
-                        style={{ width: '100%', padding: '8px 10px', background: '#0f1117', border: '1px solid #1e2130', borderRadius: 8, color: priConf[priority]?.color || '#e2e8f0', fontSize: 12, outline: 'none', cursor: 'pointer', fontWeight: 600 }}
-                      >
-                        {priorities.map(p => (
-                          <option key={p.value} value={p.value} style={{ color: p.color }}>{p.label}</option>
-                        ))}
-                      </select>
-                    </div>
+                      <label className="block">
+                        <span className="mb-2 block text-xs font-semibold uppercase text-slate-500">Prioritas</span>
+                        <select
+                          value={priority}
+                          onChange={(event) => setPriority(event.target.value)}
+                          className="h-11 w-full rounded-lg border border-slate-800 bg-slate-900 px-3 text-sm text-slate-100 outline-none focus:border-indigo-400/50"
+                        >
+                          {priorities.map((item) => (
+                            <option key={item.value} value={item.value}>{item.label}</option>
+                          ))}
+                        </select>
+                      </label>
 
-                    {/* Duration */}
-                    <div>
-                      <label style={{ display: 'block', fontSize: 10, fontWeight: 600, color: '#8890a4', marginBottom: 5, textTransform: 'uppercase', letterSpacing: 0.5 }}>Durasi Program</label>
-                      <select
-                        value={duration}
-                        onChange={e => setDuration(e.target.value)}
-                        style={{ width: '100%', padding: '8px 10px', background: '#0f1117', border: '1px solid #1e2130', borderRadius: 8, color: '#e2e8f0', fontSize: 12, outline: 'none', cursor: 'pointer' }}
-                      >
-                        {durations.map(d => (
-                          <option key={d.value} value={d.value}>{d.label}</option>
-                        ))}
-                      </select>
-                    </div>
+                      <label className="block">
+                        <span className="mb-2 block text-xs font-semibold uppercase text-slate-500">Durasi</span>
+                        <select
+                          value={duration}
+                          onChange={(event) => setDuration(event.target.value)}
+                          className="h-11 w-full rounded-lg border border-slate-800 bg-slate-900 px-3 text-sm text-slate-100 outline-none focus:border-indigo-400/50"
+                        >
+                          {durations.map((item) => (
+                            <option key={item.value} value={item.value}>{item.label}</option>
+                          ))}
+                        </select>
+                      </label>
 
-                    {/* Follow-up Date */}
-                    <div>
-                      <label style={{ display: 'block', fontSize: 10, fontWeight: 600, color: '#8890a4', marginBottom: 5, textTransform: 'uppercase', letterSpacing: 0.5 }}>Follow-up</label>
-                      <div style={{ position: 'relative' }}>
-                        <Calendar size={13} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#4a5068' }} />
+                      <label className="block">
+                        <span className="mb-2 block text-xs font-semibold uppercase text-slate-500">Follow-up</span>
                         <input
                           type="date"
                           value={followUpDate}
-                          onChange={e => setFollowUpDate(e.target.value)}
-                          style={{ width: '100%', padding: '8px 10px 8px 30px', background: '#0f1117', border: '1px solid #1e2130', borderRadius: 8, color: '#e2e8f0', fontSize: 12, outline: 'none', boxSizing: 'border-box' }}
+                          onChange={(event) => setFollowUpDate(event.target.value)}
+                          className="h-11 w-full rounded-lg border border-slate-800 bg-slate-900 px-3 text-sm text-slate-100 outline-none focus:border-indigo-400/50"
                         />
+                      </label>
+                    </div>
+
+                    <div>
+                      <span className="mb-2 block text-xs font-semibold uppercase text-slate-500">Template cepat</span>
+                      <div className="flex flex-wrap gap-2">
+                        {Object.entries(templates).map(([risk, template]) => (
+                          <button
+                            key={risk}
+                            onClick={() => setMessage(template)}
+                            className={`rounded-lg border px-3 py-2 text-xs font-semibold ${getRisk(risk).border} ${getRisk(risk).bg} ${getRisk(risk).text}`}
+                          >
+                            {getRisk(risk).label}
+                          </button>
+                        ))}
                       </div>
+                    </div>
+
+                    <label className="block">
+                      <span className="mb-2 block text-xs font-semibold uppercase text-slate-500">Rencana penanganan</span>
+                      <textarea
+                        value={message}
+                        onChange={(event) => setMessage(event.target.value)}
+                        rows={9}
+                        placeholder="Tulis rekomendasi yang akan dikirim ke user..."
+                        className="w-full resize-y rounded-xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm leading-6 text-slate-100 outline-none transition placeholder:text-slate-600 focus:border-indigo-400/50 focus:ring-4 focus:ring-indigo-500/10"
+                      />
+                    </label>
+
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => setSelected(null)}
+                        className="h-11 flex-1 rounded-lg border border-slate-700 bg-slate-950 text-sm font-semibold text-slate-400 transition hover:text-white"
+                      >
+                        Batal
+                      </button>
+                      <button
+                        onClick={handleSend}
+                        disabled={!message.trim() || sending}
+                        className="inline-flex h-11 flex-[2] items-center justify-center gap-2 rounded-lg bg-indigo-500 text-sm font-semibold text-white transition hover:bg-indigo-400 disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-500"
+                      >
+                        {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                        {sending ? 'Mengirim...' : 'Kirim rekomendasi'}
+                      </button>
                     </div>
                   </div>
 
-                  {/* Template buttons */}
-                  <div style={{ marginBottom: 10 }}>
-                    <label style={{ display: 'block', fontSize: 10, fontWeight: 600, color: '#8890a4', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Template Cepat</label>
-                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                      {Object.entries(templates).map(([risk, template]) => (
-                        <button
-                          key={risk}
-                          onClick={() => setMessage(template)}
-                          style={{
-                            padding: '5px 10px', borderRadius: 6, border: `1px solid ${riskColor(risk)}30`, background: riskColor(risk) + '08',
-                            color: riskColor(risk), fontSize: 10, fontWeight: 600, cursor: 'pointer',
-                          }}
-                        >
-                          {riskLabel(risk)}
-                        </button>
-                      ))}
+                  <aside className="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
+                    <div className="mb-3 flex items-center gap-2">
+                      <Bell className="h-4 w-4 text-indigo-300" />
+                      <h3 className="text-sm font-semibold tracking-normal text-white">Pratinjau notifikasi</h3>
                     </div>
-                  </div>
-
-                  {/* Message textarea */}
-                  <label style={{ display: 'block', fontSize: 10, fontWeight: 600, color: '#8890a4', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                    Rencana Penanganan
-                  </label>
-                  <textarea
-                    value={message}
-                    onChange={e => setMessage(e.target.value)}
-                    placeholder="Tulis rekomendasi penanganan yang akan dikirim ke responden..."
-                    disabled={sending}
-                    style={{
-                      width: '100%', height: 140, background: '#0f1117', border: '1px solid #1e2130',
-                      borderRadius: 10, padding: '12px 14px', color: '#e2e8f0', fontSize: 12, outline: 'none',
-                      resize: 'vertical', lineHeight: 1.6, boxSizing: 'border-box',
-                    }}
-                  />
-
-                  {/* Notification preview */}
-                  <div style={{ marginTop: 12, padding: '10px 14px', background: '#0f1117', borderRadius: 8, border: '1px solid #1e2130' }}>
-                    <div style={{ fontSize: 9, color: '#4a5068', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Pratinjau Notifikasi User</div>
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-                      <div style={{ width: 28, height: 28, borderRadius: 6, background: 'rgba(108,99,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <Bell size={13} color="#a89cff" />
-                      </div>
-                      <div>
-                        <div style={{ fontSize: 11, fontWeight: 600, color: '#e2e8f0', marginBottom: 2 }}>
-                          [{priConf[priority]?.label}] Rekomendasi Penanganan
-                        </div>
-                        <div style={{ fontSize: 10, color: '#8890a4', lineHeight: 1.4 }}>
-                          {message.substring(0, 100)}{message.length > 100 ? '...' : ''}
-                        </div>
-                        {followUpDate && (
-                          <div style={{ fontSize: 9, color: '#4ade80', marginTop: 4 }}>Follow-up: {formatDate(followUpDate)}</div>
-                        )}
-                      </div>
+                    <div className="rounded-lg border border-slate-800 bg-slate-950/70 p-4">
+                      <span className={`mb-3 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${priorityConfig[priority]?.className}`}>
+                        <span className={`h-1.5 w-1.5 rounded-full ${priorityConfig[priority]?.dot}`} />
+                        {priorityConfig[priority]?.label}
+                      </span>
+                      <p className="text-sm leading-6 text-slate-300">{message.slice(0, 220)}{message.length > 220 ? '...' : ''}</p>
+                      {followUpDate && <p className="mt-3 text-xs text-emerald-300">Follow-up: {formatDate(followUpDate)}</p>}
                     </div>
-                  </div>
-
-                  {/* Action buttons */}
-                  <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-                    <button onClick={() => { setSelected(null); setSent(false); }}
-                      style={{ flex: 1, padding: '10px', borderRadius: 8, background: 'transparent', border: '1px solid #1e2130', color: '#8890a4', fontSize: 12, cursor: 'pointer', fontWeight: 500 }}>
-                      Batal
-                    </button>
-                    <button onClick={handleSend} disabled={!message.trim() || sending}
-                      style={{ flex: 2, padding: '10px', borderRadius: 8, border: 'none', background: (!message.trim() || sending) ? '#2a2e42' : 'linear-gradient(135deg, #6c63ff, #a855f7)',
-                        color: '#fff', fontSize: 12, fontWeight: 600, cursor: (!message.trim() || sending) ? 'not-allowed' : 'pointer',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                      {sending ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Send size={14} />}
-                      {sending ? 'Mengirim...' : 'Kirim Rekomendasi'}
-                    </button>
-                  </div>
-
-                  <p style={{ fontSize: 10, color: '#4a5068', marginTop: 8, textAlign: 'center' }}>
-                    Pesan akan muncul sebagai notifikasi di dashboard user dan dapat dilihat di riwayat penanganan
-                  </p>
-                </>
+                  </aside>
+                </div>
+              ) : modalTab === 'history' ? (
+                <div>
+                  {loadingHistory ? (
+                    <div className="flex h-48 items-center justify-center">
+                      <Loader2 className="h-7 w-7 animate-spin text-slate-500" />
+                    </div>
+                  ) : history.length === 0 ? (
+                    <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-10 text-center text-sm text-slate-500">
+                      Belum ada riwayat penanganan.
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {history.map((item) => {
+                        const priority = priorityConfig[item.Priority] || priorityConfig.medium;
+                        const category = categoryConfig[item.Category] || categoryConfig.general;
+                        const CategoryIcon = category.icon;
+                        return (
+                          <article key={item.ID} className="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
+                            <div className="mb-3 flex flex-wrap items-center gap-2">
+                              <CategoryIcon className={`h-4 w-4 ${category.text}`} />
+                              <span className="font-semibold text-white">{category.label}</span>
+                              <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${priority.className}`}>{priority.label}</span>
+                              <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
+                                item.Status === 'completed'
+                                  ? 'border-emerald-400/25 bg-emerald-500/10 text-emerald-300'
+                                  : 'border-amber-400/25 bg-amber-500/10 text-amber-300'
+                              }`}>
+                                {item.Status === 'completed' ? 'Selesai' : 'Pending'}
+                              </span>
+                              <span className="ml-auto text-xs text-slate-500">{formatFullDate(item.CreatedAt)}</span>
+                            </div>
+                            <p className="whitespace-pre-wrap text-sm leading-6 text-slate-300">{item.ModuleName}</p>
+                            <div className="mt-3 flex flex-wrap gap-3 text-xs text-slate-500">
+                              <span>Durasi: {durationLabel[item.Duration] || item.Duration}</span>
+                              <span>Follow-up: {formatDate(item.FollowUpDate)}</span>
+                              <span>Balasan user: {item.Replies?.length || 0}</span>
+                            </div>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div>
+                  {loadingHistory ? (
+                    <div className="flex h-48 items-center justify-center">
+                      <Loader2 className="h-7 w-7 animate-spin text-slate-500" />
+                    </div>
+                  ) : selectedReplies.length === 0 ? (
+                    <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-10 text-center text-sm text-slate-500">
+                      Belum ada balasan user untuk rekomendasi terapi.
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {selectedReplies.map(({ reply, treatment }) => {
+                        const id = replyId(reply);
+                        const mood = moodLabel[replyMood(reply)] || moodLabel.same;
+                        return (
+                          <article key={id} className={`rounded-xl border p-4 ${replySeen(reply) ? 'border-slate-800 bg-slate-900/70' : 'border-amber-400/30 bg-amber-500/10'}`}>
+                            <div className="mb-3 flex flex-wrap items-center gap-2">
+                              <MessageCircleReply className="h-4 w-4 text-cyan-300" />
+                              <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${mood.className}`}>{mood.label}</span>
+                              <span className="text-xs text-slate-500">{formatFullDate(replyDate(reply))}</span>
+                              {!replySeen(reply) && (
+                                <button
+                                  onClick={() => markReplyRead(id)}
+                                  disabled={replyReadLoading === id}
+                                  className="ml-auto inline-flex h-8 items-center gap-2 rounded-lg bg-emerald-500 px-3 text-xs font-semibold text-slate-950 hover:bg-emerald-400 disabled:opacity-60"
+                                >
+                                  {replyReadLoading === id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                                  Tandai terbaca
+                                </button>
+                              )}
+                            </div>
+                            <p className="whitespace-pre-wrap text-sm leading-6 text-slate-200">{replyText(reply)}</p>
+                            <div className="mt-3 rounded-lg border border-slate-800 bg-slate-950/70 p-3">
+                              <p className="mb-1 text-xs font-semibold uppercase text-slate-500">Terkait rekomendasi</p>
+                              <p className="line-clamp-2 text-xs leading-5 text-slate-400">{treatment.ModuleName}</p>
+                            </div>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               )}
             </motion.div>
           </motion.div>
