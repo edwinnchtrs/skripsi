@@ -31,7 +31,8 @@ import {
   Zap,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { Area, AreaChart, ResponsiveContainer, Tooltip } from 'recharts';
+import { Area, AreaChart, Tooltip } from 'recharts';
+import ChartShell from '../components/ChartShell';
 import api from '../api';
 
 interface Curhat {
@@ -516,9 +517,9 @@ export default function UserCurhat() {
                   <p className="mt-1 text-sm text-slate-400">Rata-rata stres {avgStressLevel.label}</p>
                 </div>
 
-                <div className="mt-4 h-[120px] min-h-[120px] min-w-0 overflow-hidden">
+                <div className="mt-4 overflow-hidden">
                   {trendData.length > 1 ? (
-                    <ResponsiveContainer width="100%" height={120} minWidth={1} minHeight={1}>
+                    <ChartShell height={120}>
                       <AreaChart data={trendData} margin={{ top: 8, right: 8, bottom: 0, left: -20 }}>
                         <defs>
                           <linearGradient id="stressFill" x1="0" y1="0" x2="0" y2="1">
@@ -537,9 +538,9 @@ export default function UserCurhat() {
                         />
                         <Area type="monotone" dataKey="stress" stroke="#ec4899" strokeWidth={2} fill="url(#stressFill)" dot={false} />
                       </AreaChart>
-                    </ResponsiveContainer>
+                    </ChartShell>
                   ) : (
-                    <div className="flex h-full items-center justify-center rounded-lg border border-slate-800 bg-slate-950/60 text-xs text-slate-600">
+                    <div className="flex h-[120px] items-center justify-center rounded-lg border border-slate-800 bg-slate-950/60 text-xs text-slate-600">
                       Tren muncul setelah beberapa curhat
                     </div>
                   )}

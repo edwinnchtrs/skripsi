@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Line, LineChart, ResponsiveContainer, CartesianGrid, Tooltip, XAxis, YAxis } from 'recharts';
+import { Line, LineChart, CartesianGrid, Tooltip, XAxis, YAxis } from 'recharts';
+import ChartShell from '../../components/ChartShell';
 import { Activity, LineChart as LineChartIcon } from 'lucide-react';
 import { tooltipStyle } from './styles';
 
@@ -76,26 +77,24 @@ export default function TrendChart({ data, loading }: { data: any[]; loading: bo
           <p className="mt-2 text-sm font-semibold text-slate-300">Belum ada data tren</p>
         </div>
       ) : (
-        <div className="mt-4 h-[240px] min-h-[240px] min-w-0 overflow-hidden rounded-lg">
-          <ResponsiveContainer width="100%" height={240} minWidth={1} minHeight={1}>
-            <LineChart data={chartData} margin={{ top: 8, right: 8, left: -18, bottom: 20 }}>
-              <CartesianGrid strokeDasharray="4 4" stroke="rgba(148, 163, 184, 0.12)" />
-              <XAxis
-                dataKey="date"
-                tick={{ fill: '#94a3b8', fontSize: 9 }}
-                axisLine={false}
-                tickLine={false}
-                interval="preserveStartEnd"
-                minTickGap={18}
-              />
-              <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} axisLine={false} tickLine={false} domain={[0, 100]} />
-              <Tooltip contentStyle={tooltipStyle} />
-              <Line type="monotone" dataKey="semua" stroke="#a78bfa" strokeWidth={2.5} dot={{ r: 3 }} name="Semua" />
-              <Line type="monotone" dataKey="mahasiswa" stroke="#34d399" strokeWidth={2.5} dot={false} name="Mahasiswa" />
-              <Line type="monotone" dataKey="karyawan" stroke="#fbbf24" strokeWidth={2.5} dot={false} name="Karyawan" />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
+        <ChartShell height={240} className="mt-4 overflow-hidden rounded-lg">
+          <LineChart data={chartData} margin={{ top: 8, right: 8, left: -18, bottom: 20 }}>
+            <CartesianGrid strokeDasharray="4 4" stroke="rgba(148, 163, 184, 0.12)" />
+            <XAxis
+              dataKey="date"
+              tick={{ fill: '#94a3b8', fontSize: 9 }}
+              axisLine={false}
+              tickLine={false}
+              interval="preserveStartEnd"
+              minTickGap={18}
+            />
+            <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} axisLine={false} tickLine={false} domain={[0, 100]} />
+            <Tooltip contentStyle={tooltipStyle} />
+            <Line type="monotone" dataKey="semua" stroke="#a78bfa" strokeWidth={2.5} dot={{ r: 3 }} name="Semua" />
+            <Line type="monotone" dataKey="mahasiswa" stroke="#34d399" strokeWidth={2.5} dot={false} name="Mahasiswa" />
+            <Line type="monotone" dataKey="karyawan" stroke="#fbbf24" strokeWidth={2.5} dot={false} name="Karyawan" />
+          </LineChart>
+        </ChartShell>
       )}
     </div>
   );

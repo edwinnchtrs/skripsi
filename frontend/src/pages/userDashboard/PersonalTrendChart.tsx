@@ -4,11 +4,11 @@ import {
   Legend,
   Line,
   LineChart,
-  ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from 'recharts';
+import ChartShell from '../../components/ChartShell';
 import type { Assessment, Prediction } from './UserStatCards';
 
 interface PersonalTrendChartProps {
@@ -85,19 +85,17 @@ export default function PersonalTrendChart({ predictions, assessments, loading }
             <div className="mb-3 text-xs font-semibold uppercase tracking-normal text-slate-400">
               Skor Burnout dan Psikosomatik
             </div>
-            <div className="h-72 min-h-72 min-w-0">
-              <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
-                <LineChart data={predData} margin={{ top: 8, right: 12, left: -18, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.12)" />
-                  <XAxis dataKey="date" tick={{ fill: '#94a3b8', fontSize: 11 }} tickLine={false} axisLine={false} />
-                  <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} tickLine={false} axisLine={false} domain={[0, 100]} />
-                  <Tooltip contentStyle={tooltipStyle} />
-                  <Legend iconSize={9} wrapperStyle={{ color: '#94a3b8', fontSize: 12 }} />
-                  <Line type="monotone" dataKey="burnout" name="Burnout" stroke="#fb7185" strokeWidth={2.4} dot={{ r: 3 }} activeDot={{ r: 5 }} />
-                  <Line type="monotone" dataKey="psikosomatik" name="Psikosomatik" stroke="#fbbf24" strokeWidth={2.4} dot={{ r: 3 }} activeDot={{ r: 5 }} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
+            <ChartShell height={288} className="rounded-lg">
+              <LineChart data={predData} margin={{ top: 8, right: 12, left: -18, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.12)" />
+                <XAxis dataKey="date" tick={{ fill: '#94a3b8', fontSize: 11 }} tickLine={false} axisLine={false} />
+                <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} tickLine={false} axisLine={false} domain={[0, 100]} />
+                <Tooltip contentStyle={tooltipStyle} />
+                <Legend iconSize={9} wrapperStyle={{ color: '#94a3b8', fontSize: 12 }} />
+                <Line type="monotone" dataKey="burnout" name="Burnout" stroke="#fb7185" strokeWidth={2.4} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                <Line type="monotone" dataKey="psikosomatik" name="Psikosomatik" stroke="#fbbf24" strokeWidth={2.4} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+              </LineChart>
+            </ChartShell>
           </div>
 
           {asmtData.length > 0 && (
@@ -105,20 +103,18 @@ export default function PersonalTrendChart({ predictions, assessments, loading }
               <div className="mb-3 text-xs font-semibold uppercase tracking-normal text-slate-400">
                 Asesmen Kuisioner
               </div>
-              <div className="h-64 min-h-64 min-w-0">
-                <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
-                  <LineChart data={asmtData} margin={{ top: 8, right: 12, left: -18, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.12)" />
-                    <XAxis dataKey="date" tick={{ fill: '#94a3b8', fontSize: 11 }} tickLine={false} axisLine={false} />
-                    <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} tickLine={false} axisLine={false} domain={[0, 'dataMax + 1']} />
-                    <Tooltip contentStyle={tooltipStyle} />
-                    <Legend iconSize={9} wrapperStyle={{ color: '#94a3b8', fontSize: 12 }} />
-                    <Line type="monotone" dataKey="efikasi" name="Efikasi" stroke="#34d399" strokeWidth={2.4} dot={{ r: 3 }} activeDot={{ r: 5 }} />
-                    <Line type="monotone" dataKey="kelelahan" name="Kelelahan" stroke="#38bdf8" strokeWidth={2.4} dot={{ r: 3 }} activeDot={{ r: 5 }} />
-                    <Line type="monotone" dataKey="gangguan" name="Gangguan" stroke="#a78bfa" strokeWidth={2.4} dot={{ r: 3 }} activeDot={{ r: 5 }} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
+              <ChartShell height={256} className="rounded-lg">
+                <LineChart data={asmtData} margin={{ top: 8, right: 12, left: -18, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.12)" />
+                  <XAxis dataKey="date" tick={{ fill: '#94a3b8', fontSize: 11 }} tickLine={false} axisLine={false} />
+                  <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} tickLine={false} axisLine={false} domain={[0, 'dataMax + 1']} />
+                  <Tooltip contentStyle={tooltipStyle} />
+                  <Legend iconSize={9} wrapperStyle={{ color: '#94a3b8', fontSize: 12 }} />
+                  <Line type="monotone" dataKey="efikasi" name="Efikasi" stroke="#34d399" strokeWidth={2.4} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                  <Line type="monotone" dataKey="kelelahan" name="Kelelahan" stroke="#38bdf8" strokeWidth={2.4} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                  <Line type="monotone" dataKey="gangguan" name="Gangguan" stroke="#a78bfa" strokeWidth={2.4} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                </LineChart>
+              </ChartShell>
             </div>
           )}
         </div>

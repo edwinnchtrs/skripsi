@@ -1,6 +1,7 @@
-import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
+import { Cell, Pie, PieChart, Tooltip } from 'recharts';
 import { Activity, CircleDot } from 'lucide-react';
 import { tooltipStyle } from './styles';
+import ChartShell from '../../components/ChartShell';
 
 function DonutCard({
   title,
@@ -30,7 +31,7 @@ function DonutCard({
               <p className="mt-2 text-xs text-slate-500">Belum ada data</p>
             </div>
           ) : (
-            <ResponsiveContainer width="100%" height={170} minWidth={1} minHeight={1}>
+            <ChartShell height={170}>
               <PieChart>
                 <Pie data={data} cx="50%" cy="50%" innerRadius={52} outerRadius={74} dataKey="value" startAngle={90} endAngle={-270} strokeWidth={0}>
                   {data.map((item) => (
@@ -39,7 +40,7 @@ function DonutCard({
                 </Pie>
                 <Tooltip contentStyle={tooltipStyle} />
               </PieChart>
-            </ResponsiveContainer>
+            </ChartShell>
           )}
           <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
             <span className="text-2xl font-semibold text-white">{loading ? '-' : total.toLocaleString('id-ID')}</span>

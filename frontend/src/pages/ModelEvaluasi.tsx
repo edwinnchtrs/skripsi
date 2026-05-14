@@ -5,10 +5,11 @@ import {
   CheckCircle2, AlertTriangle, Info, Zap, Sparkles, Brain, Loader2
 } from 'lucide-react';
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Legend,
   BarChart, Bar, Cell, AreaChart, Area, ScatterChart, Scatter
 } from 'recharts';
+import ChartShell from '../components/ChartShell';
 import api from '../api';
 import { card, sectionTitle } from './dashboard/styles';
 
@@ -191,17 +192,17 @@ export default function ModelEvaluasi() {
               {/* Feature Importance */}
               <div style={{ ...card, padding: '16px 20px' }}>
                 <h3 style={{ ...sectionTitle, margin: 0, fontSize: 14, marginBottom: 12 }}>Feature Importance (Real Weights)</h3>
-                <ResponsiveContainer width="100%" height={220} minWidth={1} minHeight={1}>
-                  <BarChart data={data.feature_importance} layout="vertical" margin={{ top: 5, right: 15, bottom: 5, left: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#1e2130" horizontal={false} />
-                    <XAxis type="number" domain={[0, 0.6]} tick={{ fill: '#8890a4', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => (v * 100).toFixed(0) + '%'} />
-                    <YAxis dataKey="feature" type="category" width={110} tick={{ fill: '#c0c9e0', fontSize: 10 }} axisLine={false} tickLine={false} />
-                    <Tooltip contentStyle={{ background: '#1a1e2e', border: '1px solid #2a2e42', borderRadius: 8, fontSize: 11, color: '#e2e8f0' }} formatter={(v: number) => (v * 100).toFixed(1) + '%'} />
-                    <Bar dataKey="importance" radius={[0, 4, 4, 0]} barSize={16}>
-                      {data.feature_importance.map((f, i) => <Cell key={i} fill={f.color} />)}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+              <ChartShell height={220}>
+                <BarChart data={data.feature_importance} layout="vertical" margin={{ top: 5, right: 15, bottom: 5, left: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1e2130" horizontal={false} />
+                  <XAxis type="number" domain={[0, 0.6]} tick={{ fill: '#8890a4', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => (v * 100).toFixed(0) + '%'} />
+                  <YAxis dataKey="feature" type="category" width={110} tick={{ fill: '#c0c9e0', fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <Tooltip contentStyle={{ background: '#1a1e2e', border: '1px solid #2a2e42', borderRadius: 8, fontSize: 11, color: '#e2e8f0' }} formatter={(v: number) => (v * 100).toFixed(1) + '%'} />
+                  <Bar dataKey="importance" radius={[0, 4, 4, 0]} barSize={16}>
+                    {data.feature_importance.map((f, i) => <Cell key={i} fill={f.color} />)}
+                  </Bar>
+                </BarChart>
+              </ChartShell>
               </div>
             </div>
 
@@ -210,7 +211,7 @@ export default function ModelEvaluasi() {
               {/* Model Comparison */}
               <div style={card}>
                 <h3 style={{ ...sectionTitle, margin: 0, fontSize: 14 }}>Perbandingan R²</h3>
-                <ResponsiveContainer width="100%" height={200} minWidth={1} minHeight={1}>
+                <ChartShell height={200}>
                   <BarChart data={compBarData} layout="vertical" margin={{ top: 5, right: 10, bottom: 5, left: -5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#1e2130" horizontal={false} />
                     <XAxis type="number" domain={[0, Math.max(modelCompare.qc_r2 * 1.1, 0.1)]} tick={{ fill: '#8890a4', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => v.toFixed(2)} />
@@ -220,7 +221,7 @@ export default function ModelEvaluasi() {
                       {compBarData.map((d, i) => <Cell key={i} fill={d.color} />)}
                     </Bar>
                   </BarChart>
-                </ResponsiveContainer>
+                </ChartShell>
               </div>
 
               {/* Cross Validation */}
@@ -267,7 +268,7 @@ export default function ModelEvaluasi() {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <div style={{ ...card, padding: '16px 20px' }}>
             <h3 style={{ ...sectionTitle, margin: 0, fontSize: 14, marginBottom: 12 }}>Perbandingan R² Antar Model</h3>
-            <ResponsiveContainer width="100%" height={320} minWidth={1} minHeight={1}>
+            <ChartShell height={320}>
               <BarChart data={compBarData} margin={{ top: 10, right: 10, bottom: 5, left: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1e2130" />
                 <XAxis dataKey="model" tick={{ fill: '#8890a4', fontSize: 10, whiteSpace: 'pre' }} axisLine={false} tickLine={false} />
@@ -277,7 +278,7 @@ export default function ModelEvaluasi() {
                 <Bar dataKey="r2" fill="#6c63ff" radius={[4, 4, 0, 0]} barSize={40} name="R² Score" />
                 <Bar dataKey="acc" fill="#3ecfcf" radius={[4, 4, 0, 0]} barSize={40} name="Accuracy" />
               </BarChart>
-            </ResponsiveContainer>
+            </ChartShell>
           </div>
 
           <div style={{ ...card, padding: '16px 20px' }}>

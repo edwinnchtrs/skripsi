@@ -1,5 +1,6 @@
 import { Activity, ScatterChart as ScatterIcon } from 'lucide-react';
-import { CartesianGrid, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis } from 'recharts';
+import { CartesianGrid, Scatter, ScatterChart, Tooltip, XAxis, YAxis } from 'recharts';
+import ChartShell from '../../components/ChartShell';
 import { tooltipStyle } from './styles';
 
 export default function ScatterPlot({ data, loading }: { data: any[]; loading: boolean }) {
@@ -23,35 +24,33 @@ export default function ScatterPlot({ data, loading }: { data: any[]; loading: b
           <p className="mt-2 text-sm font-semibold text-slate-300">Belum ada data sebaran</p>
         </div>
       ) : (
-        <div className="mt-4 h-[220px] min-h-[220px] min-w-0 overflow-hidden">
-          <ResponsiveContainer width="100%" height={220} minWidth={1} minHeight={1}>
-            <ScatterChart margin={{ top: 8, right: 8, left: -18, bottom: 18 }}>
-              <CartesianGrid strokeDasharray="4 4" stroke="rgba(148, 163, 184, 0.12)" />
-              <XAxis
-                dataKey="x"
-                name="Skor Psikosomatis"
-                type="number"
-                tick={{ fill: '#94a3b8', fontSize: 10 }}
-                domain={[0, 100]}
-                axisLine={false}
-                tickLine={false}
-                label={{ value: 'Psikosomatis', position: 'insideBottom', offset: -10, fill: '#94a3b8', fontSize: 10 }}
-              />
-              <YAxis
-                dataKey="y"
-                name="Burnout"
-                type="number"
-                tick={{ fill: '#94a3b8', fontSize: 10 }}
-                domain={[0, 100]}
-                axisLine={false}
-                tickLine={false}
-                label={{ value: 'Burnout', angle: -90, position: 'insideLeft', fill: '#94a3b8', fontSize: 10 }}
-              />
-              <Tooltip contentStyle={tooltipStyle} cursor={{ strokeDasharray: '3 3' }} />
-              <Scatter data={chartData} fill="#67e8f9" opacity={0.72} />
-            </ScatterChart>
-          </ResponsiveContainer>
-        </div>
+        <ChartShell height={220} className="mt-4 overflow-hidden">
+          <ScatterChart margin={{ top: 8, right: 8, left: -18, bottom: 18 }}>
+            <CartesianGrid strokeDasharray="4 4" stroke="rgba(148, 163, 184, 0.12)" />
+            <XAxis
+              dataKey="x"
+              name="Skor Psikosomatis"
+              type="number"
+              tick={{ fill: '#94a3b8', fontSize: 10 }}
+              domain={[0, 100]}
+              axisLine={false}
+              tickLine={false}
+              label={{ value: 'Psikosomatis', position: 'insideBottom', offset: -10, fill: '#94a3b8', fontSize: 10 }}
+            />
+            <YAxis
+              dataKey="y"
+              name="Burnout"
+              type="number"
+              tick={{ fill: '#94a3b8', fontSize: 10 }}
+              domain={[0, 100]}
+              axisLine={false}
+              tickLine={false}
+              label={{ value: 'Burnout', angle: -90, position: 'insideLeft', fill: '#94a3b8', fontSize: 10 }}
+            />
+            <Tooltip contentStyle={tooltipStyle} cursor={{ strokeDasharray: '3 3' }} />
+            <Scatter data={chartData} fill="#67e8f9" opacity={0.72} />
+          </ScatterChart>
+        </ChartShell>
       )}
     </div>
   );

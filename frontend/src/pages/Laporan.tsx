@@ -5,9 +5,10 @@ import {
   BarChart3, PieChart, Activity, Eye, ChevronDown
 } from 'lucide-react';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   PieChart as RePieChart, Pie, Cell, LineChart, Line, Legend
 } from 'recharts';
+import ChartShell from '../components/ChartShell';
 import api from '../api';
 import { card, sectionTitle } from './dashboard/styles';
 
@@ -451,7 +452,7 @@ export default function Laporan() {
 
               <div style={card}>
                 <h3 style={{ ...sectionTitle, margin: 0, fontSize: 14, marginBottom: 12 }}>Visualisasi Distribusi</h3>
-                <ResponsiveContainer width="100%" height={200} minWidth={1} minHeight={1}>
+                <ChartShell height={200}>
                   <RePieChart>
                     <Pie data={[
                       { name: 'Rendah', value: analytics?.burnoutDist?.Rendah || 0 },
@@ -462,7 +463,7 @@ export default function Laporan() {
                     </Pie>
                     <Tooltip contentStyle={{ background: '#1a1e2e', border: '1px solid #2a2e42', borderRadius: 8, fontSize: 11, color: '#e2e8f0' }} />
                   </RePieChart>
-                </ResponsiveContainer>
+                </ChartShell>
               </div>
             </div>
           </div>
@@ -484,7 +485,7 @@ export default function Laporan() {
             </div>
             <div style={{ ...card, padding: '16px 20px' }}>
               <h3 style={{ ...sectionTitle, margin: 0, fontSize: 14, marginBottom: 12 }}>Distribusi Risiko Psikosomatis</h3>
-              <ResponsiveContainer width="100%" height={300} minWidth={1} minHeight={1}>
+              <ChartShell height={300}>
                 <BarChart data={[
                   { name: 'Rendah', value: analytics?.psychoDist?.Rendah || 0, fill: '#22c55e' },
                   { name: 'Sedang', value: analytics?.psychoDist?.Sedang || 0, fill: '#f59e0b' },
@@ -498,7 +499,7 @@ export default function Laporan() {
                     {[0, 1, 2].map(i => <Cell key={i} fill={['#22c55e', '#f59e0b', '#ef4444'][i]} />)}
                   </Bar>
                 </BarChart>
-              </ResponsiveContainer>
+              </ChartShell>
             </div>
           </div>
         )}
@@ -549,7 +550,7 @@ export default function Laporan() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div style={{ ...card, padding: '16px 20px' }}>
               <h3 style={{ ...sectionTitle, margin: 0, fontSize: 14, marginBottom: 12 }}>Tren Rata-rata Burnout</h3>
-              <ResponsiveContainer width="100%" height={320} minWidth={1} minHeight={1}>
+              <ChartShell height={320}>
                 <LineChart data={analytics?.trendData || []} margin={{ top: 10, right: 10, bottom: 5, left: -15 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#1e2130" />
                   <XAxis dataKey="date" tick={{ fill: '#8890a4', fontSize: 10 }} axisLine={false} tickLine={false} />
@@ -557,7 +558,7 @@ export default function Laporan() {
                   <Tooltip contentStyle={{ background: '#1a1e2e', border: '1px solid #2a2e42', borderRadius: 8, fontSize: 11, color: '#e2e8f0' }} />
                   <Line type="monotone" dataKey="semua" stroke="#6c63ff" strokeWidth={2.5} dot={{ r: 5, fill: '#6c63ff' }} name="Rata-rata Burnout" />
                 </LineChart>
-              </ResponsiveContainer>
+              </ChartShell>
             </div>
             <div style={card}>
               <h3 style={{ ...sectionTitle, margin: 0, fontSize: 14, marginBottom: 12 }}>Data Tren (Tabel)</h3>

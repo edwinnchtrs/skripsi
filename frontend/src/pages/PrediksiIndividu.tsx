@@ -32,11 +32,11 @@ import {
   PolarGrid,
   Radar as RadarChartShape,
   RadarChart,
-  ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from 'recharts';
+import ChartShell from '../components/ChartShell';
 import api from '../api';
 
 interface Responden {
@@ -693,55 +693,53 @@ export default function PrediksiIndividu() {
                       </span>
                     </div>
 
-                    <div className="h-[320px] min-h-[320px] min-w-0 overflow-hidden">
-                      <ResponsiveContainer width="100%" height={320} minWidth={1} minHeight={1}>
-                        {chartMode === 'area' ? (
-                          <AreaChart data={history} margin={{ top: 8, right: 8, bottom: 0, left: -18 }}>
-                            <defs>
-                              <linearGradient id="burnoutFill" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#818cf8" stopOpacity={0.32} />
-                                <stop offset="95%" stopColor="#818cf8" stopOpacity={0} />
-                              </linearGradient>
-                              <linearGradient id="psychoFill" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#34d399" stopOpacity={0.24} />
-                                <stop offset="95%" stopColor="#34d399" stopOpacity={0} />
-                              </linearGradient>
-                            </defs>
-                            <CartesianGrid stroke="#1e293b" strokeDasharray="3 3" />
-                            <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} />
-                            <YAxis domain={[0, maxScore]} axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} />
-                            <Tooltip
-                              contentStyle={{
-                                background: '#0f172a',
-                                border: '1px solid #334155',
-                                borderRadius: 10,
-                                color: '#e2e8f0',
-                                fontSize: 12,
-                              }}
-                            />
-                            <Area type="monotone" dataKey="burnout" name="Burnout" stroke="#818cf8" strokeWidth={3} fill="url(#burnoutFill)" dot={{ r: 4, fill: '#818cf8' }} />
-                            <Area type="monotone" dataKey="psycho" name="Psikosomatis" stroke="#34d399" strokeWidth={3} fill="url(#psychoFill)" dot={{ r: 4, fill: '#34d399' }} />
-                          </AreaChart>
-                        ) : (
-                          <BarChart data={history} margin={{ top: 8, right: 8, bottom: 0, left: -18 }} barGap={4}>
-                            <CartesianGrid stroke="#1e293b" strokeDasharray="3 3" />
-                            <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} />
-                            <YAxis domain={[0, maxScore]} axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} />
-                            <Tooltip
-                              contentStyle={{
-                                background: '#0f172a',
-                                border: '1px solid #334155',
-                                borderRadius: 10,
-                                color: '#e2e8f0',
-                                fontSize: 12,
-                              }}
-                            />
-                            <Bar dataKey="burnout" name="Burnout" fill="#818cf8" radius={[6, 6, 0, 0]} />
-                            <Bar dataKey="psycho" name="Psikosomatis" fill="#34d399" radius={[6, 6, 0, 0]} />
-                          </BarChart>
-                        )}
-                      </ResponsiveContainer>
-                    </div>
+                    <ChartShell height={320} className="overflow-hidden">
+                      {chartMode === 'area' ? (
+                        <AreaChart data={history} margin={{ top: 8, right: 8, bottom: 0, left: -18 }}>
+                          <defs>
+                            <linearGradient id="burnoutFill" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#818cf8" stopOpacity={0.32} />
+                              <stop offset="95%" stopColor="#818cf8" stopOpacity={0} />
+                            </linearGradient>
+                            <linearGradient id="psychoFill" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#34d399" stopOpacity={0.24} />
+                              <stop offset="95%" stopColor="#34d399" stopOpacity={0} />
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid stroke="#1e293b" strokeDasharray="3 3" />
+                          <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} />
+                          <YAxis domain={[0, maxScore]} axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} />
+                          <Tooltip
+                            contentStyle={{
+                              background: '#0f172a',
+                              border: '1px solid #334155',
+                              borderRadius: 10,
+                              color: '#e2e8f0',
+                              fontSize: 12,
+                            }}
+                          />
+                          <Area type="monotone" dataKey="burnout" name="Burnout" stroke="#818cf8" strokeWidth={3} fill="url(#burnoutFill)" dot={{ r: 4, fill: '#818cf8' }} />
+                          <Area type="monotone" dataKey="psycho" name="Psikosomatis" stroke="#34d399" strokeWidth={3} fill="url(#psychoFill)" dot={{ r: 4, fill: '#34d399' }} />
+                        </AreaChart>
+                      ) : (
+                        <BarChart data={history} margin={{ top: 8, right: 8, bottom: 0, left: -18 }} barGap={4}>
+                          <CartesianGrid stroke="#1e293b" strokeDasharray="3 3" />
+                          <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} />
+                          <YAxis domain={[0, maxScore]} axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} />
+                          <Tooltip
+                            contentStyle={{
+                              background: '#0f172a',
+                              border: '1px solid #334155',
+                              borderRadius: 10,
+                              color: '#e2e8f0',
+                              fontSize: 12,
+                            }}
+                          />
+                          <Bar dataKey="burnout" name="Burnout" fill="#818cf8" radius={[6, 6, 0, 0]} />
+                          <Bar dataKey="psycho" name="Psikosomatis" fill="#34d399" radius={[6, 6, 0, 0]} />
+                        </BarChart>
+                      )}
+                    </ChartShell>
                   </div>
 
                   <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-5">
@@ -752,24 +750,22 @@ export default function PrediksiIndividu() {
                       </div>
                       <Radar className="h-5 w-5 text-cyan-300" aria-hidden="true" />
                     </div>
-                    <div className="h-[290px] min-h-[290px] min-w-0 overflow-hidden">
-                      <ResponsiveContainer width="100%" height={290} minWidth={1} minHeight={1}>
-                        <RadarChart data={radarData}>
-                          <PolarGrid stroke="#1e293b" />
-                          <PolarAngleAxis dataKey="axis" tick={{ fill: '#94a3b8', fontSize: 10 }} />
-                          <RadarChartShape dataKey="value" stroke="#22d3ee" fill="#22d3ee" fillOpacity={0.18} strokeWidth={2} />
-                          <Tooltip
-                            contentStyle={{
-                              background: '#0f172a',
-                              border: '1px solid #334155',
-                              borderRadius: 10,
-                              color: '#e2e8f0',
-                              fontSize: 12,
-                            }}
-                          />
-                        </RadarChart>
-                      </ResponsiveContainer>
-                    </div>
+                    <ChartShell height={290} className="overflow-hidden">
+                      <RadarChart data={radarData}>
+                        <PolarGrid stroke="#1e293b" />
+                        <PolarAngleAxis dataKey="axis" tick={{ fill: '#94a3b8', fontSize: 10 }} />
+                        <RadarChartShape dataKey="value" stroke="#22d3ee" fill="#22d3ee" fillOpacity={0.18} strokeWidth={2} />
+                        <Tooltip
+                          contentStyle={{
+                            background: '#0f172a',
+                            border: '1px solid #334155',
+                            borderRadius: 10,
+                            color: '#e2e8f0',
+                            fontSize: 12,
+                          }}
+                        />
+                      </RadarChart>
+                    </ChartShell>
                   </div>
                 </div>
 

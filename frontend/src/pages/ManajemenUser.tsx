@@ -17,7 +17,8 @@ import {
   Users,
   X,
 } from 'lucide-react';
-import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
+import { Cell, Pie, PieChart, Tooltip } from 'recharts';
+import ChartShell from '../components/ChartShell';
 import api from '../api';
 
 type AccountFilter = 'all' | 'admin' | 'mahasiswa' | 'karyawan';
@@ -426,18 +427,16 @@ export default function ManajemenUser() {
                 <PieIcon className="h-4 w-4 text-violet-200" />
                 Distribusi Akun
               </div>
-              <div className="mt-4 h-[210px] min-h-[210px] min-w-0 overflow-hidden">
-                <ResponsiveContainer width="100%" height={210} minWidth={1} minHeight={1}>
-                  <PieChart>
-                    <Pie data={pieData} cx="50%" cy="50%" innerRadius={58} outerRadius={82} paddingAngle={4} dataKey="value">
-                      {pieData.map((entry) => <Cell key={entry.name} fill={entry.color} stroke="transparent" />)}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{ background: '#020617', border: '1px solid rgba(148,163,184,.2)', borderRadius: 8, color: '#fff', fontSize: 12 }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
+              <ChartShell height={210} className="mt-4 overflow-hidden">
+                <PieChart>
+                  <Pie data={pieData} cx="50%" cy="50%" innerRadius={58} outerRadius={82} paddingAngle={4} dataKey="value">
+                    {pieData.map((entry) => <Cell key={entry.name} fill={entry.color} stroke="transparent" />)}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{ background: '#020617', border: '1px solid rgba(148,163,184,.2)', borderRadius: 8, color: '#fff', fontSize: 12 }}
+                  />
+                </PieChart>
+              </ChartShell>
               <div className="grid grid-cols-3 gap-2">
                 {pieData.map((item) => (
                   <div key={item.name} className="rounded-md border border-white/10 bg-white/[0.03] px-3 py-2 text-center">

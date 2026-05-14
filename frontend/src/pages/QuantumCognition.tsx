@@ -4,10 +4,11 @@ import {
   Sparkles, Loader2, TrendingUp, Zap, Info
 } from 'lucide-react';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Legend,
   AreaChart, Area, LineChart, Line
 } from 'recharts';
+import ChartShell from '../components/ChartShell';
 import api from '../api';
 import { card, sectionTitle } from './dashboard/styles';
 
@@ -174,7 +175,7 @@ export default function QuantumCognition() {
           {/* Probability Distribution */}
           <div style={{ ...card, padding: '16px 20px' }}>
             <h3 style={{ ...sectionTitle, margin: 0, fontSize: 14, marginBottom: 12 }}>Distribusi Probabilitas |ψ⟩² (Real Data)</h3>
-            <ResponsiveContainer width="100%" height={190} minWidth={1} minHeight={1}>
+            <ChartShell height={190}>
               <BarChart data={probDist} margin={{ top: 5, right: 10, bottom: 5, left: -15 }} barSize={32} barGap={8}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1e2130" vertical={false} />
                 <XAxis dataKey="state" tick={{ fill: '#8890a4', fontSize: 11 }} axisLine={false} tickLine={false} />
@@ -183,13 +184,13 @@ export default function QuantumCognition() {
                 <Bar dataKey="c" fill="#4a5068" radius={[4, 4, 0, 0]} name="Klasik (Expected)" />
                 <Bar dataKey="q" fill="#6c63ff" radius={[4, 4, 0, 0]} name="Kuantum (Actual)" />
               </BarChart>
-            </ResponsiveContainer>
+            </ChartShell>
           </div>
 
           {/* Interference Pattern */}
           <div style={{ ...card, padding: '16px 20px' }}>
             <h3 style={{ ...sectionTitle, margin: 0, fontSize: 14, marginBottom: 12 }}>Pola Interferensi Kuantum (μ={data.interference_avg.toFixed(2)})</h3>
-            <ResponsiveContainer width="100%" height={200} minWidth={1} minHeight={1}>
+            <ChartShell height={200}>
               <AreaChart data={Array.from({ length: 24 }, (_, i) => ({
                 angle: i * 15,
                 amplitude: Math.abs(Math.sin(i * data.interference_avg * 0.4 + 0.8) * 0.7 + Math.cos(i * 0.31) * 0.3),
@@ -206,14 +207,14 @@ export default function QuantumCognition() {
                 <Tooltip contentStyle={{ background: '#1a1e2e', border: '1px solid #2a2e42', borderRadius: 8, fontSize: 11, color: '#e2e8f0' }} />
                 <Area type="monotone" dataKey="amplitude" stroke="#a855f7" strokeWidth={2} fill="url(#ig2)" name="Amplitudo" />
               </AreaChart>
-            </ResponsiveContainer>
+            </ChartShell>
           </div>
 
           {/* Order Effects (only if multiple orders exist) */}
           {data.order_effects.length > 1 && (
             <div style={{ ...card, padding: '16px 20px' }}>
               <h3 style={{ ...sectionTitle, margin: 0, fontSize: 14, marginBottom: 12 }}>Efek Urutan Pertanyaan ({data.order_effects.length} variasi)</h3>
-              <ResponsiveContainer width="100%" height={220} minWidth={1} minHeight={1}>
+              <ChartShell height={220}>
                 <BarChart data={orderChartData} margin={{ top: 10, right: 10, bottom: 5, left: -15 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#1e2130" />
                   <XAxis dataKey="order" tick={{ fill: '#8890a4', fontSize: 9 }} axisLine={false} tickLine={false} />
@@ -224,7 +225,7 @@ export default function QuantumCognition() {
                   <Bar dataKey="cynicism" fill="#f59e0b" radius={[4, 4, 0, 0]} barSize={16} name="Cynicism" />
                   <Bar dataKey="efficacy" fill="#22c55e" radius={[4, 4, 0, 0]} barSize={16} name="Efficacy" />
                 </BarChart>
-              </ResponsiveContainer>
+              </ChartShell>
             </div>
           )}
         </div>
@@ -234,7 +235,7 @@ export default function QuantumCognition() {
           {/* Radar Comparison */}
           <div style={card}>
             <h3 style={{ ...sectionTitle, margin: 0, fontSize: 14 }}>Kuantum vs Klasik</h3>
-            <ResponsiveContainer width="100%" height={240} minWidth={1} minHeight={1}>
+            <ChartShell height={240}>
               <RadarChart data={radarData} margin={{ top: 5, right: 20, bottom: 5, left: 20 }}>
                 <PolarGrid stroke="#1e2130" />
                 <PolarAngleAxis dataKey="metric" tick={{ fill: '#8890a4', fontSize: 9 }} />
@@ -243,7 +244,7 @@ export default function QuantumCognition() {
                 <Radar dataKey="kuantum" stroke="#22c55e" fill="#22c55e" fillOpacity={0.15} name="Kuantum" />
                 <Legend wrapperStyle={{ fontSize: 10 }} />
               </RadarChart>
-            </ResponsiveContainer>
+            </ChartShell>
           </div>
 
           {/* Superposition States */}

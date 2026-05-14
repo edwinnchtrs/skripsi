@@ -29,11 +29,11 @@ import {
   BarChart,
   CartesianGrid,
   Legend,
-  ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from 'recharts';
+import ChartShell from '../components/ChartShell';
 import api from '../api';
 
 interface Prediction {
@@ -376,53 +376,51 @@ export default function UserAsesmenHistory() {
             </div>
 
             {chartData.length > 0 ? (
-              <div className="mt-5 h-[360px] min-h-[360px] min-w-0 overflow-hidden">
-                <ResponsiveContainer width="100%" height={360} minWidth={1} minHeight={1}>
-                  <AreaChart data={chartData} margin={{ top: 12, right: 14, bottom: 4, left: -16 }}>
-                    <defs>
-                      <linearGradient id="burnoutGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#fb7185" stopOpacity={0.4} />
-                        <stop offset="95%" stopColor="#fb7185" stopOpacity={0} />
-                      </linearGradient>
-                      <linearGradient id="psychoGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#22d3ee" stopOpacity={0.35} />
-                        <stop offset="95%" stopColor="#22d3ee" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="4 4" stroke="rgba(148, 163, 184, 0.12)" vertical={false} />
-                    <XAxis dataKey="date" tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} width={34} />
-                    <Tooltip
-                      contentStyle={{
-                        background: 'rgba(2, 6, 23, 0.96)',
-                        border: '1px solid rgba(148, 163, 184, 0.2)',
-                        borderRadius: 8,
-                        color: '#fff',
-                      }}
-                      labelStyle={{ color: '#cbd5e1' }}
-                    />
-                    <Legend iconType="circle" wrapperStyle={{ paddingTop: 14, color: '#cbd5e1' }} />
-                    <Area
-                      type="monotone"
-                      name="Burnout"
-                      dataKey="Burnout"
-                      stroke="#fb7185"
-                      strokeWidth={3}
-                      fill="url(#burnoutGradient)"
-                      activeDot={{ r: 6 }}
-                    />
-                    <Area
-                      type="monotone"
-                      name="Psikosomatis"
-                      dataKey="Psikosomatis"
-                      stroke="#22d3ee"
-                      strokeWidth={3}
-                      fill="url(#psychoGradient)"
-                      activeDot={{ r: 6 }}
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
+              <ChartShell height={360} className="mt-5 overflow-hidden rounded-lg">
+                <AreaChart data={chartData} margin={{ top: 12, right: 14, bottom: 4, left: -16 }}>
+                  <defs>
+                    <linearGradient id="burnoutGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#fb7185" stopOpacity={0.4} />
+                      <stop offset="95%" stopColor="#fb7185" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="psychoGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#22d3ee" stopOpacity={0.35} />
+                      <stop offset="95%" stopColor="#22d3ee" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="4 4" stroke="rgba(148, 163, 184, 0.12)" vertical={false} />
+                  <XAxis dataKey="date" tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} width={34} />
+                  <Tooltip
+                    contentStyle={{
+                      background: 'rgba(2, 6, 23, 0.96)',
+                      border: '1px solid rgba(148, 163, 184, 0.2)',
+                      borderRadius: 8,
+                      color: '#fff',
+                    }}
+                    labelStyle={{ color: '#cbd5e1' }}
+                  />
+                  <Legend iconType="circle" wrapperStyle={{ paddingTop: 14, color: '#cbd5e1' }} />
+                  <Area
+                    type="monotone"
+                    name="Burnout"
+                    dataKey="Burnout"
+                    stroke="#fb7185"
+                    strokeWidth={3}
+                    fill="url(#burnoutGradient)"
+                    activeDot={{ r: 6 }}
+                  />
+                  <Area
+                    type="monotone"
+                    name="Psikosomatis"
+                    dataKey="Psikosomatis"
+                    stroke="#22d3ee"
+                    strokeWidth={3}
+                    fill="url(#psychoGradient)"
+                    activeDot={{ r: 6 }}
+                  />
+                </AreaChart>
+              </ChartShell>
             ) : (
               <div className="mt-5 flex h-[360px] flex-col items-center justify-center rounded-lg border border-dashed border-white/10 bg-white/[0.03] text-center">
                 <BarChart3 className="h-10 w-10 text-slate-600" />
@@ -485,30 +483,28 @@ export default function UserAsesmenHistory() {
               </div>
             </div>
 
-            <div className="rounded-lg border border-white/10 bg-slate-950 p-5 sm:p-6">
+              <div className="rounded-lg border border-white/10 bg-slate-950 p-5 sm:p-6">
               <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-white">
                 <BarChart3 className="h-4 w-4 text-violet-200" />
                 Distribusi Risiko
               </div>
-              <div className="h-[190px] min-h-[190px] min-w-0 overflow-hidden">
-                <ResponsiveContainer width="100%" height={190} minWidth={1} minHeight={1}>
-                  <BarChart data={riskDistribution} margin={{ top: 8, right: 4, bottom: 0, left: -22 }}>
-                    <CartesianGrid strokeDasharray="4 4" stroke="rgba(148, 163, 184, 0.12)" vertical={false} />
-                    <XAxis dataKey="name" tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} />
-                    <YAxis allowDecimals={false} tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} />
-                    <Tooltip
-                      cursor={{ fill: 'rgba(148, 163, 184, 0.08)' }}
-                      contentStyle={{
-                        background: 'rgba(2, 6, 23, 0.96)',
-                        border: '1px solid rgba(148, 163, 184, 0.2)',
-                        borderRadius: 8,
-                        color: '#fff',
-                      }}
-                    />
-                    <Bar dataKey="value" radius={[6, 6, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+              <ChartShell height={190} className="overflow-hidden">
+                <BarChart data={riskDistribution} margin={{ top: 8, right: 4, bottom: 0, left: -22 }}>
+                  <CartesianGrid strokeDasharray="4 4" stroke="rgba(148, 163, 184, 0.12)" vertical={false} />
+                  <XAxis dataKey="name" tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis allowDecimals={false} tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <Tooltip
+                    cursor={{ fill: 'rgba(148, 163, 184, 0.08)' }}
+                    contentStyle={{
+                      background: 'rgba(2, 6, 23, 0.96)',
+                      border: '1px solid rgba(148, 163, 184, 0.2)',
+                      borderRadius: 8,
+                      color: '#fff',
+                    }}
+                  />
+                  <Bar dataKey="value" radius={[6, 6, 0, 0]} />
+                </BarChart>
+              </ChartShell>
             </div>
           </div>
         </section>
