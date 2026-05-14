@@ -1,17 +1,46 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
-  FlaskConical, TrendingUp, Target, Activity, Cpu, RefreshCw, Download,
-  BarChart3, GitCompare, Sigma, Layers, Gauge, SlidersHorizontal,
-  CheckCircle2, AlertTriangle, Info, Zap, Sparkles, Brain, Loader2
+  Activity,
+  AlertTriangle,
+  BarChart3,
+  Brain,
+  CheckCircle2,
+  Cpu,
+  Database,
+  Download,
+  FlaskConical,
+  Gauge,
+  GitCompare,
+  Info,
+  Layers,
+  Loader2,
+  RefreshCw,
+  ShieldCheck,
+  Sigma,
+  SlidersHorizontal,
+  Target,
+  TrendingUp,
+  Zap,
 } from 'lucide-react';
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Legend,
-  BarChart, Bar, Cell, AreaChart, Area, ScatterChart, Scatter
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Legend,
+  Line,
+  LineChart,
+  Radar,
+  RadarChart,
+  PolarAngleAxis,
+  PolarGrid,
+  PolarRadiusAxis,
+  Tooltip,
+  XAxis,
+  YAxis,
 } from 'recharts';
 import ChartShell from '../components/ChartShell';
 import api from '../api';
-import { card, sectionTitle } from './dashboard/styles';
 
 interface ModelData {
   r2_score: number;
@@ -28,357 +57,611 @@ interface ModelData {
   formula: { burnout: string; psychosomatic: string };
 }
 
+type TabKey = 'overview' | 'comparison' | 'details';
+
+const tooltipStyle = {
+  background: '#0f172a',
+  border: '1px solid rgba(148, 163, 184, 0.22)',
+  borderRadius: 12,
+  color: '#e2e8f0',
+  boxShadow: '0 18px 50px rgba(0,0,0,0.35)',
+};
+
+function formatPct(value: number) {
+  return `${(value * 100).toFixed(1)}%`;
+}
+
+function clampPct(value: number) {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(100, value));
+}
+
+function SectionCard({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+  return (
+    <section className={`rounded-2xl border border-white/10 bg-white/[0.04] shadow-xl shadow-black/10 ${className}`}>
+      {children}
+    </section>
+  );
+}
+
 export default function ModelEvaluasi() {
   const [data, setData] = useState<ModelData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'comparison' | 'details'>('overview');
+  const [error, setError] = useState('');
+  const [activeTab, setActiveTab] = useState<TabKey>('overview');
+
+  const fetchData = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const response = await api.get('/admin/model-evaluation');
+      setData(response.data);
+    } catch (err) {
+      console.error(err);
+      setError('Gagal memuat evaluasi model. Pastikan backend aktif dan akun admin masih login.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetch = async () => {
-      try {
-        const res = await api.get('/admin/model-evaluation');
-        setData(res.data);
-      } catch (e) { console.error(e); }
-      finally { setLoading(false); }
-    };
-    fetch();
+    fetchData();
   }, []);
+
+  const derived = useMemo(() => {
+    if (!data) return null;
+
+    const cm = data.confusion_matrix || {};
+    const confMat = [
+      [cm.Low_Low || 0, cm.Low_Medium || 0, cm.Low_High || 0],
+      [cm.Medium_Low || 0, cm.Medium_Medium || 0, cm.Medium_High || 0],
+      [cm.High_Low || 0, cm.High_Medium || 0, cm.High_High || 0],
+    ];
+    const totalMatrix = confMat.flat().reduce((sum, value) => sum + value, 0);
+    const correctMatrix = confMat.reduce((sum, row, index) => sum + row[index], 0);
+    const matrixAccuracy = totalMatrix ? correctMatrix / totalMatrix : data.accuracy;
+
+    const cvChartData = data.cross_val_scores.map((score, index) => ({
+      fold: `Fold ${index + 1}`,
+      score,
+      pct: score * 100,
+    }));
+    const cvMean = data.cross_val_scores.length
+      ? data.cross_val_scores.reduce((sum, score) => sum + score, 0) / data.cross_val_scores.length
+      : 0;
+    const cvMin = data.cross_val_scores.length ? Math.min(...data.cross_val_scores) : 0;
+    const cvMax = data.cross_val_scores.length ? Math.max(...data.cross_val_scores) : 0;
+    const cvStability = cvMax - cvMin;
+
+    const compare = data.model_comparison;
+    const qcBase = compare.qc_r2 || 0.01;
+    const compBarData = [
+      { model: 'Quantum Cognition', short: 'QC', r2: compare.qc_r2, acc: data.accuracy, color: '#8b5cf6', rank: 1 },
+      { model: 'Random Forest', short: 'RF', r2: compare.rf_r2, acc: (compare.rf_r2 / qcBase) * data.accuracy, color: '#34d399', rank: 2 },
+      { model: 'Linear Regression', short: 'LR', r2: compare.lr_r2, acc: (compare.lr_r2 / qcBase) * data.accuracy, color: '#fb7185', rank: 3 },
+      { model: 'SVM', short: 'SVM', r2: compare.svm_r2, acc: (compare.svm_r2 / qcBase) * data.accuracy, color: '#fbbf24', rank: 4 },
+    ].sort((a, b) => b.r2 - a.r2).map((item, index) => ({ ...item, rank: index + 1 }));
+
+    const radarData = [
+      { metric: 'R2', value: clampPct(data.r2_score * 100) },
+      { metric: 'Accuracy', value: clampPct(data.accuracy * 100) },
+      { metric: 'F1', value: clampPct(data.f1_score * 100) },
+      { metric: 'CV Mean', value: clampPct(cvMean * 100) },
+      { metric: 'MAPE', value: clampPct(100 - data.mape) },
+      { metric: 'RMSE', value: clampPct(100 - data.rmse * 10) },
+    ];
+
+    return { confMat, totalMatrix, matrixAccuracy, cvChartData, cvMean, cvMin, cvMax, cvStability, compBarData, radarData };
+  }, [data]);
 
   if (loading) {
     return (
-      <div style={{ padding: '22px 24px', background: '#0b0d14', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Inter, sans-serif' }}>
-        <Loader2 size={28} color="#8890a4" style={{ animation: 'spin 1s linear infinite' }} />
+      <div className="flex min-h-screen items-center justify-center bg-[#090b12] text-slate-100">
+        <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-8 text-center shadow-xl shadow-black/20">
+          <Loader2 className="mx-auto h-8 w-8 animate-spin text-amber-200" />
+          <p className="mt-4 text-sm text-slate-400">Memuat evaluasi model...</p>
+        </div>
       </div>
     );
   }
 
   if (!data || data.n_samples === 0) {
     return (
-      <div style={{ padding: '22px 24px', background: '#0b0d14', minHeight: '100vh', color: '#e2e8f0', fontFamily: 'Inter, sans-serif' }}>
-        <div style={{ ...card, textAlign: 'center', padding: 48 }}>
-          <FlaskConical size={40} color="#4a5068" />
-          <h3 style={{ color: '#e2e8f0', margin: '12px 0 6px' }}>Belum Ada Data Evaluasi</h3>
-          <p style={{ color: '#8890a4', fontSize: 13 }}>Sistem membutuhkan data asesmen dan prediksi untuk menghitung metrik evaluasi model.</p>
+      <main className="min-h-screen bg-[#090b12] px-4 py-5 text-slate-100 sm:px-6 lg:px-8">
+        <div className="pointer-events-none fixed inset-0 -z-0 bg-[radial-gradient(circle_at_top_left,rgba(245,158,11,0.16),transparent_30%),radial-gradient(circle_at_88%_0%,rgba(139,92,246,0.14),transparent_26%),linear-gradient(180deg,rgba(15,23,42,0.72),rgba(9,11,18,0.98))]" />
+        <div className="mx-auto flex max-w-6xl flex-col gap-5">
+          <header className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] shadow-2xl shadow-black/20">
+            <div className="grid gap-5 p-5 sm:p-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+              <div>
+                <div className="mb-3 flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center gap-2 rounded-full border border-amber-300/20 bg-amber-300/10 px-3 py-1 text-xs font-semibold text-amber-100">
+                    <FlaskConical className="h-3.5 w-3.5" />
+                    Model evaluation
+                  </span>
+                  <span className="inline-flex items-center gap-2 rounded-full border border-slate-300/15 bg-slate-400/10 px-3 py-1 text-xs font-semibold text-slate-300">
+                    <Database className="h-3.5 w-3.5" />
+                    0 samples
+                  </span>
+                </div>
+                <h1 className="text-2xl font-bold tracking-normal text-white sm:text-3xl">Model & Evaluasi</h1>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
+                  Dashboard evaluasi sudah siap. Tambahkan data asesmen dan prediksi agar metrik, chart, dan confusion matrix dapat dihitung.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={fetchData}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-white/10 bg-slate-950/50 px-4 text-sm font-semibold text-slate-300 transition hover:border-amber-300/30 hover:text-white"
+              >
+                <RefreshCw className="h-4 w-4" />
+                Refresh
+              </button>
+            </div>
+          </header>
+
+          {error && <p className="rounded-xl border border-rose-300/20 bg-rose-400/10 px-4 py-3 text-sm text-rose-100">{error}</p>}
+
+          <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
+            <SectionCard className="p-6 sm:p-8">
+              <div className="grid gap-6 md:grid-cols-[auto_minmax(0,1fr)] md:items-start">
+                <div className="grid h-20 w-20 place-items-center rounded-2xl bg-amber-400/10 text-amber-200 ring-1 ring-amber-300/20">
+                  <FlaskConical className="h-10 w-10" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-white">Belum Ada Data Evaluasi</h2>
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
+                    Sistem membutuhkan pasangan data asesmen dan hasil prediksi untuk menghitung R2, akurasi, MAE, RMSE, MAPE, F1 score, validasi silang, dan confusion matrix.
+                  </p>
+                  <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                    {[
+                      ['Input asesmen', 'Skor F, C, E, I'],
+                      ['Prediksi model', 'Burnout dan psikosomatis'],
+                      ['Label risiko', 'Rendah, sedang, tinggi'],
+                    ].map(([title, desc]) => (
+                      <div key={title} className="rounded-xl border border-white/10 bg-slate-950/45 p-4">
+                        <p className="text-sm font-semibold text-white">{title}</p>
+                        <p className="mt-1 text-xs leading-5 text-slate-500">{desc}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </SectionCard>
+
+            <div className="grid gap-5">
+              <SectionCard className="p-5">
+                <h2 className="text-base font-semibold text-white">Kesiapan Pipeline</h2>
+                <div className="mt-4 space-y-3">
+                  {[
+                    ['Assessment records', false],
+                    ['Prediction records', false],
+                    ['Evaluation metrics', false],
+                    ['Model comparison', false],
+                  ].map(([label, ok]) => (
+                    <div key={String(label)} className="flex items-center justify-between rounded-xl border border-white/10 bg-slate-950/45 px-3 py-2.5">
+                      <span className="text-sm text-slate-300">{label}</span>
+                      <span className={`h-2.5 w-2.5 rounded-full ${ok ? 'bg-emerald-300' : 'bg-slate-600'}`} />
+                    </div>
+                  ))}
+                </div>
+              </SectionCard>
+
+              <SectionCard className="p-5">
+                <h2 className="text-base font-semibold text-white">Langkah Berikutnya</h2>
+                <ol className="mt-4 space-y-3 text-sm text-slate-400">
+                  <li className="rounded-xl bg-slate-950/45 px-3 py-2">1. User mengisi kuisioner harian.</li>
+                  <li className="rounded-xl bg-slate-950/45 px-3 py-2">2. Sistem membuat prediksi risiko.</li>
+                  <li className="rounded-xl bg-slate-950/45 px-3 py-2">3. Buka ulang halaman ini untuk melihat evaluasi.</li>
+                </ol>
+              </SectionCard>
+            </div>
+          </section>
         </div>
-      </div>
+      </main>
     );
   }
 
-  const formatPct = (v: number) => (v * 100).toFixed(1) + '%';
   const modelMetrics = [
-    { label: 'R² Score', value: data.r2_score, color: '#6c63ff', icon: TrendingUp, fmt: (v: number) => v.toFixed(3) },
-    { label: 'Akurasi', value: data.accuracy, color: '#22c55e', icon: CheckCircle2, fmt: formatPct },
-    { label: 'MAE', value: data.mae, color: '#3ecfcf', icon: Target, fmt: (v: number) => v.toFixed(2) },
-    { label: 'RMSE', value: data.rmse, color: '#f59e0b', icon: Activity, fmt: (v: number) => v.toFixed(2) },
-    { label: 'MAPE', value: data.mape, color: '#ec4899', icon: BarChart3, fmt: (v: number) => v.toFixed(1) + '%' },
-    { label: 'F1 Score', value: data.f1_score, color: '#a855f7', icon: Zap, fmt: formatPct },
+    { label: 'R2 Score', value: data.r2_score, icon: TrendingUp, tone: 'text-violet-200 bg-violet-400/10 ring-violet-300/20', fmt: (value: number) => value.toFixed(3), progress: clampPct(data.r2_score * 100) },
+    { label: 'Akurasi', value: data.accuracy, icon: CheckCircle2, tone: 'text-emerald-200 bg-emerald-400/10 ring-emerald-300/20', fmt: formatPct, progress: clampPct(data.accuracy * 100) },
+    { label: 'MAE', value: data.mae, icon: Target, tone: 'text-teal-200 bg-teal-400/10 ring-teal-300/20', fmt: (value: number) => value.toFixed(2), progress: clampPct(100 - data.mae * 10) },
+    { label: 'RMSE', value: data.rmse, icon: Activity, tone: 'text-amber-200 bg-amber-400/10 ring-amber-300/20', fmt: (value: number) => value.toFixed(2), progress: clampPct(100 - data.rmse * 10) },
+    { label: 'MAPE', value: data.mape, icon: BarChart3, tone: 'text-pink-200 bg-pink-400/10 ring-pink-300/20', fmt: (value: number) => `${value.toFixed(1)}%`, progress: clampPct(100 - data.mape) },
+    { label: 'F1 Score', value: data.f1_score, icon: Zap, tone: 'text-sky-200 bg-sky-400/10 ring-sky-300/20', fmt: formatPct, progress: clampPct(data.f1_score * 100) },
   ];
 
-  const cm = data.confusion_matrix;
-  const confMat = [
-    [cm.Low_Low || 0, cm.Low_Medium || 0, cm.Low_High || 0],
-    [cm.Medium_Low || 0, cm.Medium_Medium || 0, cm.Medium_High || 0],
-    [cm.High_Low || 0, cm.High_Medium || 0, cm.High_High || 0],
-  ];
   const classLabels = ['Rendah', 'Sedang', 'Tinggi'];
 
-  const cvChartData = data.cross_val_scores.map((s, i) => ({ fold: `Fold ${i + 1}`, score: s }));
-  const cvMean = data.cross_val_scores.length > 0
-    ? data.cross_val_scores.reduce((a, b) => a + b, 0) / data.cross_val_scores.length
-    : 0;
-
-  const modelCompare = data.model_comparison;
-  const compBarData = [
-    { model: 'Quantum\nCognition', r2: modelCompare.qc_r2, acc: data.accuracy, color: '#6c63ff' },
-    { model: 'Random\nForest', r2: modelCompare.rf_r2, acc: modelCompare.rf_r2 / (modelCompare.qc_r2 || 0.01) * data.accuracy, color: '#22c55e' },
-    { model: 'Linear\nRegression', r2: modelCompare.lr_r2, acc: modelCompare.lr_r2 / (modelCompare.qc_r2 || 0.01) * data.accuracy, color: '#ef4444' },
-    { model: 'SVM', r2: modelCompare.svm_r2, acc: modelCompare.svm_r2 / (modelCompare.qc_r2 || 0.01) * data.accuracy, color: '#f59e0b' },
-  ];
-
   return (
-    <div style={{ padding: '22px 24px', background: '#0b0d14', minHeight: '100vh', color: '#e2e8f0', fontFamily: 'Inter, sans-serif' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-            <div style={{ width: 38, height: 38, borderRadius: 10, background: 'linear-gradient(135deg, #f59e0b, #ef4444)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <FlaskConical size={20} color="#fff" />
-            </div>
-            <h1 style={{ fontSize: 22, fontWeight: 700, color: '#e2e8f0', margin: 0 }}>Model & Evaluasi</h1>
-            <span style={{ background: 'rgba(245,158,11,0.15)', color: '#fbbf24', padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600 }}>
-              {data.n_samples} Samples
-            </span>
-          </div>
-          <p style={{ color: '#8890a4', fontSize: 13, margin: '2px 0 0' }}>Evaluasi performa model dari {data.n_samples} data asesmen & prediksi di database</p>
-        </div>
-        <button onClick={() => window.location.reload()}
-          style={{ background: '#131722', border: '1px solid #1e2130', color: '#8890a4', padding: '8px 14px', borderRadius: 8, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
-          <RefreshCw size={14} /> Refresh
-        </button>
-      </div>
+    <main className="min-h-screen bg-[#090b12] px-4 py-5 text-slate-100 sm:px-6 lg:px-8">
+      <div className="pointer-events-none fixed inset-0 -z-0 bg-[radial-gradient(circle_at_top_left,rgba(245,158,11,0.16),transparent_30%),radial-gradient(circle_at_88%_0%,rgba(139,92,246,0.14),transparent_26%),linear-gradient(180deg,rgba(15,23,42,0.72),rgba(9,11,18,0.98))]" />
 
-      {/* Tab Navigation */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 16, background: '#131722', borderRadius: 10, padding: 4, width: 'fit-content', border: '1px solid #1e2130' }}>
-        {[
-          { key: 'overview' as const, label: 'Overview', icon: BarChart3 },
-          { key: 'comparison' as const, label: 'Perbandingan Model', icon: GitCompare },
-          { key: 'details' as const, label: 'Formula & Detail', icon: Sigma },
-        ].map(({ key, label, icon: Icon }) => (
-          <button key={key} onClick={() => setActiveTab(key)}
-            style={{
-              padding: '7px 16px', borderRadius: 7, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 500,
-              background: activeTab === key ? 'rgba(245,158,11,0.15)' : 'transparent',
-              color: activeTab === key ? '#fbbf24' : '#8890a4', display: 'flex', alignItems: 'center', gap: 6, transition: 'all 0.15s',
-            }}>
-            <Icon size={14} /> {label}
-          </button>
-        ))}
-      </div>
-
-      {activeTab === 'overview' && (
-        <>
-          {/* Metric Cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 10, marginBottom: 16 }}>
-            {modelMetrics.map(({ label, value, color, icon: Icon, fmt }) => (
-              <div key={label} style={{ ...card, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div style={{ width: 32, height: 32, borderRadius: 8, background: color + '18', border: `1px solid ${color}30`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Icon size={15} color={color} />
-                  </div>
-                  <span style={{ fontSize: 10, color: '#4a5068' }}>{label}</span>
-                </div>
-                <div style={{ fontSize: 24, fontWeight: 800, color, lineHeight: 1 }}>{fmt(value)}</div>
-                <div style={{ width: '100%', height: 3, background: '#1e2130', borderRadius: 2, overflow: 'hidden' }}>
-                  <div style={{ width: `${Math.min(value * (value <= 1 ? 100 : 10), 100)}%`, height: '100%', background: color, borderRadius: 2 }} />
-                </div>
+      <div className="relative z-10 mx-auto flex max-w-7xl flex-col gap-5">
+        <header className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] shadow-2xl shadow-black/20">
+          <div className="grid gap-5 p-5 sm:p-6 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center">
+            <div className="min-w-0">
+              <div className="mb-3 flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-2 rounded-full border border-amber-300/20 bg-amber-300/10 px-3 py-1 text-xs font-semibold text-amber-100">
+                  <FlaskConical className="h-3.5 w-3.5" />
+                  Model evaluation
+                </span>
+                <span className="inline-flex items-center gap-2 rounded-full border border-violet-300/20 bg-violet-300/10 px-3 py-1 text-xs font-semibold text-violet-100">
+                  <Database className="h-3.5 w-3.5" />
+                  {data.n_samples} samples
+                </span>
+                <span className="inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-300/10 px-3 py-1 text-xs font-semibold text-emerald-100">
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                  Production metrics
+                </span>
               </div>
+              <h1 className="text-2xl font-bold tracking-normal text-white sm:text-3xl">Model & Evaluasi</h1>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
+                Pantau akurasi, stabilitas validasi, confusion matrix, bobot fitur, formula prediksi, dan perbandingan model dalam satu dashboard.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <button
+                type="button"
+                onClick={fetchData}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-white/10 bg-slate-950/50 px-4 text-sm font-semibold text-slate-300 transition hover:border-amber-300/30 hover:text-white"
+              >
+                <RefreshCw className="h-4 w-4" />
+                Refresh
+              </button>
+              <button
+                type="button"
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-amber-500 px-4 text-sm font-semibold text-slate-950 shadow-lg shadow-amber-950/30 transition hover:bg-amber-400"
+              >
+                <Download className="h-4 w-4" />
+                Export Snapshot
+              </button>
+            </div>
+          </div>
+        </header>
+
+        {error && (
+          <div className="rounded-xl border border-rose-300/25 bg-rose-400/10 px-4 py-3 text-sm text-rose-100">
+            {error}
+          </div>
+        )}
+
+        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
+          {modelMetrics.map(({ label, value, icon: Icon, tone, fmt, progress }) => (
+            <article key={label} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 shadow-xl shadow-black/10">
+              <div className="flex items-start justify-between gap-3">
+                <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ring-1 ${tone}`}>
+                  <Icon className="h-5 w-5" />
+                </div>
+                <span className="text-right text-xs font-medium text-slate-500">{label}</span>
+              </div>
+              <p className="mt-4 text-2xl font-bold leading-tight text-white">{fmt(value)}</p>
+              <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-800">
+                <div className="h-full rounded-full bg-current text-amber-300" style={{ width: `${progress}%` }} />
+              </div>
+            </article>
+          ))}
+        </section>
+
+        <SectionCard className="p-3">
+          <div className="flex flex-wrap gap-2">
+            {[
+              { key: 'overview' as const, label: 'Overview', desc: 'Metrik, matrix, dan fitur', icon: BarChart3 },
+              { key: 'comparison' as const, label: 'Perbandingan Model', desc: 'QC, RF, LR, dan SVM', icon: GitCompare },
+              { key: 'details' as const, label: 'Formula & Detail', desc: 'Bobot, pipeline, dan matrix', icon: Sigma },
+            ].map(({ key, label, desc, icon: Icon }) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setActiveTab(key)}
+                className={`flex min-w-[220px] flex-1 items-center gap-3 rounded-xl border px-4 py-3 text-left transition ${
+                  activeTab === key
+                    ? 'border-amber-300/30 bg-amber-400/10 text-amber-100'
+                    : 'border-white/10 bg-slate-950/35 text-slate-400 hover:border-slate-600 hover:text-slate-200'
+                }`}
+              >
+                <Icon className="h-5 w-5 shrink-0" />
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold">{label}</span>
+                  <span className="mt-0.5 block truncate text-xs opacity-70">{desc}</span>
+                </span>
+              </button>
             ))}
           </div>
+        </SectionCard>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 12, marginBottom: 16 }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {/* Confusion Matrix */}
-              <div style={{ ...card, padding: '16px 20px' }}>
-                <h3 style={{ ...sectionTitle, margin: 0, fontSize: 14, marginBottom: 12 }}>Confusion Matrix</h3>
-                <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '50px repeat(3, 1fr)', gap: 3, textAlign: 'center' }}>
-                      <span />
-                      {classLabels.map(l => <span key={l} style={{ fontSize: 10, color: '#8890a4', fontWeight: 500 }}>Pred: {l}</span>)}
+        {activeTab === 'overview' && derived && (
+          <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_390px]">
+            <div className="grid min-w-0 gap-5">
+              <div className="grid gap-5 lg:grid-cols-[0.95fr_1.05fr]">
+                <SectionCard className="p-4 sm:p-5">
+                  <div className="mb-4 flex items-center justify-between">
+                    <div>
+                      <h2 className="text-base font-semibold text-white">Confusion Matrix</h2>
+                      <p className="mt-1 text-xs text-slate-500">Aktual vs prediksi untuk tiga level risiko.</p>
                     </div>
-                    {confMat.map((row, ri) => (
-                      <div key={ri} style={{ display: 'grid', gridTemplateColumns: '50px repeat(3, 1fr)', gap: 3, textAlign: 'center', marginTop: 3 }}>
-                        <span style={{ fontSize: 10, color: '#8890a4', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 8 }}>Akt: {classLabels[ri]}</span>
-                        {row.map((val, ci) => (
-                          <div key={ci} style={{
-                            padding: '14px 4px', borderRadius: 8, fontSize: 18, fontWeight: 700,
-                            background: ri === ci ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.12)',
-                            color: ri === ci ? '#4ade80' : '#f87171',
-                            border: `1px solid ${ri === ci ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.2)'}`,
-                          }}>{val}</div>
-                        ))}
+                    <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1 text-xs font-semibold text-emerald-100">
+                      {formatPct(derived.matrixAccuracy)}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-[64px_repeat(3,minmax(0,1fr))] gap-2">
+                    <span />
+                    {classLabels.map((label) => (
+                      <div key={label} className="rounded-lg bg-slate-950/45 px-2 py-2 text-center text-[11px] font-semibold text-slate-400">
+                        Pred {label}
                       </div>
                     ))}
+                    {derived.confMat.map((row, rowIndex) => (
+                      <MatrixRow key={classLabels[rowIndex]} label={classLabels[rowIndex]} row={row} rowIndex={rowIndex} />
+                    ))}
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 90 }}>
-                    <span style={{ fontSize: 10, color: '#8890a4' }}>Accuracy</span>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: '#22c55e' }}>{formatPct(data.accuracy)}</span>
-                    <span style={{ fontSize: 10, color: '#8890a4', marginTop: 4 }}>Samples</span>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: '#c0c9e0' }}>{data.n_samples}</span>
-                  </div>
-                </div>
+                </SectionCard>
+
+                <SectionCard className="min-w-0 p-4 sm:p-5">
+                  <h2 className="text-base font-semibold text-white">Feature Importance</h2>
+                  <p className="mt-1 text-xs text-slate-500">Bobot fitur yang berkontribusi terhadap skor prediksi.</p>
+                  <ChartShell height={280} className="mt-4">
+                    <BarChart data={data.feature_importance} layout="vertical" margin={{ top: 8, right: 18, bottom: 8, left: 8 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.12)" horizontal={false} />
+                      <XAxis type="number" domain={[0, 0.6]} tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(value) => `${(Number(value) * 100).toFixed(0)}%`} />
+                      <YAxis dataKey="feature" type="category" width={120} tick={{ fill: '#cbd5e1', fontSize: 11 }} axisLine={false} tickLine={false} />
+                      <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => `${(value * 100).toFixed(1)}%`} />
+                      <Bar dataKey="importance" radius={[0, 8, 8, 0]} barSize={18}>
+                        {data.feature_importance.map((feature, index) => <Cell key={index} fill={feature.color} />)}
+                      </Bar>
+                    </BarChart>
+                  </ChartShell>
+                </SectionCard>
               </div>
 
-              {/* Feature Importance */}
-              <div style={{ ...card, padding: '16px 20px' }}>
-                <h3 style={{ ...sectionTitle, margin: 0, fontSize: 14, marginBottom: 12 }}>Feature Importance (Real Weights)</h3>
-              <ChartShell height={220}>
-                <BarChart data={data.feature_importance} layout="vertical" margin={{ top: 5, right: 15, bottom: 5, left: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1e2130" horizontal={false} />
-                  <XAxis type="number" domain={[0, 0.6]} tick={{ fill: '#8890a4', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => (v * 100).toFixed(0) + '%'} />
-                  <YAxis dataKey="feature" type="category" width={110} tick={{ fill: '#c0c9e0', fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <Tooltip contentStyle={{ background: '#1a1e2e', border: '1px solid #2a2e42', borderRadius: 8, fontSize: 11, color: '#e2e8f0' }} formatter={(v: number) => (v * 100).toFixed(1) + '%'} />
-                  <Bar dataKey="importance" radius={[0, 4, 4, 0]} barSize={16}>
-                    {data.feature_importance.map((f, i) => <Cell key={i} fill={f.color} />)}
-                  </Bar>
+              <SectionCard className="min-w-0 p-4 sm:p-5">
+                <h2 className="text-base font-semibold text-white">Cross Validation Stability</h2>
+                <p className="mt-1 text-xs text-slate-500">Skor validasi per fold dan rata-rata stabilitas model.</p>
+                <ChartShell height={260} className="mt-4">
+                  <LineChart data={derived.cvChartData} margin={{ top: 12, right: 18, bottom: 0, left: -18 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.12)" />
+                    <XAxis dataKey="fold" tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <YAxis domain={[0, 1]} tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(value) => `${(Number(value) * 100).toFixed(0)}%`} />
+                    <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => formatPct(value)} />
+                    <Line type="monotone" dataKey="score" stroke="#fbbf24" strokeWidth={2.8} dot={{ r: 4, fill: '#fbbf24' }} name="CV Score" />
+                  </LineChart>
+                </ChartShell>
+              </SectionCard>
+            </div>
+
+            <aside className="grid gap-5">
+              <SectionCard className="p-4 sm:p-5">
+                <h2 className="text-base font-semibold text-white">Kesehatan Model</h2>
+                <div className="mt-4 space-y-3">
+                  {[
+                    ['CV Mean', derived.cvMean.toFixed(3), 'Rata-rata validasi silang'],
+                    ['CV Range', derived.cvStability.toFixed(3), 'Semakin kecil semakin stabil'],
+                    ['Matrix Total', derived.totalMatrix, 'Total sampel di matrix'],
+                    ['Sample DB', data.n_samples, 'Data asesmen dan prediksi'],
+                  ].map(([label, value, detail]) => (
+                    <div key={label} className="rounded-xl border border-white/10 bg-slate-950/45 p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-xs text-slate-500">{label}</span>
+                        <span className="text-sm font-bold text-white">{value}</span>
+                      </div>
+                      <p className="mt-1 text-xs text-slate-600">{detail}</p>
+                    </div>
+                  ))}
+                </div>
+              </SectionCard>
+
+              <SectionCard className="min-w-0 p-4 sm:p-5">
+                <h2 className="text-base font-semibold text-white">Radar Performa</h2>
+                <ChartShell height={270} className="mt-3">
+                  <RadarChart data={derived.radarData}>
+                    <PolarGrid stroke="rgba(148,163,184,0.18)" />
+                    <PolarAngleAxis dataKey="metric" tick={{ fill: '#cbd5e1', fontSize: 11 }} />
+                    <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fill: '#94a3b8', fontSize: 10 }} />
+                    <Radar name="Score" dataKey="value" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.26} />
+                    <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => `${value.toFixed(1)}%`} />
+                  </RadarChart>
+                </ChartShell>
+              </SectionCard>
+
+              <FormulaMiniCard data={data} />
+            </aside>
+          </section>
+        )}
+
+        {activeTab === 'comparison' && derived && (
+          <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
+            <SectionCard className="min-w-0 p-4 sm:p-5">
+              <h2 className="text-base font-semibold text-white">Perbandingan R2 dan Akurasi</h2>
+              <p className="mt-1 text-xs text-slate-500">Membandingkan model utama dengan baseline dan model alternatif.</p>
+              <ChartShell height={380} className="mt-4">
+                <BarChart data={derived.compBarData} margin={{ top: 12, right: 18, bottom: 0, left: -12 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.12)" />
+                  <XAxis dataKey="short" tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <Tooltip contentStyle={tooltipStyle} />
+                  <Legend wrapperStyle={{ color: '#94a3b8', fontSize: 12 }} />
+                  <Bar dataKey="r2" fill="#8b5cf6" radius={[8, 8, 0, 0]} name="R2 Score" />
+                  <Bar dataKey="acc" fill="#2dd4bf" radius={[8, 8, 0, 0]} name="Accuracy" />
                 </BarChart>
               </ChartShell>
-              </div>
-            </div>
+            </SectionCard>
 
-            {/* Right Panel */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {/* Model Comparison */}
-              <div style={card}>
-                <h3 style={{ ...sectionTitle, margin: 0, fontSize: 14 }}>Perbandingan R²</h3>
-                <ChartShell height={200}>
-                  <BarChart data={compBarData} layout="vertical" margin={{ top: 5, right: 10, bottom: 5, left: -5 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#1e2130" horizontal={false} />
-                    <XAxis type="number" domain={[0, Math.max(modelCompare.qc_r2 * 1.1, 0.1)]} tick={{ fill: '#8890a4', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => v.toFixed(2)} />
-                    <YAxis dataKey="model" type="category" width={75} tick={{ fill: '#c0c9e0', fontSize: 10, whiteSpace: 'pre' }} axisLine={false} tickLine={false} />
-                    <Tooltip contentStyle={{ background: '#1a1e2e', border: '1px solid #2a2e42', borderRadius: 8, fontSize: 11, color: '#e2e8f0' }} />
-                    <Bar dataKey="r2" radius={[0, 4, 4, 0]} barSize={18}>
-                      {compBarData.map((d, i) => <Cell key={i} fill={d.color} />)}
-                    </Bar>
-                  </BarChart>
-                </ChartShell>
-              </div>
-
-              {/* Cross Validation */}
-              {data.cross_val_scores.length > 0 && (
-                <div style={card}>
-                  <h3 style={{ ...sectionTitle, margin: 0, fontSize: 14 }}>Cross Validation</h3>
-                  <p style={{ fontSize: 10, color: '#8890a4', margin: '4px 0 8px' }}>
-                    Mean: <span style={{ color: '#22c55e', fontWeight: 600 }}>{cvMean.toFixed(3)}</span>
-                  </p>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                    {cvChartData.map(f => (
-                      <div key={f.fold} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ fontSize: 10, color: '#8890a4', width: 40 }}>{f.fold}</span>
-                        <div style={{ flex: 1, height: 16, background: '#0f1117', borderRadius: 4, overflow: 'hidden', border: '1px solid #1e2130' }}>
-                          <div style={{ width: `${Math.min(f.score * 100, 100)}%`, height: '100%', borderRadius: 3, background: '#6c63ff' }} />
+            <div className="grid gap-5">
+              {derived.compBarData.map((model) => (
+                <SectionCard key={model.model} className={`p-4 ${model.rank === 1 ? 'ring-1 ring-amber-300/20' : ''}`}>
+                  <div className="flex items-start gap-3">
+                    <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-sm font-bold text-slate-950" style={{ backgroundColor: model.color }}>
+                      #{model.rank}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="truncate text-sm font-semibold text-white">{model.model}</h3>
+                      <p className="mt-1 text-xs leading-5 text-slate-500">
+                        {model.model === 'Quantum Cognition'
+                          ? 'Model utama dengan kombinasi bobot psikologis dan term quantum.'
+                          : 'Model pembanding untuk membaca gap performa terhadap model utama.'}
+                      </p>
+                      <div className="mt-3 grid grid-cols-2 gap-2">
+                        <div className="rounded-lg bg-slate-950/45 px-3 py-2">
+                          <p className="text-[11px] text-slate-500">R2</p>
+                          <p className="text-sm font-bold text-white">{model.r2.toFixed(3)}</p>
                         </div>
-                        <span style={{ fontSize: 10, color: '#c0c9e0', fontWeight: 600, width: 36, textAlign: 'right' }}>{f.score.toFixed(2)}</span>
+                        <div className="rounded-lg bg-slate-950/45 px-3 py-2">
+                          <p className="text-[11px] text-slate-500">Acc</p>
+                          <p className="text-sm font-bold text-white">{formatPct(model.acc)}</p>
+                        </div>
                       </div>
-                    ))}
+                    </div>
                   </div>
-                </div>
-              )}
-
-              {/* Formula Card */}
-              <div style={card}>
-                <h3 style={{ ...sectionTitle, margin: 0, fontSize: 14 }}>Formula Model</h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
-                  <div style={{ padding: '10px 12px', background: '#0f1117', borderRadius: 8, border: '1px solid #1e2130' }}>
-                    <div style={{ fontSize: 10, color: '#6c63ff', fontWeight: 600, marginBottom: 4 }}>Burnout Score</div>
-                    <code style={{ fontSize: 10, color: '#c0c9e0' }}>{data.formula.burnout}</code>
-                  </div>
-                  <div style={{ padding: '10px 12px', background: '#0f1117', borderRadius: 8, border: '1px solid #1e2130' }}>
-                    <div style={{ fontSize: 10, color: '#3ecfcf', fontWeight: 600, marginBottom: 4 }}>Psychosomatic Score</div>
-                    <code style={{ fontSize: 10, color: '#c0c9e0' }}>{data.formula.psychosomatic}</code>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </>
-      )}
-
-      {activeTab === 'comparison' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <div style={{ ...card, padding: '16px 20px' }}>
-            <h3 style={{ ...sectionTitle, margin: 0, fontSize: 14, marginBottom: 12 }}>Perbandingan R² Antar Model</h3>
-            <ChartShell height={320}>
-              <BarChart data={compBarData} margin={{ top: 10, right: 10, bottom: 5, left: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e2130" />
-                <XAxis dataKey="model" tick={{ fill: '#8890a4', fontSize: 10, whiteSpace: 'pre' }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fill: '#8890a4', fontSize: 10 }} axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={{ background: '#1a1e2e', border: '1px solid #2a2e42', borderRadius: 8, fontSize: 11, color: '#e2e8f0' }} />
-                <Legend wrapperStyle={{ fontSize: 10 }} />
-                <Bar dataKey="r2" fill="#6c63ff" radius={[4, 4, 0, 0]} barSize={40} name="R² Score" />
-                <Bar dataKey="acc" fill="#3ecfcf" radius={[4, 4, 0, 0]} barSize={40} name="Accuracy" />
-              </BarChart>
-            </ChartShell>
-          </div>
-
-          <div style={{ ...card, padding: '16px 20px' }}>
-            <h3 style={{ ...sectionTitle, margin: 0, fontSize: 14, marginBottom: 12 }}>Rangkuman Performa</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {[
-                { name: 'Quantum Cognition', color: '#6c63ff', r2: modelCompare.qc_r2, acc: data.accuracy, rank: 1, desc: 'Model utama — menggabungkan probabilitas kuantum dengan regresi berbobot' },
-                { name: 'Random Forest', color: '#22c55e', r2: modelCompare.rf_r2, acc: compBarData[1].acc, rank: 2, desc: 'Ensemble learning — robust, estimasi performa dari struktur data' },
-                { name: 'Linear Regression', color: '#ef4444', r2: modelCompare.lr_r2, acc: compBarData[2].acc, rank: 3, desc: 'Baseline — tanpa term kuantum dan NLP stress' },
-                { name: 'SVM', color: '#f59e0b', r2: modelCompare.svm_r2, acc: compBarData[3].acc, rank: 4, desc: 'Kernel-based — kurang efektif untuk data berdimensi rendah' },
-              ].map(m => (
-                <div key={m.name} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: m.rank === 1 ? 'rgba(108,99,255,0.06)' : '#0f1117', borderRadius: 8, border: `1px solid ${m.rank === 1 ? 'rgba(108,99,255,0.2)' : '#1e2130'}` }}>
-                  <div style={{ width: 26, height: 26, borderRadius: '50%', background: m.color + '20', border: `1.5px solid ${m.color}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: m.color, flexShrink: 0 }}>#{m.rank}</div>
-                  <div style={{ flex: 1, overflow: 'hidden' }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: '#e2e8f0' }}>{m.name}</div>
-                    <div style={{ fontSize: 10, color: '#8890a4' }}>{m.desc}</div>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
-                    <span style={{ fontSize: 10, color: '#8890a4' }}>R²: <span style={{ color: m.color, fontWeight: 600 }}>{m.r2.toFixed(3)}</span></span>
-                    <span style={{ fontSize: 10, color: '#8890a4' }}>Acc: <span style={{ color: m.color, fontWeight: 600 }}>{(m.acc * 100).toFixed(1)}%</span></span>
-                  </div>
-                </div>
+                </SectionCard>
               ))}
             </div>
-          </div>
-        </div>
-      )}
+          </section>
+        )}
 
-      {activeTab === 'details' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          {[
-            {
-              title: 'Metrik Evaluasi', icon: Gauge,
-              items: [
-                { label: 'R² Score', value: data.r2_score.toFixed(4) },
-                { label: 'Accuracy', value: formatPct(data.accuracy) },
-                { label: 'MAE', value: data.mae.toFixed(3) },
-                { label: 'RMSE', value: data.rmse.toFixed(3) },
-                { label: 'MAPE', value: data.mape.toFixed(2) + '%' },
-                { label: 'F1 Score', value: formatPct(data.f1_score) },
-                { label: 'Jumlah Sampel', value: data.n_samples },
-                { label: 'CV Folds', value: data.cross_val_scores.length || 'N/A' },
-              ]
-            },
-            {
-              title: 'Formula & Bobot', icon: Sigma,
-              items: [
-                { label: 'Fatigue Weight', value: '0.4' },
-                { label: 'Cynicism Weight', value: '0.3' },
-                { label: 'Efficacy Weight', value: '0.2 × (5 − E)' },
-                { label: 'Interference Weight', value: '0.1' },
-                { label: 'NLP Stress Weight', value: '2.0' },
-                { label: 'Clamp Range', value: '0 − 10' },
-                { label: 'Risk: Low', value: '< 4.0' },
-                { label: 'Risk: Medium', value: '4.0 − 6.0' },
-              ]
-            },
-            {
-              title: 'Model Info', icon: Brain,
-              items: [
-                { label: 'Tipe', value: 'Linear Weighted + Quantum' },
-                { label: 'Framework', value: 'Go Native (no ML lib)' },
-                { label: 'Input Features', value: 'F, C, E, I, S' },
-                { label: 'Output', value: 'Burnout + Psycho + Risk' },
-                { label: 'Database', value: 'MySQL via GORM' },
-                { label: 'NLP Engine', value: 'Lexicon-based' },
-                { label: 'Quantum Term', value: 'Interference × 0.1' },
-                { label: 'Version', value: '1.0.0 (hardcoded)' },
-              ]
-            },
-            {
-              title: 'Confusion Matrix Detail', icon: BarChart3,
-              items: [
-                { label: 'Rendah → Rendah', value: confMat[0][0] },
-                { label: 'Rendah → Sedang', value: confMat[0][1] },
-                { label: 'Rendah → Tinggi', value: confMat[0][2] },
-                { label: 'Sedang → Rendah', value: confMat[1][0] },
-                { label: 'Sedang → Sedang', value: confMat[1][1] },
-                { label: 'Sedang → Tinggi', value: confMat[1][2] },
-                { label: 'Tinggi → Rendah', value: confMat[2][0] },
-                { label: 'Tinggi → Tinggi', value: confMat[2][2] },
-              ]
-            },
-          ].map(section => (
-            <div key={section.title} style={card}>
-              <h3 style={{ ...sectionTitle, margin: 0, fontSize: 14, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <section.icon size={14} color="#6c63ff" /> {section.title}
-              </h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {section.items.map((item, i) => (
-                  <div key={item.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 12px', background: i % 2 === 0 ? '#0f1117' : 'transparent', borderRadius: 6 }}>
-                    <span style={{ fontSize: 11, color: '#8890a4' }}>{item.label}</span>
-                    <span style={{ fontSize: 11, color: '#c0c9e0', fontWeight: 600 }}>{item.value}</span>
-                  </div>
-                ))}
+        {activeTab === 'details' && derived && (
+          <section className="grid gap-5 lg:grid-cols-2">
+            <DetailPanel
+              title="Metrik Evaluasi"
+              icon={Gauge}
+              items={[
+                ['R2 Score', data.r2_score.toFixed(4)],
+                ['Accuracy', formatPct(data.accuracy)],
+                ['MAE', data.mae.toFixed(3)],
+                ['RMSE', data.rmse.toFixed(3)],
+                ['MAPE', `${data.mape.toFixed(2)}%`],
+                ['F1 Score', formatPct(data.f1_score)],
+                ['Jumlah Sampel', data.n_samples],
+                ['CV Folds', data.cross_val_scores.length || 'N/A'],
+              ]}
+            />
+            <DetailPanel
+              title="Formula & Bobot"
+              icon={Sigma}
+              items={[
+                ['Fatigue Weight', '0.4'],
+                ['Cynicism Weight', '0.3'],
+                ['Efficacy Weight', '0.2 x (5 - E)'],
+                ['Interference Weight', '0.1'],
+                ['NLP Stress Weight', '2.0'],
+                ['Clamp Range', '0 - 10'],
+                ['Risk Low', '< 4.0'],
+                ['Risk Medium', '4.0 - 6.0'],
+              ]}
+            />
+            <DetailPanel
+              title="Model Info"
+              icon={Brain}
+              items={[
+                ['Tipe', 'Linear Weighted + Quantum'],
+                ['Framework', 'Go Native'],
+                ['Input Features', 'F, C, E, I, S'],
+                ['Output', 'Burnout + Psycho + Risk'],
+                ['Database', 'MySQL via GORM'],
+                ['NLP Engine', 'Lexicon-based'],
+                ['Quantum Term', 'Interference x 0.1'],
+                ['Version', '1.0.0'],
+              ]}
+            />
+            <DetailPanel
+              title="Confusion Matrix Detail"
+              icon={BarChart3}
+              items={[
+                ['Rendah -> Rendah', derived.confMat[0][0]],
+                ['Rendah -> Sedang', derived.confMat[0][1]],
+                ['Rendah -> Tinggi', derived.confMat[0][2]],
+                ['Sedang -> Rendah', derived.confMat[1][0]],
+                ['Sedang -> Sedang', derived.confMat[1][1]],
+                ['Sedang -> Tinggi', derived.confMat[1][2]],
+                ['Tinggi -> Rendah', derived.confMat[2][0]],
+                ['Tinggi -> Tinggi', derived.confMat[2][2]],
+              ]}
+            />
+            <SectionCard className="p-4 sm:p-5 lg:col-span-2">
+              <div className="flex items-start gap-3">
+                <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-sky-400/10 text-sky-200">
+                  <Info className="h-5 w-5" />
+                </div>
+                <div>
+                  <h2 className="text-base font-semibold text-white">Catatan Interpretasi</h2>
+                  <p className="mt-2 text-sm leading-6 text-slate-400">
+                    R2 membaca kemampuan model menjelaskan variasi skor, sementara akurasi dan F1 membaca konsistensi klasifikasi risiko.
+                    Nilai error seperti MAE, RMSE, dan MAPE sebaiknya dipantau bersama jumlah sampel agar evaluasi tidak bias pada data kecil.
+                  </p>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
+            </SectionCard>
+          </section>
+        )}
+      </div>
+    </main>
+  );
+}
+
+function MatrixRow({ label, row, rowIndex }: { label: string; row: number[]; rowIndex: number }) {
+  return (
+    <>
+      <div className="flex items-center justify-end pr-2 text-[11px] font-semibold text-slate-500">Akt {label}</div>
+      {row.map((value, colIndex) => {
+        const isCorrect = rowIndex === colIndex;
+        return (
+          <div
+            key={`${label}-${colIndex}`}
+            className={`rounded-xl border px-2 py-5 text-center text-xl font-bold ${
+              isCorrect
+                ? 'border-emerald-300/25 bg-emerald-400/10 text-emerald-200'
+                : 'border-rose-300/20 bg-rose-400/10 text-rose-200'
+            }`}
+          >
+            {value}
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
+function FormulaMiniCard({ data }: { data: ModelData }) {
+  return (
+    <SectionCard className="p-4 sm:p-5">
+      <h2 className="text-base font-semibold text-white">Formula Model</h2>
+      <div className="mt-4 space-y-3">
+        {[
+          ['Burnout Score', data.formula.burnout, 'text-violet-200 border-violet-300/20 bg-violet-400/10'],
+          ['Psychosomatic Score', data.formula.psychosomatic, 'text-teal-200 border-teal-300/20 bg-teal-400/10'],
+        ].map(([label, formula, className]) => (
+          <div key={label} className={`rounded-xl border p-3 ${className}`}>
+            <p className="text-xs font-semibold">{label}</p>
+            <code className="mt-2 block break-words text-xs leading-5 text-slate-200">{formula}</code>
+          </div>
+        ))}
+      </div>
+    </SectionCard>
+  );
+}
+
+function DetailPanel({
+  title,
+  icon: Icon,
+  items,
+}: {
+  title: string;
+  icon: typeof Gauge;
+  items: Array<[string, string | number]>;
+}) {
+  return (
+    <SectionCard className="p-4 sm:p-5">
+      <h2 className="flex items-center gap-2 text-base font-semibold text-white">
+        <Icon className="h-5 w-5 text-amber-200" />
+        {title}
+      </h2>
+      <div className="mt-4 divide-y divide-white/10 overflow-hidden rounded-xl border border-white/10">
+        {items.map(([label, value], index) => (
+          <div key={label} className={`flex items-center justify-between gap-3 px-4 py-3 ${index % 2 === 0 ? 'bg-slate-950/45' : 'bg-transparent'}`}>
+            <span className="text-sm text-slate-400">{label}</span>
+            <span className="text-right text-sm font-semibold text-slate-100">{value}</span>
+          </div>
+        ))}
+      </div>
+    </SectionCard>
   );
 }

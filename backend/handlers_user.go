@@ -24,9 +24,18 @@ func UserDashboardHandler(c *gin.Context) {
 }
 
 func AssessmentGetHandler(c *gin.Context) {
-	questions, dateKey := getDailyQuestions()
+	profile := c.DefaultQuery("profile", "balanced")
+	variant := c.Query("variant")
+	refresh := c.Query("refresh") == "1" || c.Query("refresh") == "true" || variant != ""
+	questions, dateKey, source := getDailyQuestions(profile, variant, refresh)
 	hash := md5.Sum([]byte(dateKey))
-	c.JSON(http.StatusOK, gin.H{"questions": questions, "order_type": hex.EncodeToString(hash[:])})
+	c.JSON(http.StatusOK, gin.H{
+		"questions":  questions,
+		"order_type": hex.EncodeToString(hash[:]),
+		"date_key":   dateKey,
+		"profile":    normalizeQuestionProfile(profile),
+		"source":     source,
+	})
 }
 
 func AssessmentSubmitHandler(c *gin.Context) {

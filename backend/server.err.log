@@ -1,3 +1,3 @@
-2026/05/14 12:44:24 Connected to MySQL database: nexusmind
-2026/05/14 12:44:24 Admin user updated to ensure login works (username: admin, password: admin123).
-exit status 0xffffffff
+2026/05/14 19:59:53 Connected to MySQL database: nexusmind
+2026/05/14 19:59:54 Admin user updated to ensure login works (username: admin, password: admin123).
+exit status 1

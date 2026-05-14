@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 )
@@ -287,7 +288,7 @@ func predictBurnout(fatigue, cynicism, efficacy, interference, nlpStress float64
 	// Features: [fatigue, cynicism, efficacy, interference, nlpStress]
 	// Since the python model was basically fitting random points, we will approximate a logical linear weighting
 	// Burnout = 0.4*fatigue + 0.3*cynicism - 0.2*efficacy + 0.1*interference + 0.5*nlpStress
-	
+
 	burnoutScore := (0.4 * fatigue) + (0.3 * cynicism) + (0.2 * (5.0 - efficacy)) + (0.1 * interference) + (2.0 * nlpStress)
 	if burnoutScore < 0 {
 		burnoutScore = 0
@@ -319,29 +320,121 @@ var cachedQuestions []Question
 var cachedDate string
 var generating bool
 
-func getDailyQuestions() ([]Question, string) {
+var questionProfiles = map[string][]Question{
+	"balanced": {
+		{ID: "q1", Text: "Saya merasa energi mental saya terkuras oleh aktivitas hari ini.", ConstructType: "fatigue"},
+		{ID: "q2", Text: "Saya mulai menjaga jarak secara emosional dari pekerjaan, kuliah, atau orang sekitar.", ConstructType: "cynicism"},
+		{ID: "q3", Text: "Saya masih merasa mampu menyelesaikan tugas utama dengan kualitas yang baik.", ConstructType: "efficacy"},
+		{ID: "q4", Text: "Saya sulit benar-benar beristirahat karena pikiran terus kembali ke tanggung jawab.", ConstructType: "fatigue"},
+		{ID: "q5", Text: "Saya merasa apa yang saya lakukan akhir-akhir ini kurang bermakna.", ConstructType: "cynicism"},
+		{ID: "q6", Text: "Saya percaya diri mengambil keputusan saat menghadapi tekanan.", ConstructType: "efficacy"},
+		{ID: "q7", Text: "Kondisi tubuh saya terasa ikut menegang saat memikirkan aktivitas harian.", ConstructType: "fatigue"},
+		{ID: "q8", Text: "Saya cenderung menunda interaksi karena merasa terlalu lelah secara sosial.", ConstructType: "cynicism"},
+		{ID: "q9", Text: "Saya mampu meminta bantuan atau mengatur prioritas saat beban terasa besar.", ConstructType: "efficacy"},
+		{ID: "q10", Text: "Saya merasa kualitas tidur saya cukup membantu pemulihan hari ini.", ConstructType: "efficacy"},
+		{ID: "q11", Text: "Saya merasa cepat tersinggung ketika ada permintaan tambahan.", ConstructType: "cynicism"},
+		{ID: "q12", Text: "Saya membutuhkan waktu lebih lama dari biasanya untuk fokus.", ConstructType: "fatigue"},
+	},
+	"academic": {
+		{ID: "q1", Text: "Tugas, ujian, atau skripsi membuat saya sulit berhenti memikirkan kewajiban akademik.", ConstructType: "fatigue"},
+		{ID: "q2", Text: "Saya merasa motivasi belajar menurun meskipun ada target yang harus dikejar.", ConstructType: "cynicism"},
+		{ID: "q3", Text: "Saya masih mampu memahami materi atau arahan akademik dengan baik.", ConstructType: "efficacy"},
+		{ID: "q4", Text: "Saya merasa kelelahan sebelum mulai belajar atau mengerjakan tugas.", ConstructType: "fatigue"},
+		{ID: "q5", Text: "Saya mulai merasa hasil usaha akademik saya tidak sebanding dengan energinya.", ConstructType: "cynicism"},
+		{ID: "q6", Text: "Saya dapat membagi tugas besar menjadi langkah kecil yang realistis.", ConstructType: "efficacy"},
+		{ID: "q7", Text: "Tekanan nilai atau deadline memengaruhi kualitas tidur saya.", ConstructType: "fatigue"},
+		{ID: "q8", Text: "Saya cenderung menghindari diskusi akademik karena merasa jenuh.", ConstructType: "cynicism"},
+		{ID: "q9", Text: "Saya percaya masih bisa memperbaiki progres akademik saya.", ConstructType: "efficacy"},
+		{ID: "q10", Text: "Saya mampu menentukan prioritas belajar hari ini.", ConstructType: "efficacy"},
+		{ID: "q11", Text: "Saya merasa tubuh ikut tegang saat membuka materi atau tugas.", ConstructType: "fatigue"},
+		{ID: "q12", Text: "Saya merasa jauh dari alasan awal saya memilih jalur pendidikan ini.", ConstructType: "cynicism"},
+	},
+	"work": {
+		{ID: "q1", Text: "Beban kerja hari ini membuat saya merasa terkuras bahkan sebelum selesai bekerja.", ConstructType: "fatigue"},
+		{ID: "q2", Text: "Saya merasa semakin sulit peduli pada hasil pekerjaan seperti biasanya.", ConstructType: "cynicism"},
+		{ID: "q3", Text: "Saya masih mampu mengambil keputusan kerja dengan tenang.", ConstructType: "efficacy"},
+		{ID: "q4", Text: "Saya merasa waktu istirahat tidak cukup mengembalikan energi saya.", ConstructType: "fatigue"},
+		{ID: "q5", Text: "Saya mulai merasa kontribusi saya kurang dihargai.", ConstructType: "cynicism"},
+		{ID: "q6", Text: "Saya dapat mengelola tugas mendadak tanpa kehilangan arah.", ConstructType: "efficacy"},
+		{ID: "q7", Text: "Tekanan komunikasi kerja membuat tubuh saya terasa tegang.", ConstructType: "fatigue"},
+		{ID: "q8", Text: "Saya merasa ingin menjauh dari rekan kerja atau tanggung jawab tertentu.", ConstructType: "cynicism"},
+		{ID: "q9", Text: "Saya mampu memberi batas yang sehat pada pekerjaan.", ConstructType: "efficacy"},
+		{ID: "q10", Text: "Saya percaya kemampuan saya cukup untuk menyelesaikan target utama.", ConstructType: "efficacy"},
+		{ID: "q11", Text: "Saya sering memikirkan pekerjaan saat seharusnya beristirahat.", ConstructType: "fatigue"},
+		{ID: "q12", Text: "Saya merasa pekerjaan terasa monoton dan kehilangan makna.", ConstructType: "cynicism"},
+	},
+	"recovery": {
+		{ID: "q1", Text: "Saya merasa tubuh dan pikiran saya masih membutuhkan pemulihan tambahan.", ConstructType: "fatigue"},
+		{ID: "q2", Text: "Saya kesulitan menikmati aktivitas yang biasanya terasa menyenangkan.", ConstructType: "cynicism"},
+		{ID: "q3", Text: "Saya mampu mengenali batas energi saya hari ini.", ConstructType: "efficacy"},
+		{ID: "q4", Text: "Saya merasa mudah lelah setelah melakukan aktivitas kecil.", ConstructType: "fatigue"},
+		{ID: "q5", Text: "Saya merasa kurang terhubung dengan tujuan atau rutinitas saya.", ConstructType: "cynicism"},
+		{ID: "q6", Text: "Saya bisa memilih satu langkah kecil yang membantu pemulihan saya.", ConstructType: "efficacy"},
+		{ID: "q7", Text: "Keluhan fisik seperti tegang, pusing, atau sulit tidur terasa mengganggu.", ConstructType: "fatigue"},
+		{ID: "q8", Text: "Saya cenderung menarik diri karena merasa kapasitas saya terbatas.", ConstructType: "cynicism"},
+		{ID: "q9", Text: "Saya merasa mampu meminta ruang atau waktu istirahat ketika dibutuhkan.", ConstructType: "efficacy"},
+		{ID: "q10", Text: "Saya masih dapat menghargai progres kecil yang saya lakukan.", ConstructType: "efficacy"},
+		{ID: "q11", Text: "Saya merasa energi saya habis sebelum hari berjalan jauh.", ConstructType: "fatigue"},
+		{ID: "q12", Text: "Saya merasa rutinitas harian terasa hambar atau berat dijalani.", ConstructType: "cynicism"},
+	},
+}
+
+func normalizeQuestionProfile(profile string) string {
+	normalized := strings.ToLower(strings.TrimSpace(profile))
+	switch normalized {
+	case "academic", "work", "recovery", "balanced":
+		return normalized
+	default:
+		return "balanced"
+	}
+}
+
+func buildAdaptiveQuestions(profile string, seed string) []Question {
+	normalized := normalizeQuestionProfile(profile)
+	bank := append([]Question{}, questionProfiles[normalized]...)
+	sort.SliceStable(bank, func(i, j int) bool {
+		left := md5.Sum([]byte(seed + bank[i].Text))
+		right := md5.Sum([]byte(seed + bank[j].Text))
+		return hex.EncodeToString(left[:]) < hex.EncodeToString(right[:])
+	})
+
+	if len(bank) > 10 {
+		bank = bank[:10]
+	}
+	questions := make([]Question, 0, len(bank))
+	for i, q := range bank {
+		questions = append(questions, Question{
+			ID:            fmt.Sprintf("q%d", i+1),
+			Text:          q.Text,
+			ConstructType: q.ConstructType,
+		})
+	}
+	return questions
+}
+
+func getDailyQuestions(profile string, variant string, refresh bool) ([]Question, string, string) {
 	today := time.Now().Format("2006-01-02")
+	normalizedProfile := normalizeQuestionProfile(profile)
+	dateKey := today + ":" + normalizedProfile
+	if variant != "" {
+		dateKey += ":" + variant
+	}
 
 	// Return cached if available for today
-	if cachedDate == today && len(cachedQuestions) > 0 {
-		return cachedQuestions, today
+	if !refresh && cachedDate == dateKey && len(cachedQuestions) > 0 {
+		return cachedQuestions, dateKey, "ai-cache"
 	}
 
 	// Return defaults immediately, trigger async AI generation
 	if !generating {
 		generating = true
-		go generateDailyQuestionsBG(today)
+		go generateDailyQuestionsBG(dateKey, normalizedProfile)
 	}
 
-	// If we have previous day's cache, return that (better than defaults)
-	if len(cachedQuestions) > 0 {
-		return cachedQuestions, today
-	}
-
-	return getDefaultQuestions(), today
+	return buildAdaptiveQuestions(normalizedProfile, dateKey), dateKey, "adaptive-local"
 }
 
-func generateDailyQuestionsBG(today string) {
+func generateDailyQuestionsBG(today string, profile string) {
 	defer func() { generating = false }()
 
 	apiKey := os.Getenv("OPENROUTER_API_KEY")
@@ -350,6 +443,12 @@ func generateDailyQuestionsBG(today string) {
 	}
 
 	url := "https://openrouter.ai/api/v1/chat/completions"
+	focus := map[string]string{
+		"academic": "mahasiswa, tugas, ujian, skripsi, deadline akademik, relasi kampus",
+		"work":     "karyawan, beban kerja, komunikasi kerja, target, batas kerja, apresiasi",
+		"recovery": "pemulihan energi, istirahat, keluhan fisik, kapasitas diri, ritme sehat",
+		"balanced": "kondisi umum harian, energi mental, relasi sosial, tidur, motivasi",
+	}[normalizeQuestionProfile(profile)]
 	systemPrompt := `Kamu adalah generator kuisioner kesehatan mental. Hasilkan 10 pertanyaan dalam Bahasa Indonesia untuk mengukur burnout dan kesehatan mental. 
 Gunakan topik VARIATIF: kelelahan emosional, sinisme, efikasi diri, work-life balance, dukungan sosial, tidur, kecemasan, motivasi, hubungan kerja/kuliah, dan harapan masa depan.
 Setiap pertanyaan HARUS memiliki tipe: "fatigue", "cynicism", atau "efficacy".
@@ -364,10 +463,10 @@ OUTPUT JSON:
 Bahasa Indonesia natural. Variasikan topik setiap hari.`
 
 	requestBody, _ := json.Marshal(map[string]interface{}{
-		"model":       "openai/gpt-4o-mini",
-		"messages":    []map[string]string{{"role": "system", "content": systemPrompt}, {"role": "user", "content": "Generate 10 unique burnout/mental health survey questions in Bahasa Indonesia for today: " + today}},
-		"max_tokens":  800,
-		"temperature": 0.5,
+		"model":           "openai/gpt-4o-mini",
+		"messages":        []map[string]string{{"role": "system", "content": systemPrompt}, {"role": "user", "content": "Generate 10 unique burnout/mental health survey questions in Bahasa Indonesia for today: " + today + ". Fokus profil: " + focus}},
+		"max_tokens":      800,
+		"temperature":     0.5,
 		"response_format": map[string]string{"type": "json_object"},
 	})
 

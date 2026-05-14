@@ -51,6 +51,20 @@ interface PreviousPrediction {
   risk: string;
 }
 
+type QuestionProfile = 'balanced' | 'academic' | 'work' | 'recovery';
+
+const questionProfiles: Array<{
+  key: QuestionProfile;
+  label: string;
+  desc: string;
+  icon: typeof Brain;
+}> = [
+  { key: 'balanced', label: 'Seimbang', desc: 'Kondisi umum hari ini', icon: Brain },
+  { key: 'academic', label: 'Akademik', desc: 'Tugas, ujian, skripsi', icon: ClipboardList },
+  { key: 'work', label: 'Kerja', desc: 'Beban kerja dan relasi', icon: Gauge },
+  { key: 'recovery', label: 'Pemulihan', desc: 'Energi dan istirahat', icon: HeartPulse },
+];
+
 const answerOptions = [
   { value: 1, label: 'Sangat Tidak Setuju', short: 'STS', tone: 'rose' },
   { value: 2, label: 'Tidak Setuju', short: 'TS', tone: 'orange' },
@@ -136,6 +150,12 @@ const formatReactionTime = (ms: number) => {
   return `${(ms / 1000).toFixed(1)}s`;
 };
 
+const formatDateKey = (value: string) => {
+  if (!value) return '-';
+  const [date, profile] = value.split(':');
+  return [date, profile].filter(Boolean).join(' / ');
+};
+
 export default function UserKuisioner() {
   const nav = useNavigate();
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -148,24 +168,57 @@ export default function UserKuisioner() {
   const [prevPrediction, setPrevPrediction] = useState<PreviousPrediction | null>(null);
   const [selectedVal, setSelectedVal] = useState<number | null>(null);
   const [animating, setAnimating] = useState(false);
+  const [questionProfile, setQuestionProfile] = useState<QuestionProfile>('balanced');
+  const [questionSource, setQuestionSource] = useState('');
+  const [questionDateKey, setQuestionDateKey] = useState('');
+  const [refreshingQuestions, setRefreshingQuestions] = useState(false);
+  const [questionError, setQuestionError] = useState('');
   const startRef = useRef(Date.now());
 
   useEffect(() => {
-    fetchQuestions();
+    fetchQuestions({ profile: 'balanced' });
   }, []);
 
-  const fetchQuestions = async () => {
-    setLoading(true);
+  const resetSession = (clearResult = true) => {
+    if (clearResult) setResult(null);
+    setCurrentIdx(0);
+    setResponses([]);
+    setSelectedVal(null);
+    setPrevPrediction(null);
+    setAnimating(false);
+    startRef.current = Date.now();
+  };
+
+  const fetchQuestions = async (options?: { profile?: QuestionProfile; refresh?: boolean }) => {
+    const nextProfile = options?.profile ?? questionProfile;
+    const shouldRefresh = options?.refresh ?? false;
+    const firstLoad = questions.length === 0 && !result;
+
+    if (firstLoad) setLoading(true);
+    else setRefreshingQuestions(true);
+    setQuestionError('');
 
     try {
-      const response = await api.get('/assessment');
+      const response = await api.get('/assessment', {
+        params: {
+          profile: nextProfile,
+          refresh: shouldRefresh ? '1' : undefined,
+          variant: shouldRefresh ? `${Date.now()}` : undefined,
+        },
+      });
       setQuestions(response.data.questions || []);
       setOrderType(response.data.order_type || '');
+      setQuestionSource(response.data.source || 'api');
+      setQuestionDateKey(response.data.date_key || '');
+      setQuestionProfile((response.data.profile || nextProfile) as QuestionProfile);
+      resetSession(true);
       startRef.current = Date.now();
     } catch (error) {
       console.error(error);
+      setQuestionError('Gagal mengambil pertanyaan dari API. Coba refresh atau pilih mode lain.');
     } finally {
       setLoading(false);
+      setRefreshingQuestions(false);
     }
   };
 
@@ -248,13 +301,7 @@ export default function UserKuisioner() {
   };
 
   const resetQuestionnaire = () => {
-    setResult(null);
-    setCurrentIdx(0);
-    setResponses([]);
-    setSelectedVal(null);
-    setPrevPrediction(null);
-    setAnimating(false);
-    startRef.current = Date.now();
+    resetSession(true);
   };
 
   const progress = questions.length > 0 ? (responses.length / questions.length) * 100 : 0;
@@ -262,6 +309,10 @@ export default function UserKuisioner() {
   const currentQuestion = questions[currentIdx];
   const currentMeta = currentQuestion ? getConstructMeta(currentQuestion.construct_type) : constructMeta.default;
   const CurrentIcon = currentMeta.icon;
+  const selectedProfileMeta =
+    questionProfiles.find((item) => item.key === questionProfile) ?? questionProfiles[0];
+  const questionFingerprint = orderType ? orderType.slice(0, 10).toUpperCase() : '-';
+  const canChangeQuestions = !refreshingQuestions && !submitting && !animating;
 
   const responseStats = useMemo(() => {
     const totalMs = responses.reduce((total, item) => total + item.reaction_time_ms, 0);
@@ -287,7 +338,7 @@ export default function UserKuisioner() {
           </div>
           <h2 className="mt-5 text-xl font-semibold tracking-normal text-white">Menyiapkan pertanyaan</h2>
           <p className="mt-2 text-sm leading-6 text-slate-400">
-            Sistem sedang mengambil kuisioner harian dan mengacak urutan asesmen.
+            Sistem sedang mengambil kuisioner dari API asesmen dan menyiapkan urutan adaptif.
           </p>
         </div>
       </div>
@@ -526,11 +577,23 @@ export default function UserKuisioner() {
                   <ArrowRight className="h-4 w-4" aria-hidden="true" />
                 </button>
                 <button
+                  onClick={() => fetchQuestions({ profile: questionProfile, refresh: true })}
+                  disabled={refreshingQuestions}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-950 px-4 text-sm font-semibold text-slate-300 transition hover:border-slate-500 hover:text-white"
+                >
+                  {refreshingQuestions ? (
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                  )}
+                  Set pertanyaan baru
+                </button>
+                <button
                   onClick={resetQuestionnaire}
                   className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-950 px-4 text-sm font-semibold text-slate-300 transition hover:border-slate-500 hover:text-white"
                 >
-                  <RotateCcw className="h-4 w-4" aria-hidden="true" />
-                  Ulangi kuisioner
+                  <TimerReset className="h-4 w-4" aria-hidden="true" />
+                  Ulangi set ini
                 </button>
               </div>
             </div>
@@ -549,8 +612,25 @@ export default function UserKuisioner() {
           </div>
           <h2 className="mt-5 text-lg font-semibold tracking-normal text-white">Belum ada pertanyaan</h2>
           <p className="mt-2 text-sm leading-6 text-slate-400">
-            Kuisioner harian belum tersedia. Coba buka kembali beberapa saat lagi.
+            Kuisioner belum berhasil dimuat dari API. Pilih ulang mode atau coba ambil set baru.
           </p>
+          {questionError && (
+            <p className="mt-4 rounded-lg border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+              {questionError}
+            </p>
+          )}
+          <button
+            onClick={() => fetchQuestions({ profile: questionProfile, refresh: true })}
+            disabled={refreshingQuestions}
+            className="mt-5 inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-emerald-500 px-4 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {refreshingQuestions ? (
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+            ) : (
+              <RotateCcw className="h-4 w-4" aria-hidden="true" />
+            )}
+            Ambil pertanyaan
+          </button>
         </div>
       </div>
     );
@@ -576,11 +656,12 @@ export default function UserKuisioner() {
               </p>
             </div>
 
-            <div className="relative grid grid-cols-3 gap-3">
+            <div className="relative grid grid-cols-2 gap-3">
               {[
                 { label: 'Pertanyaan', value: questions.length, icon: ClipboardList, color: 'text-emerald-300' },
                 { label: 'Terjawab', value: responses.length, icon: CheckCircle2, color: 'text-cyan-300' },
-                { label: 'Urutan', value: orderType || '-', icon: Brain, color: 'text-violet-300' },
+                { label: 'Mode', value: selectedProfileMeta.label, icon: selectedProfileMeta.icon, color: 'text-amber-300' },
+                { label: 'Hash API', value: questionFingerprint, icon: Brain, color: 'text-violet-300' },
               ].map((item) => {
                 const Icon = item.icon;
 
@@ -595,6 +676,92 @@ export default function UserKuisioner() {
             </div>
           </div>
         </header>
+
+        {questionError && (
+          <div className="rounded-xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+            {questionError}
+          </div>
+        )}
+
+        <section className="rounded-xl border border-slate-800 bg-slate-900/70 p-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <div className="inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1.5 text-xs font-semibold text-cyan-200">
+                <Activity className="h-3.5 w-3.5" aria-hidden="true" />
+                API /assessment aktif
+              </div>
+              <h2 className="mt-3 text-lg font-semibold tracking-normal text-white">Set pertanyaan dinamis</h2>
+              <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-400">
+                Pilih fokus kuisioner, lalu sistem mengambil varian pertanyaan baru dari endpoint asesmen
+                dengan profil dan urutan yang berbeda.
+              </p>
+            </div>
+
+            <button
+              onClick={() => fetchQuestions({ profile: questionProfile, refresh: true })}
+              disabled={!canChangeQuestions}
+              className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-lg bg-emerald-500 px-4 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {refreshingQuestions ? (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              ) : (
+                <RotateCcw className="h-4 w-4" aria-hidden="true" />
+              )}
+              Ganti set pertanyaan
+            </button>
+          </div>
+
+          <div className="mt-5 grid gap-3 md:grid-cols-4">
+            {questionProfiles.map((profile) => {
+              const Icon = profile.icon;
+              const active = profile.key === questionProfile;
+
+              return (
+                <button
+                  key={profile.key}
+                  onClick={() => fetchQuestions({ profile: profile.key, refresh: true })}
+                  disabled={!canChangeQuestions || active}
+                  className={`min-h-[118px] rounded-xl border p-4 text-left transition ${
+                    active
+                      ? 'border-emerald-400/45 bg-emerald-500/10 text-emerald-100 shadow-lg shadow-emerald-950/10'
+                      : 'border-slate-800 bg-slate-950/70 text-slate-300 hover:border-cyan-400/35 hover:bg-slate-950'
+                  } disabled:cursor-not-allowed disabled:opacity-80`}
+                >
+                  <div className="mb-4 flex items-center justify-between gap-3">
+                    <div className={`flex h-10 w-10 items-center justify-center rounded-lg border ${
+                      active ? 'border-emerald-400/30 bg-emerald-500/10' : 'border-slate-800 bg-slate-900'
+                    }`}>
+                      <Icon className={`h-5 w-5 ${active ? 'text-emerald-300' : 'text-slate-400'}`} aria-hidden="true" />
+                    </div>
+                    {active && <CheckCircle2 className="h-4 w-4 text-emerald-300" aria-hidden="true" />}
+                  </div>
+                  <p className="text-sm font-semibold text-white">{profile.label}</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">{profile.desc}</p>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            {[
+              { label: 'Sumber', value: questionSource || 'api', icon: Zap },
+              { label: 'Tanggal / profil', value: formatDateKey(questionDateKey), icon: Clock },
+              { label: 'Order hash', value: questionFingerprint, icon: Shield },
+            ].map((item) => {
+              const Icon = item.icon;
+
+              return (
+                <div key={item.label} className="rounded-lg border border-slate-800 bg-slate-950/70 p-3">
+                  <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase text-slate-500">
+                    <Icon className="h-3.5 w-3.5 text-slate-500" aria-hidden="true" />
+                    {item.label}
+                  </div>
+                  <p className="truncate text-sm font-semibold text-slate-200">{item.value}</p>
+                </div>
+              );
+            })}
+          </div>
+        </section>
 
         <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
           <main className="rounded-xl border border-slate-800 bg-slate-900/70 p-5 shadow-2xl shadow-black/20 md:p-6">
