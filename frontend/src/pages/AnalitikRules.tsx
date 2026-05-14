@@ -1,14 +1,35 @@
-import { useState, useMemo } from 'react';
+import { cloneElement, type ReactElement, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Search, Filter, ArrowDownUp, Eye, Trash2, Sparkles, TrendingUp,
-  Target, Zap, BarChart3, AlertCircle, CheckCircle2, Hash, Percent,
-  ArrowRight, Lightbulb, Layers, SlidersHorizontal, RotateCcw
+  ArrowRight,
+  BarChart3,
+  CheckCircle2,
+  Filter,
+  Layers,
+  Lightbulb,
+  Percent,
+  RefreshCcw,
+  Search,
+  SlidersHorizontal,
+  Sparkles,
+  Target,
+  TrendingUp,
+  Zap,
 } from 'lucide-react';
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  ScatterChart, Scatter, ZAxis, Cell, PieChart, Pie, BarChart, Bar, Legend
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Legend,
+  Pie,
+  PieChart,
+  Scatter,
+  ScatterChart,
+  Tooltip,
+  XAxis,
+  YAxis,
+  ZAxis,
 } from 'recharts';
-import { card, sectionTitle } from './dashboard/styles';
 
 interface Rule {
   id: number;
@@ -38,345 +59,481 @@ const rulesData: Rule[] = [
   { id: 12, antecedent: 'Perfeksionisme & Self-Criticism Tinggi', consequent: 'Anxiety & Burnout', confidence: 0.82, support: 0.28, lift: 2.35, conviction: 2.3, category: 'Psikologis', status: 'review', impact: 'low' },
 ];
 
-const scatterRuleData = rulesData.map(r => ({ x: r.support, y: r.confidence, z: r.lift * 30, name: r.antecedent.substring(0, 30) + '...' }));
-const categoryDist = [
-  { name: 'Burnout', value: 4, color: '#ef4444' },
-  { name: 'Psikosomatis', value: 2, color: '#f59e0b' },
-  { name: 'Protektif', value: 2, color: '#22c55e' },
-  { name: 'Stres', value: 1, color: '#3b82f6' },
-  { name: 'Organisasi', value: 1, color: '#8b5cf6' },
-  { name: 'Psikologis', value: 2, color: '#ec4899' },
-];
-const importanceData = rulesData.slice(0, 8).map(r => ({
-  name: r.antecedent.length > 35 ? r.antecedent.substring(0, 35) + '...' : r.antecedent,
-  lift: r.lift,
-  confidence: r.confidence,
-}));
-
-const impactColor = { high: '#22c55e', medium: '#f59e0b', low: '#ef4444' };
-const statusBadge: Record<string, { bg: string; c: string; label: string }> = {
-  active:  { bg: 'rgba(34,197,94,0.12)', c: '#22c55e', label: 'Aktif' },
-  inactive:{ bg: 'rgba(136,144,164,0.12)', c: '#8890a4', label: 'Nonaktif' },
-  review:  { bg: 'rgba(245,158,11,0.12)', c: '#f59e0b', label: 'Review' },
+const categoryColors: Record<string, string> = {
+  Burnout: '#fb7185',
+  Psikosomatis: '#fbbf24',
+  Protektif: '#34d399',
+  Stres: '#38bdf8',
+  Organisasi: '#a78bfa',
+  Psikologis: '#f472b6',
 };
+
+const chartTooltipStyle = {
+  background: '#0f172a',
+  border: '1px solid rgba(148, 163, 184, 0.22)',
+  borderRadius: 12,
+  color: '#e2e8f0',
+  boxShadow: '0 18px 50px rgba(0,0,0,0.35)',
+};
+
+const impactMeta = {
+  high: { label: 'Tinggi', className: 'border-emerald-300/25 bg-emerald-400/10 text-emerald-200', dot: 'bg-emerald-300' },
+  medium: { label: 'Sedang', className: 'border-amber-300/25 bg-amber-400/10 text-amber-200', dot: 'bg-amber-300' },
+  low: { label: 'Rendah', className: 'border-rose-300/25 bg-rose-400/10 text-rose-200', dot: 'bg-rose-300' },
+};
+
+const statusMeta = {
+  active: { label: 'Aktif', className: 'border-emerald-300/25 bg-emerald-400/10 text-emerald-200' },
+  inactive: { label: 'Nonaktif', className: 'border-slate-400/20 bg-slate-400/10 text-slate-300' },
+  review: { label: 'Review', className: 'border-amber-300/25 bg-amber-400/10 text-amber-200' },
+};
+
+type SortKey = 'lift' | 'confidence' | 'support';
+
+function pct(value: number) {
+  return `${(value * 100).toFixed(0)}%`;
+}
+
+function SectionCard({ children, className = '' }: { children: ReactNode; className?: string }) {
+  return (
+    <section className={`rounded-2xl border border-white/10 bg-white/[0.04] shadow-xl shadow-black/10 ${className}`}>
+      {children}
+    </section>
+  );
+}
+
+function ChartShell({ height, children }: { height: number; children: ReactElement }) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [width, setWidth] = useState(0);
+
+  useEffect(() => {
+    if (!ref.current) return;
+    const update = () => setWidth(Math.max(1, Math.floor(ref.current?.getBoundingClientRect().width || 0)));
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(ref.current);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div ref={ref} className="min-w-0" style={{ height }}>
+      {width > 1 ? (
+        cloneElement(children, { width, height })
+      ) : (
+        <div className="h-full w-full animate-pulse rounded-xl bg-slate-800/30" />
+      )}
+    </div>
+  );
+}
 
 export default function AnalitikRules() {
   const [search, setSearch] = useState('');
   const [catFilter, setCatFilter] = useState('all');
-  const [sortKey, setSortKey] = useState<'lift' | 'confidence' | 'support'>('lift');
+  const [sortKey, setSortKey] = useState<SortKey>('lift');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
-  const categories = useMemo(() => ['all', ...new Set(rulesData.map(r => r.category))], []);
+  const categories = useMemo(() => ['all', ...new Set(rulesData.map((rule) => rule.category))], []);
+
+  const categoryDist = useMemo(() => {
+    return categories
+      .filter((category) => category !== 'all')
+      .map((category) => ({
+        name: category,
+        value: rulesData.filter((rule) => rule.category === category).length,
+        color: categoryColors[category] || '#94a3b8',
+      }));
+  }, [categories]);
+
+  const scatterRuleData = useMemo(
+    () => rulesData.map((rule) => ({
+      x: rule.support,
+      y: rule.confidence,
+      z: rule.lift * 32,
+      name: rule.antecedent.length > 34 ? `${rule.antecedent.slice(0, 34)}...` : rule.antecedent,
+      lift: rule.lift,
+    })),
+    [],
+  );
+
+  const importanceData = useMemo(
+    () => [...rulesData]
+      .sort((a, b) => b.lift - a.lift)
+      .slice(0, 8)
+      .map((rule) => ({
+        name: rule.antecedent.length > 34 ? `${rule.antecedent.slice(0, 34)}...` : rule.antecedent,
+        lift: Number(rule.lift.toFixed(2)),
+        confidence: Number(rule.confidence.toFixed(2)),
+      })),
+    [],
+  );
+
+  const confidenceDistribution = useMemo(
+    () => [
+      { range: '70-80%', count: rulesData.filter((rule) => rule.confidence >= 0.7 && rule.confidence < 0.8).length },
+      { range: '80-85%', count: rulesData.filter((rule) => rule.confidence >= 0.8 && rule.confidence < 0.85).length },
+      { range: '85-90%', count: rulesData.filter((rule) => rule.confidence >= 0.85 && rule.confidence < 0.9).length },
+      { range: '90%+', count: rulesData.filter((rule) => rule.confidence >= 0.9).length },
+    ],
+    [],
+  );
 
   const filtered = useMemo(() => {
-    let arr = [...rulesData];
-    if (catFilter !== 'all') arr = arr.filter(r => r.category === catFilter);
-    if (search) {
-      const s = search.toLowerCase();
-      arr = arr.filter(r => r.antecedent.toLowerCase().includes(s) || r.consequent.toLowerCase().includes(s));
-    }
-    arr.sort((a, b) => sortDir === 'desc' ? b[sortKey] - a[sortKey] : a[sortKey] - b[sortKey]);
-    return arr;
+    const keyword = search.trim().toLowerCase();
+    return [...rulesData]
+      .filter((rule) => catFilter === 'all' || rule.category === catFilter)
+      .filter((rule) => !keyword || `${rule.antecedent} ${rule.consequent} ${rule.category}`.toLowerCase().includes(keyword))
+      .sort((a, b) => (sortDir === 'desc' ? b[sortKey] - a[sortKey] : a[sortKey] - b[sortKey]));
   }, [search, catFilter, sortKey, sortDir]);
+
+  const topRules = useMemo(() => [...rulesData].sort((a, b) => b.lift - a.lift).slice(0, 5), []);
 
   const stats = useMemo(() => ({
     total: rulesData.length,
-    avgConf: (rulesData.reduce((s, r) => s + r.confidence, 0) / rulesData.length * 100).toFixed(0),
-    avgSupp: (rulesData.reduce((s, r) => s + r.support, 0) / rulesData.length * 100).toFixed(0),
-    avgLift: (rulesData.reduce((s, r) => s + r.lift, 0) / rulesData.length).toFixed(2),
-    maxLift: Math.max(...rulesData.map(r => r.lift)).toFixed(2),
+    avgConf: pct(rulesData.reduce((sum, rule) => sum + rule.confidence, 0) / rulesData.length),
+    avgSupp: pct(rulesData.reduce((sum, rule) => sum + rule.support, 0) / rulesData.length),
+    avgLift: (rulesData.reduce((sum, rule) => sum + rule.lift, 0) / rulesData.length).toFixed(2),
+    maxLift: Math.max(...rulesData.map((rule) => rule.lift)).toFixed(2),
   }), []);
 
-  const toggleSort = (key: typeof sortKey) => {
-    if (sortKey === key) setSortDir(d => d === 'desc' ? 'asc' : 'desc');
-    else { setSortKey(key); setSortDir('desc'); }
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) setSortDir((dir) => (dir === 'desc' ? 'asc' : 'desc'));
+    else {
+      setSortKey(key);
+      setSortDir('desc');
+    }
   };
 
-  const s = (o: React.CSSProperties) => o as React.CSSProperties;
-
   return (
-    <div style={{ padding: '22px 24px', background: '#0b0d14', minHeight: '100vh', color: '#e2e8f0', fontFamily: 'Inter, sans-serif' }}>
-      {/* Page Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-            <div style={{ width: 38, height: 38, borderRadius: 10, background: 'linear-gradient(135deg, #6c63ff, #3ecfcf)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Sparkles size={20} color="#fff" />
-            </div>
-            <h1 style={{ fontSize: 22, fontWeight: 700, color: '#e2e8f0', margin: 0 }}>Analitik & Rules</h1>
-            <span style={{ background: 'rgba(108,99,255,0.15)', color: '#a89cff', padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600 }}>Association Rules</span>
-          </div>
-          <p style={{ color: '#8890a4', fontSize: 13, margin: '2px 0 0', maxWidth: 600 }}>
-            Analisis aturan asosiasi dari data responden untuk mengidentifikasi pola prediktif burnout dan risiko psikosomatis
-          </p>
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button style={{ background: '#131722', border: '1px solid #1e2130', color: '#8890a4', padding: '8px 14px', borderRadius: 8, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
-            <RotateCcw size={14} /> Refresh
-          </button>
-          <button style={{ background: 'linear-gradient(135deg, #6c63ff, #3ecfcf)', border: 'none', color: '#fff', padding: '8px 18px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Lightbulb size={14} /> Generate Rules
-          </button>
-        </div>
-      </div>
+    <main className="min-h-screen bg-[#090b12] px-4 py-5 text-slate-100 sm:px-6 lg:px-8">
+      <div className="pointer-events-none fixed inset-0 -z-0 bg-[radial-gradient(circle_at_top_left,rgba(45,212,191,0.14),transparent_30%),radial-gradient(circle_at_85%_0%,rgba(139,92,246,0.14),transparent_26%),linear-gradient(180deg,rgba(15,23,42,0.75),rgba(9,11,18,0.98))]" />
 
-      {/* Stat Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10, marginBottom: 16 }}>
-        {[
-          { icon: Layers, label: 'Total Rules', value: stats.total, color: '#6c63ff' },
-          { icon: Percent, label: 'Avg Confidence', value: stats.avgConf + '%', color: '#22c55e' },
-          { icon: Target, label: 'Avg Support', value: stats.avgSupp + '%', color: '#3ecfcf' },
-          { icon: TrendingUp, label: 'Avg Lift', value: stats.avgLift, color: '#f59e0b' },
-          { icon: Zap, label: 'Max Lift', value: stats.maxLift, color: '#ef4444' },
-        ].map(({ icon: Icon, label, value, color }) => (
-          <div key={label} style={{ ...card, display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px' }}>
-            <div style={{ width: 42, height: 42, borderRadius: 10, background: color + '18', border: `1px solid ${color}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <Icon size={20} color={color} />
+      <div className="relative z-10 mx-auto flex max-w-7xl flex-col gap-5">
+        <header className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] shadow-2xl shadow-black/20">
+          <div className="grid gap-5 p-5 sm:p-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+            <div className="min-w-0">
+              <div className="mb-3 flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-2 rounded-full border border-teal-300/20 bg-teal-300/10 px-3 py-1 text-xs font-semibold text-teal-100">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Analitik asosiasi
+                </span>
+                <span className="inline-flex items-center gap-2 rounded-full border border-violet-300/20 bg-violet-300/10 px-3 py-1 text-xs font-semibold text-violet-100">
+                  <SlidersHorizontal className="h-3.5 w-3.5" />
+                  Rules engine
+                </span>
+              </div>
+              <h1 className="text-2xl font-bold tracking-normal text-white sm:text-3xl">Analitik & Rules</h1>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
+                Baca pola asosiasi prediktif untuk burnout, risiko psikosomatis, faktor protektif, dan area organisasi yang perlu dipantau.
+              </p>
             </div>
-            <div style={{ overflow: 'hidden' }}>
-              <div style={{ fontSize: 11, color: '#8890a4', marginBottom: 2 }}>{label}</div>
-              <div style={{ fontSize: 22, fontWeight: 700, color: '#e2e8f0', lineHeight: 1 }}>{value}</div>
-            </div>
-          </div>
-        ))}
-      </div>
 
-      {/* Filter Bar */}
-      <div style={{ ...card, display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, padding: '10px 16px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#0f1117', borderRadius: 8, padding: '7px 12px', flex: 1, border: '1px solid #1e2130' }}>
-          <Search size={14} color="#8890a4" />
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Cari antecedent atau consequent..."
-            style={{ background: 'none', border: 'none', color: '#e2e8f0', fontSize: 12, outline: 'none', flex: 1 }}
-          />
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#0f1117', borderRadius: 8, padding: '5px 6px', border: '1px solid #1e2130' }}>
-          <Filter size={14} color="#8890a4" />
-          {categories.map(cat => (
-            <button
-              key={cat}
-              onClick={() => setCatFilter(cat)}
-              style={{
-                padding: '5px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 500,
-                background: catFilter === cat ? 'rgba(108,99,255,0.18)' : 'transparent',
-                color: catFilter === cat ? '#a89cff' : '#8890a4',
-                transition: 'all 0.15s',
-              }}
-            >
-              {cat === 'all' ? 'Semua' : cat}
-            </button>
-          ))}
-        </div>
-        <div style={{ color: '#4a5068', fontSize: 11 }}>{filtered.length} rules ditemukan</div>
-      </div>
-
-      {/* Main Content Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 12, marginBottom: 16 }}>
-        {/* Rules Table */}
-        <div style={card}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-            <h3 style={{ ...sectionTitle, margin: 0, fontSize: 14 }}>Daftar Aturan Asosiasi</h3>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <button onClick={() => toggleSort('confidence')} style={s({ background: 'transparent', border: '1px solid #1e2130', color: sortKey === 'confidence' ? '#a89cff' : '#8890a4', padding: '5px 10px', borderRadius: 5, fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 })}>
-                Confidence{sortKey === 'confidence' ? (sortDir === 'desc' ? ' ↓' : ' ↑') : ''}
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <button
+                type="button"
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-slate-950/50 px-4 text-sm font-semibold text-slate-300 transition hover:border-teal-300/30 hover:text-white"
+              >
+                <RefreshCcw className="h-4 w-4" />
+                Refresh
               </button>
-              <button onClick={() => toggleSort('support')} style={s({ background: 'transparent', border: '1px solid #1e2130', color: sortKey === 'support' ? '#a89cff' : '#8890a4', padding: '5px 10px', borderRadius: 5, fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 })}>
-                Support{sortKey === 'support' ? (sortDir === 'desc' ? ' ↓' : ' ↑') : ''}
-              </button>
-              <button onClick={() => toggleSort('lift')} style={s({ background: 'transparent', border: '1px solid #1e2130', color: sortKey === 'lift' ? '#a89cff' : '#8890a4', padding: '5px 10px', borderRadius: 5, fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 })}>
-                Lift{sortKey === 'lift' ? (sortDir === 'desc' ? ' ↓' : ' ↑') : ''}
+              <button
+                type="button"
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-violet-500 px-4 text-sm font-semibold text-white shadow-lg shadow-violet-950/30 transition hover:bg-violet-400"
+              >
+                <Lightbulb className="h-4 w-4" />
+                Generate Rules
               </button>
             </div>
           </div>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid #1e2130' }}>
-                  <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8890a4', fontWeight: 500, fontSize: 11 }}>#</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8890a4', fontWeight: 500, fontSize: 11 }}>Antecedent (IF)</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8890a4', fontWeight: 500, fontSize: 11 }}>Consequent (THEN)</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8890a4', fontWeight: 500, fontSize: 11 }}>Conf</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8890a4', fontWeight: 500, fontSize: 11 }}>Supp</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8890a4', fontWeight: 500, fontSize: 11 }}>Lift</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8890a4', fontWeight: 500, fontSize: 11 }}>Impact</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8890a4', fontWeight: 500, fontSize: 11 }}>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((rule, i) => (
-                  <tr key={rule.id} style={{ borderBottom: '1px solid #1a1d2a', transition: 'background 0.15s' }}
-                    onMouseEnter={e => (e.currentTarget.style.background = '#181b28')}
-                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                  >
-                    <td style={{ padding: '11px 12px', color: '#4a5068', fontSize: 11 }}>{i + 1}</td>
-                    <td style={{ padding: '11px 12px', color: '#c0c9e0', maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      <span style={{ background: 'rgba(108,99,255,0.1)', color: '#a89cff', padding: '2px 8px', borderRadius: 4, fontSize: 11 }}>
-                        {rule.antecedent}
-                      </span>
-                    </td>
-                    <td style={{ padding: '11px 12px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <ArrowRight size={12} color="#6c63ff" />
-                        <span style={{ background: 'rgba(62,207,207,0.1)', color: '#3ecfcf', padding: '2px 8px', borderRadius: 4, fontSize: 11 }}>
-                          {rule.consequent}
-                        </span>
-                      </div>
-                    </td>
-                    <td style={{ padding: '11px 12px', textAlign: 'center' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                        <span style={{ color: '#22c55e', fontWeight: 600 }}>{(rule.confidence * 100).toFixed(0)}%</span>
-                        <div style={{ width: 50, height: 3, background: '#1e2130', borderRadius: 2, marginTop: 3, overflow: 'hidden' }}>
-                          <div style={{ width: `${rule.confidence * 100}%`, height: '100%', background: 'linear-gradient(90deg, #22c55e, #3ecfcf)', borderRadius: 2 }} />
-                        </div>
-                      </div>
-                    </td>
-                    <td style={{ padding: '11px 12px', textAlign: 'center' }}>
-                      <span style={{ color: '#c0c9e0' }}>{(rule.support * 100).toFixed(0)}%</span>
-                    </td>
-                    <td style={{ padding: '11px 12px', textAlign: 'center' }}>
-                      <span style={{ color: rule.lift >= 2.5 ? '#22c55e' : rule.lift >= 2 ? '#f59e0b' : '#8890a4', fontWeight: 600 }}>
-                        {rule.lift.toFixed(2)}
-                      </span>
-                    </td>
-                    <td style={{ padding: '11px 12px', textAlign: 'center' }}>
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 12, fontSize: 10, fontWeight: 600, background: impactColor[rule.impact] + '18', color: impactColor[rule.impact] }}>
-                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: impactColor[rule.impact] }} />
-                        {rule.impact === 'high' ? 'Tinggi' : rule.impact === 'medium' ? 'Sedang' : 'Rendah'}
-                      </span>
-                    </td>
-                    <td style={{ padding: '11px 12px', textAlign: 'center' }}>
-                      <span style={{ padding: '3px 10px', borderRadius: 12, fontSize: 10, fontWeight: 600, background: statusBadge[rule.status].bg, color: statusBadge[rule.status].c }}>
-                        {statusBadge[rule.status].label}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        </header>
 
-        {/* Right Panel: Insights */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {/* Rules Quality Distribution */}
-          <div style={card}>
-            <h3 style={{ ...sectionTitle, margin: 0, fontSize: 14 }}>Distribusi Kategori</h3>
-            <ResponsiveContainer width="100%" height={160} minWidth={1} minHeight={1}>
-              <PieChart>
-                <Pie data={categoryDist} cx="50%" cy="50%" innerRadius={40} outerRadius={65} paddingAngle={3} dataKey="value">
-                  {categoryDist.map((entry, i) => (
-                    <Cell key={i} fill={entry.color} stroke="transparent" />
-                  ))}
-                </Pie>
-                <Tooltip contentStyle={{ background: '#1a1e2e', border: '1px solid #2a2e42', borderRadius: 8, fontSize: 11, color: '#e2e8f0' }} />
-              </PieChart>
-            </ResponsiveContainer>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
-              {categoryDist.map(c => (
-                <div key={c.name} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#8890a4' }}>
-                  <span style={{ width: 8, height: 8, borderRadius: 2, background: c.color }} />
-                  {c.name} ({c.value})
+        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+          {[
+            { icon: Layers, label: 'Total Rules', value: stats.total, className: 'text-violet-200 bg-violet-400/10 ring-violet-300/20' },
+            { icon: Percent, label: 'Avg Confidence', value: stats.avgConf, className: 'text-emerald-200 bg-emerald-400/10 ring-emerald-300/20' },
+            { icon: Target, label: 'Avg Support', value: stats.avgSupp, className: 'text-teal-200 bg-teal-400/10 ring-teal-300/20' },
+            { icon: TrendingUp, label: 'Avg Lift', value: stats.avgLift, className: 'text-amber-200 bg-amber-400/10 ring-amber-300/20' },
+            { icon: Zap, label: 'Max Lift', value: stats.maxLift, className: 'text-rose-200 bg-rose-400/10 ring-rose-300/20' },
+          ].map(({ icon: Icon, label, value, className }) => (
+            <article key={label} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 shadow-xl shadow-black/10">
+              <div className="flex items-center gap-3">
+                <div className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl ring-1 ${className}`}>
+                  <Icon className="h-5 w-5" />
                 </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-slate-400">{label}</p>
+                  <p className="mt-1 text-2xl font-bold leading-tight text-white">{value}</p>
+                </div>
+              </div>
+            </article>
+          ))}
+        </section>
+
+        <SectionCard className="p-4">
+          <div className="grid gap-3 xl:grid-cols-[minmax(240px,1fr)_auto_auto] xl:items-center">
+            <label className="flex min-w-0 items-center gap-2 rounded-xl border border-white/10 bg-slate-950/50 px-3 py-2.5">
+              <Search className="h-4 w-4 shrink-0 text-slate-500" />
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Cari antecedent, consequent, atau kategori..."
+                className="min-w-0 flex-1 bg-transparent text-sm text-slate-100 outline-none placeholder:text-slate-600"
+              />
+            </label>
+
+            <div className="flex min-w-0 items-center gap-2 overflow-x-auto rounded-xl border border-white/10 bg-slate-950/50 p-1.5 [scrollbar-width:none]">
+              <Filter className="ml-2 h-4 w-4 shrink-0 text-slate-500" />
+              {categories.map((category) => (
+                <button
+                  key={category}
+                  type="button"
+                  onClick={() => setCatFilter(category)}
+                  className={`h-8 shrink-0 rounded-lg px-3 text-xs font-semibold transition ${
+                    catFilter === category
+                      ? 'bg-teal-400/15 text-teal-100'
+                      : 'text-slate-500 hover:bg-white/5 hover:text-slate-300'
+                  }`}
+                >
+                  {category === 'all' ? 'Semua' : category}
+                </button>
               ))}
             </div>
-          </div>
 
-          {/* Top Rules by Lift */}
-          <div style={{ ...card, flex: 1 }}>
-            <h3 style={{ ...sectionTitle, margin: 0, fontSize: 14 }}>Top Rules by Lift</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {rulesData.sort((a, b) => b.lift - a.lift).slice(0, 5).map((rule, i) => (
-                <div key={rule.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', background: '#0f1117', borderRadius: 8, border: '1px solid #1e2130' }}>
-                  <span style={{ width: 20, height: 20, borderRadius: '50%', background: 'linear-gradient(135deg, #6c63ff, #3ecfcf)', color: '#fff', fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    {i + 1}
-                  </span>
-                  <div style={{ flex: 1, overflow: 'hidden' }}>
-                    <div style={{ fontSize: 11, color: '#c0c9e0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {rule.antecedent.substring(0, 40)}...
+            <div className="rounded-xl border border-white/10 bg-slate-950/50 px-3 py-2 text-xs font-semibold text-slate-400">
+              {filtered.length} rules ditemukan
+            </div>
+          </div>
+        </SectionCard>
+
+        <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
+          <SectionCard className="min-w-0 p-4 sm:p-5">
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-base font-semibold text-white">Daftar Aturan Asosiasi</h2>
+                <p className="mt-1 text-xs text-slate-500">Urutkan berdasarkan confidence, support, atau lift.</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { key: 'confidence' as const, label: 'Confidence' },
+                  { key: 'support' as const, label: 'Support' },
+                  { key: 'lift' as const, label: 'Lift' },
+                ].map((item) => (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() => toggleSort(item.key)}
+                    className={`inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-xs font-semibold transition ${
+                      sortKey === item.key
+                        ? 'border-violet-300/30 bg-violet-400/10 text-violet-100'
+                        : 'border-white/10 bg-slate-950/50 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    {item.label}
+                    {sortKey === item.key && <span>{sortDir === 'desc' ? 'Down' : 'Up'}</span>}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="overflow-x-auto rounded-xl border border-white/10">
+              <table className="w-full min-w-[980px] table-fixed text-sm">
+                <thead className="bg-slate-950/65">
+                  <tr className="border-b border-white/10 text-left text-xs font-semibold uppercase tracking-normal text-slate-500">
+                    <th className="w-12 px-4 py-3">#</th>
+                    <th className="w-[300px] px-4 py-3">Antecedent</th>
+                    <th className="w-[260px] px-4 py-3">Consequent</th>
+                    <th className="w-28 px-4 py-3 text-center">Conf</th>
+                    <th className="w-24 px-4 py-3 text-center">Supp</th>
+                    <th className="w-24 px-4 py-3 text-center">Lift</th>
+                    <th className="w-28 px-4 py-3 text-center">Impact</th>
+                    <th className="w-28 px-4 py-3 text-center">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/10">
+                  {filtered.map((rule, index) => (
+                    <tr key={rule.id} className="transition hover:bg-white/[0.03]">
+                      <td className="px-4 py-4 text-xs font-semibold text-slate-600">{index + 1}</td>
+                      <td className="px-4 py-4">
+                        <div className="truncate rounded-lg border border-violet-300/15 bg-violet-400/10 px-3 py-2 text-xs font-medium text-violet-100" title={rule.antecedent}>
+                          {rule.antecedent}
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <ArrowRight className="h-4 w-4 shrink-0 text-teal-300" />
+                          <div className="truncate rounded-lg border border-teal-300/15 bg-teal-400/10 px-3 py-2 text-xs font-medium text-teal-100" title={rule.consequent}>
+                            {rule.consequent}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4 text-center">
+                        <div className="mx-auto w-20">
+                          <p className="text-sm font-bold text-emerald-200">{pct(rule.confidence)}</p>
+                          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-800">
+                            <div className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-teal-300" style={{ width: `${rule.confidence * 100}%` }} />
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4 text-center font-semibold text-slate-300">{pct(rule.support)}</td>
+                      <td className="px-4 py-4 text-center">
+                        <span className={`font-bold ${rule.lift >= 2.5 ? 'text-emerald-200' : rule.lift >= 2 ? 'text-amber-200' : 'text-slate-300'}`}>
+                          {rule.lift.toFixed(2)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4 text-center">
+                        <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${impactMeta[rule.impact].className}`}>
+                          <span className={`h-1.5 w-1.5 rounded-full ${impactMeta[rule.impact].dot}`} />
+                          {impactMeta[rule.impact].label}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4 text-center">
+                        <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${statusMeta[rule.status].className}`}>
+                          {statusMeta[rule.status].label}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </SectionCard>
+
+          <div className="grid gap-5">
+            <SectionCard className="p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="text-base font-semibold text-white">Distribusi Kategori</h2>
+                <BarChart3 className="h-4 w-4 text-teal-200" />
+              </div>
+              <div className="min-w-0">
+                <ChartShell height={208}>
+                  <PieChart>
+                    <Pie data={categoryDist} cx="50%" cy="50%" innerRadius={48} outerRadius={78} paddingAngle={3} dataKey="value">
+                      {categoryDist.map((entry) => (
+                        <Cell key={entry.name} fill={entry.color} stroke="transparent" />
+                      ))}
+                    </Pie>
+                    <Tooltip contentStyle={chartTooltipStyle} />
+                  </PieChart>
+                </ChartShell>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {categoryDist.map((item) => (
+                  <div key={item.name} className="flex min-w-0 items-center gap-2 rounded-lg bg-slate-950/45 px-2.5 py-2 text-xs text-slate-400">
+                    <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ backgroundColor: item.color }} />
+                    <span className="truncate">{item.name}</span>
+                    <span className="ml-auto font-semibold text-slate-200">{item.value}</span>
+                  </div>
+                ))}
+              </div>
+            </SectionCard>
+
+            <SectionCard className="p-4">
+              <h2 className="text-base font-semibold text-white">Top Rules by Lift</h2>
+              <div className="mt-4 space-y-3">
+                {topRules.map((rule, index) => (
+                  <div key={rule.id} className="flex gap-3 rounded-xl border border-white/10 bg-slate-950/45 p-3">
+                    <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-violet-500 text-xs font-bold text-white">
+                      {index + 1}
                     </div>
-                    <div style={{ fontSize: 10, color: '#8890a4', display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
-                      <span style={{ color: '#3ecfcf' }}>→ {rule.consequent}</span>
-                      <span style={{ color: '#6c63ff', fontWeight: 600 }}>Lift: {rule.lift.toFixed(2)}</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-slate-200" title={rule.antecedent}>{rule.antecedent}</p>
+                      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                        <span className="truncate text-teal-200">to {rule.consequent}</span>
+                        <span className="rounded-full bg-violet-400/10 px-2 py-0.5 font-semibold text-violet-200">Lift {rule.lift.toFixed(2)}</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Rule Confidence Distribution */}
-          <div style={card}>
-            <h3 style={{ ...sectionTitle, margin: 0, fontSize: 14 }}>Confidence Distribution</h3>
-            <ResponsiveContainer width="100%" height={130} minWidth={1} minHeight={1}>
-              <BarChart data={[
-                { range: '70-80%', count: rulesData.filter(r => r.confidence >= 0.7 && r.confidence < 0.8).length },
-                { range: '80-85%', count: rulesData.filter(r => r.confidence >= 0.8 && r.confidence < 0.85).length },
-                { range: '85-90%', count: rulesData.filter(r => r.confidence >= 0.85 && r.confidence < 0.9).length },
-                { range: '90%+', count: rulesData.filter(r => r.confidence >= 0.9).length },
-              ]} margin={{ top: 5, right: 5, bottom: 5, left: -20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e2130" />
-                <XAxis dataKey="range" tick={{ fill: '#8890a4', fontSize: 10 }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fill: '#8890a4', fontSize: 10 }} axisLine={false} tickLine={false} />
-                <Bar dataKey="count" radius={[4, 4, 0, 0]} fill="#6c63ff" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      </div>
-
-      {/* Bottom Row: Scatter + Importance Chart */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-        {/* Support vs Confidence Scatter */}
-        <div style={card}>
-          <h3 style={{ ...sectionTitle, margin: 0, fontSize: 14 }}>Support vs Confidence (bubble: Lift)</h3>
-          <ResponsiveContainer width="100%" height={280} minWidth={1} minHeight={1}>
-            <ScatterChart margin={{ top: 10, right: 10, bottom: 20, left: -10 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1e2130" />
-              <XAxis dataKey="x" type="number" name="Support" unit="%" domain={[0.2, 0.5]} tick={{ fill: '#8890a4', fontSize: 10 }} axisLine={false} tickLine={false} />
-              <YAxis dataKey="y" type="number" name="Confidence" unit="%" domain={[0.7, 1]} tick={{ fill: '#8890a4', fontSize: 10 }} axisLine={false} tickLine={false} />
-              <ZAxis dataKey="z" range={[60, 400]} />
-              <Tooltip
-                contentStyle={{ background: '#1a1e2e', border: '1px solid #2a2e42', borderRadius: 8, fontSize: 11, color: '#e2e8f0' }}
-                formatter={(value: any, name: string) => [name === 'z' ? value.toFixed(2) : (value * 100).toFixed(0) + '%', name === 'x' ? 'Support' : name === 'y' ? 'Confidence' : 'Lift']}
-              />
-              <Scatter data={scatterRuleData} fill="#6c63ff" opacity={0.7}>
-                {scatterRuleData.map((_, i) => (
-                  <Cell key={i} fill={rulesData[i].lift >= 2.5 ? '#22c55e' : rulesData[i].lift >= 2 ? '#f59e0b' : '#6c63ff'} />
                 ))}
-              </Scatter>
-            </ScatterChart>
-          </ResponsiveContainer>
-          <div style={{ display: 'flex', gap: 16, justifyContent: 'center', marginTop: 4 }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#8890a4' }}>
-              <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#22c55e' }} /> Lift &ge; 2.5
-            </span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#8890a4' }}>
-              <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#f59e0b' }} /> Lift &ge; 2.0
-            </span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#8890a4' }}>
-              <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#6c63ff' }} /> Lift &lt; 2.0
+              </div>
+            </SectionCard>
+
+            <SectionCard className="p-4">
+              <h2 className="text-base font-semibold text-white">Confidence Distribution</h2>
+              <div className="mt-3 min-w-0">
+                <ChartShell height={176}>
+                  <BarChart data={confidenceDistribution} margin={{ top: 8, right: 8, bottom: 0, left: -20 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.12)" />
+                    <XAxis dataKey="range" tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                    <Tooltip contentStyle={chartTooltipStyle} />
+                    <Bar dataKey="count" radius={[6, 6, 0, 0]} fill="#8b5cf6" />
+                  </BarChart>
+                </ChartShell>
+              </div>
+            </SectionCard>
+          </div>
+        </section>
+
+        <section className="grid gap-5 xl:grid-cols-2">
+          <SectionCard className="min-w-0 p-4 sm:p-5">
+            <h2 className="text-base font-semibold text-white">Support vs Confidence</h2>
+            <p className="mt-1 text-xs text-slate-500">Ukuran bubble menunjukkan nilai lift dari tiap rule.</p>
+            <div className="mt-4 min-w-0">
+              <ChartShell height={320}>
+                <ScatterChart margin={{ top: 12, right: 14, bottom: 20, left: -8 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.12)" />
+                  <XAxis dataKey="x" type="number" name="Support" domain={[0.2, 0.5]} tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(value) => pct(Number(value))} />
+                  <YAxis dataKey="y" type="number" name="Confidence" domain={[0.7, 1]} tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(value) => pct(Number(value))} />
+                  <ZAxis dataKey="z" range={[60, 420]} />
+                  <Tooltip
+                    contentStyle={chartTooltipStyle}
+                    formatter={(value: any, name: string) => [
+                      name === 'z' ? Number(value / 32).toFixed(2) : pct(Number(value)),
+                      name === 'x' ? 'Support' : name === 'y' ? 'Confidence' : 'Lift',
+                    ]}
+                  />
+                  <Scatter data={scatterRuleData} fill="#8b5cf6" opacity={0.78}>
+                    {scatterRuleData.map((item, index) => (
+                      <Cell key={index} fill={item.lift >= 2.5 ? '#34d399' : item.lift >= 2 ? '#fbbf24' : '#8b5cf6'} />
+                    ))}
+                  </Scatter>
+                </ScatterChart>
+              </ChartShell>
+            </div>
+            <div className="flex flex-wrap justify-center gap-3 text-xs text-slate-400">
+              <span className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-emerald-300" />Lift &gt;= 2.5</span>
+              <span className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-amber-300" />Lift &gt;= 2.0</span>
+              <span className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-violet-400" />Lift &lt; 2.0</span>
+            </div>
+          </SectionCard>
+
+          <SectionCard className="min-w-0 p-4 sm:p-5">
+            <h2 className="text-base font-semibold text-white">Rule Importance</h2>
+            <p className="mt-1 text-xs text-slate-500">Perbandingan lift dan confidence pada rule teratas.</p>
+            <div className="mt-4 min-w-0">
+              <ChartShell height={320}>
+                <BarChart data={importanceData} layout="vertical" margin={{ top: 8, right: 24, bottom: 8, left: 4 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.12)" />
+                  <XAxis type="number" domain={[0, 3.5]} tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis dataKey="name" type="category" width={170} tick={{ fill: '#cbd5e1', fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <Tooltip contentStyle={chartTooltipStyle} />
+                  <Legend wrapperStyle={{ color: '#94a3b8', fontSize: 12 }} />
+                  <Bar dataKey="lift" fill="#8b5cf6" radius={[0, 6, 6, 0]} name="Lift" />
+                  <Bar dataKey="confidence" fill="#2dd4bf" radius={[0, 6, 6, 0]} name="Confidence" />
+                </BarChart>
+              </ChartShell>
+            </div>
+          </SectionCard>
+        </section>
+
+        <SectionCard className="p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-emerald-400/10 text-emerald-200">
+                <CheckCircle2 className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="text-sm font-semibold text-white">Insight Operasional</h2>
+                <p className="mt-1 text-xs leading-5 text-slate-400">
+                  Rules dengan lift tinggi dan confidence tinggi bisa diprioritaskan untuk rekomendasi intervensi, segmentasi responden, dan evaluasi indikator asesmen.
+                </p>
+              </div>
+            </div>
+            <span className="rounded-full border border-teal-300/20 bg-teal-400/10 px-3 py-1 text-xs font-semibold text-teal-100">
+              {topRules.length} rules prioritas
             </span>
           </div>
-        </div>
-
-        {/* Rule Importance Ranking */}
-        <div style={card}>
-          <h3 style={{ ...sectionTitle, margin: 0, fontSize: 14 }}>Rule Importance (Lift & Confidence)</h3>
-          <ResponsiveContainer width="100%" height={280} minWidth={1} minHeight={1}>
-            <BarChart data={importanceData} layout="vertical" margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1e2130" />
-              <XAxis type="number" domain={[0, 3.5]} tick={{ fill: '#8890a4', fontSize: 10 }} axisLine={false} tickLine={false} />
-              <YAxis dataKey="name" type="category" width={160} tick={{ fill: '#c0c9e0', fontSize: 10 }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={{ background: '#1a1e2e', border: '1px solid #2a2e42', borderRadius: 8, fontSize: 11, color: '#e2e8f0' }} />
-              <Legend wrapperStyle={{ fontSize: 10 }} />
-              <Bar dataKey="lift" fill="#6c63ff" radius={[0, 4, 4, 0]} name="Lift" />
-              <Bar dataKey="confidence" fill="#3ecfcf" radius={[0, 4, 4, 0]} name="Confidence" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+        </SectionCard>
       </div>
-    </div>
+    </main>
   );
 }

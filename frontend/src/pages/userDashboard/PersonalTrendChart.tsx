@@ -1,6 +1,15 @@
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
-import { card, sectionTitle, tooltipStyle } from '../dashboard/styles';
-import type { Prediction, Assessment } from './UserStatCards';
+import { BarChart3 } from 'lucide-react';
+import {
+  CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
+import type { Assessment, Prediction } from './UserStatCards';
 
 interface PersonalTrendChartProps {
   predictions: Prediction[];
@@ -9,107 +18,111 @@ interface PersonalTrendChartProps {
 }
 
 function formatDate(timestamp: string): string {
-  const d = new Date(timestamp);
-  return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
+  return new Date(timestamp).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
 }
 
+const tooltipStyle = {
+  background: '#0f172a',
+  border: '1px solid rgba(148, 163, 184, 0.22)',
+  borderRadius: 12,
+  color: '#e2e8f0',
+  boxShadow: '0 18px 50px rgba(0, 0, 0, 0.35)',
+};
+
 export default function PersonalTrendChart({ predictions, assessments, loading }: PersonalTrendChartProps) {
-  // Build chart data: map predictions chronologically (oldest first)
-  // Stress = burnout score normalized 0-100, Energi = 100 - psychosomatic_score
   const predData = [...predictions]
     .sort((a, b) => new Date(a.Timestamp).getTime() - new Date(b.Timestamp).getTime())
-    .slice(-10) // last 10 entries
-    .map(p => ({
-      date: formatDate(p.Timestamp),
-      burnout: Number(p.BurnoutScore.toFixed(1)),
-      psikosomatik: Number(p.PsychosomaticScore.toFixed(1)),
+    .slice(-12)
+    .map((prediction) => ({
+      date: formatDate(prediction.Timestamp),
+      burnout: Number(prediction.BurnoutScore.toFixed(1)),
+      psikosomatik: Number(prediction.PsychosomaticScore.toFixed(1)),
     }));
 
   const asmtData = [...assessments]
     .sort((a, b) => new Date(a.Timestamp).getTime() - new Date(b.Timestamp).getTime())
-    .slice(-10)
-    .map(a => ({
-      date: formatDate(a.Timestamp),
-      efisiensi: Number(a.EfficacyScore.toFixed(1)),
-      kelelahan: Number(a.FatigueScore.toFixed(1)),
+    .slice(-12)
+    .map((assessment) => ({
+      date: formatDate(assessment.Timestamp),
+      efikasi: Number(assessment.EfficacyScore.toFixed(1)),
+      kelelahan: Number(assessment.FatigueScore.toFixed(1)),
+      gangguan: Number(assessment.InterferenceScore.toFixed(1)),
     }));
 
   const hasData = predData.length > 0;
 
   return (
-    <div style={card}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <div style={sectionTitle}>Tren Psikologis Personal</div>
+    <section className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] p-4 shadow-xl shadow-black/10 sm:p-5">
+      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-base font-semibold text-white">Tren Psikologis Personal</h2>
+          <p className="mt-1 text-xs text-slate-400">Pantauan burnout, psikosomatik, dan asesmen terbaru.</p>
+        </div>
         {hasData && (
-          <div style={{ fontSize: 10, color: '#8890a4' }}>
+          <span className="inline-flex w-fit items-center rounded-full border border-white/10 bg-slate-950/50 px-3 py-1 text-xs font-medium text-slate-300">
             {predData.length} sesi terakhir
-          </div>
+          </span>
         )}
       </div>
 
       {loading ? (
-        <div style={{ height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8890a4', fontSize: 13 }}>
-          Memuat data...
+        <div className="grid min-h-72 place-items-center rounded-xl border border-white/10 bg-slate-950/40">
+          <div className="h-8 w-44 animate-pulse rounded-lg bg-slate-700/40" />
         </div>
       ) : !hasData ? (
-        <div style={{
-          height: 220, display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'center', gap: 8,
-          color: '#8890a4', fontSize: 13,
-        }}>
-          <span style={{ fontSize: 28 }}>📋</span>
-          <span>Belum ada data tren</span>
-          <span style={{ fontSize: 11 }}>Isi kuisioner harian untuk melihat grafik perkembanganmu</span>
+        <div className="grid min-h-72 place-items-center rounded-xl border border-dashed border-white/10 bg-slate-950/30 px-5 text-center">
+          <div>
+            <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-xl bg-teal-300/10 text-teal-200">
+              <BarChart3 className="h-6 w-6" />
+            </div>
+            <p className="text-sm font-semibold text-slate-200">Belum ada data tren</p>
+            <p className="mt-1 text-xs leading-5 text-slate-500">Isi kuisioner harian untuk melihat grafik perkembanganmu.</p>
+          </div>
         </div>
       ) : (
-        <>
-          {/* Burnout & Psychosomatic Trend */}
-          <div style={{ marginBottom: 8, fontSize: 11, color: '#8890a4' }}>Skor Burnout & Psikosomatik</div>
-          <ResponsiveContainer width="100%" height={180} minWidth={1} minHeight={1}>
-            <LineChart data={predData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1e2130" />
-              <XAxis dataKey="date" tick={{ fill: '#8890a4', fontSize: 9 }} />
-              <YAxis tick={{ fill: '#8890a4', fontSize: 9 }} domain={[0, 10]} />
-              <Tooltip contentStyle={tooltipStyle} />
-              <Legend iconSize={8} wrapperStyle={{ fontSize: 11, color: '#8890a4' }} />
-              <Line
-                type="monotone" dataKey="burnout" name="Burnout"
-                stroke="#ef4444" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }}
-              />
-              <Line
-                type="monotone" dataKey="psikosomatik" name="Psikosomatik"
-                stroke="#f59e0b" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-
-          {/* Efficacy & Fatigue Trend (only if assessment data available) */}
-          {asmtData.length > 0 && (
-            <>
-              <div style={{ marginTop: 16, marginBottom: 8, fontSize: 11, color: '#8890a4' }}>
-                Efikasi & Kelelahan (dari Kuisioner)
-              </div>
-              <ResponsiveContainer width="100%" height={160} minWidth={1} minHeight={1}>
-                <LineChart data={asmtData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1e2130" />
-                  <XAxis dataKey="date" tick={{ fill: '#8890a4', fontSize: 9 }} />
-                  <YAxis tick={{ fill: '#8890a4', fontSize: 9 }} domain={[0, 10]} />
+        <div className="grid gap-5">
+          <div className="min-w-0 rounded-xl border border-white/10 bg-slate-950/35 p-3">
+            <div className="mb-3 text-xs font-semibold uppercase tracking-normal text-slate-400">
+              Skor Burnout dan Psikosomatik
+            </div>
+            <div className="h-72 min-h-72 min-w-0">
+              <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
+                <LineChart data={predData} margin={{ top: 8, right: 12, left: -18, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.12)" />
+                  <XAxis dataKey="date" tick={{ fill: '#94a3b8', fontSize: 11 }} tickLine={false} axisLine={false} />
+                  <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} tickLine={false} axisLine={false} domain={[0, 100]} />
                   <Tooltip contentStyle={tooltipStyle} />
-                  <Legend iconSize={8} wrapperStyle={{ fontSize: 11, color: '#8890a4' }} />
-                  <Line
-                    type="monotone" dataKey="eficiensi" name="Efikasi"
-                    stroke="#22c55e" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }}
-                  />
-                  <Line
-                    type="monotone" dataKey="kelelahan" name="Kelelahan"
-                    stroke="#3ecfcf" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }}
-                  />
+                  <Legend iconSize={9} wrapperStyle={{ color: '#94a3b8', fontSize: 12 }} />
+                  <Line type="monotone" dataKey="burnout" name="Burnout" stroke="#fb7185" strokeWidth={2.4} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                  <Line type="monotone" dataKey="psikosomatik" name="Psikosomatik" stroke="#fbbf24" strokeWidth={2.4} dot={{ r: 3 }} activeDot={{ r: 5 }} />
                 </LineChart>
               </ResponsiveContainer>
-            </>
+            </div>
+          </div>
+
+          {asmtData.length > 0 && (
+            <div className="min-w-0 rounded-xl border border-white/10 bg-slate-950/35 p-3">
+              <div className="mb-3 text-xs font-semibold uppercase tracking-normal text-slate-400">
+                Asesmen Kuisioner
+              </div>
+              <div className="h-64 min-h-64 min-w-0">
+                <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
+                  <LineChart data={asmtData} margin={{ top: 8, right: 12, left: -18, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.12)" />
+                    <XAxis dataKey="date" tick={{ fill: '#94a3b8', fontSize: 11 }} tickLine={false} axisLine={false} />
+                    <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} tickLine={false} axisLine={false} domain={[0, 'dataMax + 1']} />
+                    <Tooltip contentStyle={tooltipStyle} />
+                    <Legend iconSize={9} wrapperStyle={{ color: '#94a3b8', fontSize: 12 }} />
+                    <Line type="monotone" dataKey="efikasi" name="Efikasi" stroke="#34d399" strokeWidth={2.4} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                    <Line type="monotone" dataKey="kelelahan" name="Kelelahan" stroke="#38bdf8" strokeWidth={2.4} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                    <Line type="monotone" dataKey="gangguan" name="Gangguan" stroke="#a78bfa" strokeWidth={2.4} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
           )}
-        </>
+        </div>
       )}
-    </div>
+    </section>
   );
 }

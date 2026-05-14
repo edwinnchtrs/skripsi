@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { type ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
@@ -22,6 +22,8 @@ import {
   Shuffle,
   Sparkles,
   TrendingUp,
+  Trash2,
+  UploadCloud,
   User,
   Users,
   Volume2,
@@ -73,15 +75,20 @@ type MusicTrack = {
   title: string;
   artist: string;
   mood: string;
-  bpm: number;
+  bpm?: number;
   color: string;
-  notes: number[];
+  notes?: number[];
   description: string;
+  source: 'synth' | 'file';
+  fileUrl?: string;
+  fileName?: string;
+  size?: number;
 };
 
 const musicTracks: MusicTrack[] = [
   {
     id: 'calm-focus',
+    source: 'synth',
     title: 'Calm Focus',
     artist: 'Nexus Ambient',
     mood: 'Fokus',
@@ -92,6 +99,7 @@ const musicTracks: MusicTrack[] = [
   },
   {
     id: 'soft-recovery',
+    source: 'synth',
     title: 'Soft Recovery',
     artist: 'Mindful Loop',
     mood: 'Pemulihan',
@@ -102,6 +110,7 @@ const musicTracks: MusicTrack[] = [
   },
   {
     id: 'night-reset',
+    source: 'synth',
     title: 'Night Reset',
     artist: 'Quiet Room',
     mood: 'Relaks',
@@ -112,6 +121,7 @@ const musicTracks: MusicTrack[] = [
   },
   {
     id: 'bright-walk',
+    source: 'synth',
     title: 'Bright Walk',
     artist: 'Small Steps',
     mood: 'Semangat',
@@ -136,6 +146,11 @@ function avatarInitial(name: string) {
   return (name || '?').charAt(0).toUpperCase();
 }
 
+function formatFileSize(bytes = 0) {
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
 export default function UserNetwork() {
   const navigate = useNavigate();
   const [feed, setFeed] = useState<FeedPost[]>([]);
@@ -155,14 +170,19 @@ export default function UserNetwork() {
   const [allComments, setAllComments] = useState<CommentItem[]>([]);
   const [commentLoading, setCommentLoading] = useState(false);
 
+  const [customTracks, setCustomTracks] = useState<MusicTrack[]>([]);
   const [activeTrackId, setActiveTrackId] = useState(musicTracks[0].id);
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(0.35);
+  const [musicError, setMusicError] = useState('');
   const audioContextRef = useRef<AudioContext | null>(null);
   const gainRef = useRef<GainNode | null>(null);
   const timerRef = useRef<number | null>(null);
+  const fileAudioRef = useRef<HTMLAudioElement | null>(null);
+  const uploadedUrlsRef = useRef<string[]>([]);
 
-  const activeTrack = musicTracks.find((track) => track.id === activeTrackId) || musicTracks[0];
+  const allMusicTracks = useMemo(() => [...customTracks, ...musicTracks], [customTracks]);
+  const activeTrack = allMusicTracks.find((track) => track.id === activeTrackId) || allMusicTracks[0];
 
   useEffect(() => {
     Promise.all([api.get('/user/profile'), api.get('/feed'), api.get('/network/users')])
@@ -184,10 +204,16 @@ export default function UserNetwork() {
     if (gainRef.current) {
       gainRef.current.gain.setTargetAtTime(volume, audioContextRef.current?.currentTime || 0, 0.02);
     }
+    if (fileAudioRef.current) {
+      fileAudioRef.current.volume = volume;
+    }
   }, [volume]);
 
   useEffect(() => {
-    return () => stopTrack();
+    return () => {
+      stopTrack();
+      uploadedUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+    };
   }, []);
 
   const filteredUsers = useMemo(() => {
@@ -309,11 +335,37 @@ export default function UserNetwork() {
       window.clearInterval(timerRef.current);
       timerRef.current = null;
     }
+    if (fileAudioRef.current) {
+      fileAudioRef.current.pause();
+    }
     setIsPlaying(false);
   };
 
   const startTrack = async (track = activeTrack) => {
     stopTrack();
+
+    if (track.source === 'file') {
+      if (!track.fileUrl) return;
+      setMusicError('');
+
+      try {
+        const audio = fileAudioRef.current || new Audio();
+        fileAudioRef.current = audio;
+        if (audio.src !== track.fileUrl) {
+          audio.src = track.fileUrl;
+          audio.currentTime = 0;
+        }
+        audio.loop = true;
+        audio.volume = volume;
+        await audio.play();
+        setIsPlaying(true);
+      } catch {
+        setMusicError('File musik belum bisa diputar oleh browser. Coba file MP3, WAV, atau OGG lain.');
+      }
+      return;
+    }
+
+    if (!track.notes?.length || !track.bpm) return;
     const context = ensureAudioContext();
     if (context.state === 'suspended') await context.resume();
 
@@ -335,9 +387,53 @@ export default function UserNetwork() {
   };
 
   const nextTrack = () => {
-    const currentIndex = musicTracks.findIndex((track) => track.id === activeTrack.id);
-    const next = musicTracks[(currentIndex + 1) % musicTracks.length];
+    const currentIndex = allMusicTracks.findIndex((track) => track.id === activeTrack.id);
+    const next = allMusicTracks[(currentIndex + 1) % allMusicTracks.length];
     selectTrack(next);
+  };
+
+  const handleMusicUpload = (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []).filter((file) => file.type.startsWith('audio/'));
+    if (!files.length) {
+      setMusicError('Pilih file audio seperti MP3, WAV, M4A, atau OGG.');
+      event.target.value = '';
+      return;
+    }
+
+    setMusicError('');
+    const newTracks = files.map((file, index) => {
+      const url = URL.createObjectURL(file);
+      uploadedUrlsRef.current.push(url);
+      return {
+        id: `local-${Date.now()}-${index}`,
+        source: 'file' as const,
+        title: file.name.replace(/\.[^/.]+$/, ''),
+        artist: 'File lokal',
+        mood: 'Upload sendiri',
+        color: '#22d3ee',
+        description: `${file.name} · ${formatFileSize(file.size)}`,
+        fileUrl: url,
+        fileName: file.name,
+        size: file.size,
+      };
+    });
+
+    setCustomTracks((prev) => [...newTracks, ...prev]);
+    setActiveTrackId(newTracks[0].id);
+    event.target.value = '';
+  };
+
+  const removeCustomTrack = (track: MusicTrack) => {
+    if (track.source !== 'file') return;
+    if (track.id === activeTrack.id) {
+      stopTrack();
+      setActiveTrackId(musicTracks[0].id);
+    }
+    if (track.fileUrl) {
+      URL.revokeObjectURL(track.fileUrl);
+      uploadedUrlsRef.current = uploadedUrlsRef.current.filter((url) => url !== track.fileUrl);
+    }
+    setCustomTracks((prev) => prev.filter((item) => item.id !== track.id));
   };
 
   if (loading) {
@@ -633,7 +729,7 @@ export default function UserNetwork() {
 
             {activeTab === 'music' && (
               <div className="grid gap-4 md:grid-cols-2">
-                {musicTracks.map((track) => (
+                {allMusicTracks.map((track) => (
                   <button
                     key={track.id}
                     onClick={() => selectTrack(track)}
@@ -645,7 +741,9 @@ export default function UserNetwork() {
                       <div className="flex h-12 w-12 items-center justify-center rounded-xl" style={{ backgroundColor: `${track.color}22` }}>
                         <Music2 className="h-6 w-6" style={{ color: track.color }} />
                       </div>
-                      <span className="rounded-full border border-slate-700 px-2.5 py-1 text-xs font-semibold text-slate-400">{track.bpm} BPM</span>
+                      <span className="rounded-full border border-slate-700 px-2.5 py-1 text-xs font-semibold text-slate-400">
+                        {track.source === 'file' ? formatFileSize(track.size) : `${track.bpm} BPM`}
+                      </span>
                     </div>
                     <h2 className="text-lg font-semibold tracking-normal text-white">{track.title}</h2>
                     <p className="mt-1 text-sm text-slate-500">{track.artist} · {track.mood}</p>
@@ -678,10 +776,27 @@ export default function UserNetwork() {
               <div className="mb-4 flex items-center justify-between">
                 <div>
                   <h2 className="text-base font-semibold tracking-normal text-white">Pemutar musik</h2>
-                  <p className="text-xs text-slate-500">Synth loop lokal</p>
+                  <p className="text-xs text-slate-500">Synth loop dan file musik sendiri</p>
                 </div>
                 <Headphones className="h-5 w-5 text-cyan-300" />
               </div>
+
+              <label className="mb-4 flex cursor-pointer items-center gap-3 rounded-xl border border-dashed border-cyan-400/30 bg-cyan-500/10 px-4 py-3 text-left transition hover:bg-cyan-500/15">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-cyan-400/15 text-cyan-200">
+                  <UploadCloud className="h-5 w-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-cyan-100">Upload file musik</p>
+                  <p className="truncate text-xs text-slate-500">MP3, WAV, M4A, OGG. Diputar lokal di browser.</p>
+                </div>
+                <input type="file" accept="audio/*" multiple onChange={handleMusicUpload} className="hidden" />
+              </label>
+
+              {musicError && (
+                <div className="mb-4 rounded-lg border border-rose-400/25 bg-rose-500/10 px-3 py-2 text-xs leading-5 text-rose-100">
+                  {musicError}
+                </div>
+              )}
 
               <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
                 <div className="mb-4 flex h-20 items-end gap-1">
@@ -700,6 +815,9 @@ export default function UserNetwork() {
                 </div>
 
                 <h3 className="text-lg font-semibold text-white">{activeTrack.title}</h3>
+                {activeTrack.source === 'file' && (
+                  <p className="mt-1 truncate text-xs text-cyan-200">{activeTrack.fileName}</p>
+                )}
                 <p className="text-sm text-slate-500">{activeTrack.artist} · {activeTrack.mood}</p>
 
                 <div className="mt-5 flex items-center gap-3">
@@ -732,21 +850,33 @@ export default function UserNetwork() {
               </div>
 
               <div className="mt-4 space-y-2">
-                {musicTracks.map((track) => (
-                  <button
+                {allMusicTracks.map((track) => (
+                  <div
                     key={track.id}
-                    onClick={() => selectTrack(track)}
-                    className={`flex w-full items-center gap-3 rounded-lg border px-3 py-2 text-left transition ${
+                    className={`flex w-full items-center gap-2 rounded-lg border px-3 py-2 transition ${
                       activeTrack.id === track.id ? 'border-cyan-400/30 bg-cyan-500/10' : 'border-slate-800 bg-slate-950/60 hover:border-slate-700'
                     }`}
                   >
-                    <span className="h-3 w-3 rounded-full" style={{ backgroundColor: track.color }} />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-slate-200">{track.title}</p>
-                      <p className="truncate text-xs text-slate-500">{track.mood}</p>
-                    </div>
-                    {activeTrack.id === track.id && <CheckCircle2 className="h-4 w-4 text-cyan-300" />}
-                  </button>
+                    <button onClick={() => selectTrack(track)} className="flex min-w-0 flex-1 items-center gap-3 text-left">
+                      <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: track.color }} />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-slate-200">{track.title}</p>
+                        <p className="truncate text-xs text-slate-500">
+                          {track.source === 'file' ? `File lokal - ${formatFileSize(track.size)}` : track.mood}
+                        </p>
+                      </div>
+                      {activeTrack.id === track.id && <CheckCircle2 className="h-4 w-4 shrink-0 text-cyan-300" />}
+                    </button>
+                    {track.source === 'file' && (
+                      <button
+                        onClick={() => removeCustomTrack(track)}
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 transition hover:bg-rose-500/10 hover:text-rose-300"
+                        title="Hapus file musik"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
                 ))}
               </div>
             </section>

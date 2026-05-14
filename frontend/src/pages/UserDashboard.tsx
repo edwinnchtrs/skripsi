@@ -1,140 +1,125 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { AlertCircle, Bell, RefreshCcw, X } from 'lucide-react';
 import UserDashboardHeader from './userDashboard/UserDashboardHeader';
-import UserStatCards, { type Prediction, type Assessment } from './userDashboard/UserStatCards';
+import UserStatCards, { type Assessment, type Prediction } from './userDashboard/UserStatCards';
 import PersonalTrendChart from './userDashboard/PersonalTrendChart';
 import DailyQuestionnaire from './userDashboard/DailyQuestionnaire';
 import AnonymousVentingFeed from './userDashboard/AnonymousVentingFeed';
-import { Bell } from 'lucide-react';
 import api from '../api';
 
-const page: React.CSSProperties = {
-  padding: '22px 24px',
-  background: '#0b0d14',
-  minHeight: '100vh',
-  color: '#e2e8f0',
-  fontFamily: 'Inter, sans-serif',
-  position: 'relative',
-};
-
 export default function UserDashboard() {
-  const [toast, setToast] = useState<{ id: number, message: string } | null>(null);
-
-  // ── Real data state ──────────────────────────────────────────
+  const [toast, setToast] = useState<{ id: number; message: string } | null>(null);
   const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [assessments, setAssessments] = useState<Assessment[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
+  const [historyError, setHistoryError] = useState('');
 
-  // Fetch user history (predictions + assessments)
-  useEffect(() => {
-    const fetchHistory = async () => {
-      try {
-        const res = await api.get('/user/history');
-        setPredictions(res.data.predictions ?? []);
-        setAssessments(res.data.assessments ?? []);
-      } catch (err) {
-        console.error('Failed to fetch user history', err);
-      } finally {
-        setHistoryLoading(false);
-      }
-    };
-    fetchHistory();
+  const fetchHistory = useCallback(async () => {
+    setHistoryLoading(true);
+    setHistoryError('');
+    try {
+      const res = await api.get('/user/history');
+      setPredictions(res.data.predictions ?? []);
+      setAssessments(res.data.assessments ?? []);
+    } catch (err) {
+      console.error('Failed to fetch user history', err);
+      setHistoryError('Data dashboard belum bisa dimuat. Periksa koneksi atau coba muat ulang.');
+    } finally {
+      setHistoryLoading(false);
+    }
   }, []);
 
-  // ── Notification polling (real-time every 3s) ─────────────────
+  useEffect(() => {
+    fetchHistory();
+  }, [fetchHistory]);
+
   useEffect(() => {
     let lastNotifId = 0;
+
     const fetchNotifications = async () => {
       try {
         const res = await api.get('/notifications/unread');
         const notifs = res.data.notifications;
-        if (notifs && notifs.length > 0) {
+        if (notifs?.length > 0) {
           const notif = notifs[0];
-          // Only show toast for new notifications
           if (notif.ID > lastNotifId) {
             lastNotifId = notif.ID;
             setToast({ id: notif.ID, message: notif.Message });
             await api.post(`/notifications/${notif.ID}/read`);
           }
         }
-      } catch (_) {}
+      } catch {
+        // Notification polling should stay quiet when the backend is temporarily unavailable.
+      }
     };
 
     fetchNotifications();
-    const interval = setInterval(fetchNotifications, 3000);
-    return () => clearInterval(interval);
+    const interval = window.setInterval(fetchNotifications, 3000);
+    return () => window.clearInterval(interval);
   }, []);
 
   useEffect(() => {
-    if (toast) {
-      const timer = setTimeout(() => setToast(null), 5000);
-      return () => clearTimeout(timer);
-    }
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(null), 5000);
+    return () => window.clearTimeout(timer);
   }, [toast]);
 
-  // Re-fetch after questionnaire submission so stats update immediately
-  const handleAssessmentDone = async () => {
-    setHistoryLoading(true);
-    try {
-      const res = await api.get('/user/history');
-      setPredictions(res.data.predictions ?? []);
-      setAssessments(res.data.assessments ?? []);
-    } catch (_) { /* ignore */ }
-    finally { setHistoryLoading(false); }
-  };
-
   return (
-    <div style={page}>
-      {/* Toast Notification */}
+    <main className="min-h-screen bg-[#090b12] px-4 py-5 text-slate-100 sm:px-6 lg:px-8">
+      <div className="pointer-events-none fixed inset-0 -z-0 bg-[radial-gradient(circle_at_top_left,rgba(45,212,191,0.14),transparent_28%),linear-gradient(180deg,rgba(15,23,42,0.7),rgba(9,11,18,0.98))]" />
+
       {toast && (
-        <div style={{
-          position: 'fixed', bottom: 24, right: 24, zIndex: 1000,
-          background: 'linear-gradient(135deg, #3ecfcf, #2dd4bf)',
-          padding: '12px 20px', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 10,
-          boxShadow: '0 8px 30px rgba(62, 207, 207, 0.4)',
-          color: '#fff', fontWeight: 600, fontSize: 13,
-          animation: 'fadeSlideIn 0.3s ease both',
-        }}>
-          <Bell size={16} color="#fff" />
-          {toast.message}
+        <div className="fixed bottom-5 right-5 z-50 flex max-w-sm items-start gap-3 rounded-xl border border-teal-300/30 bg-teal-500 px-4 py-3 text-sm font-semibold text-white shadow-2xl shadow-teal-950/40">
+          <Bell className="mt-0.5 h-4 w-4 shrink-0" />
+          <span className="leading-5">{toast.message}</span>
+          <button
+            type="button"
+            onClick={() => setToast(null)}
+            className="-mr-1 rounded-full p-1 text-white/80 transition hover:bg-white/15 hover:text-white"
+            aria-label="Tutup notifikasi"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
         </div>
       )}
 
-      <UserDashboardHeader />
+      <div className="relative z-10 mx-auto flex w-full max-w-7xl flex-col gap-5">
+        <UserDashboardHeader />
 
-      {/* Stat cards — real data */}
-      <UserStatCards
-        predictions={predictions}
-        assessments={assessments}
-        loading={historyLoading}
-      />
+        {historyError && (
+          <div className="flex flex-col gap-3 rounded-xl border border-amber-400/25 bg-amber-400/10 px-4 py-3 text-sm text-amber-100 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
+              <span>{historyError}</span>
+            </div>
+            <button
+              type="button"
+              onClick={fetchHistory}
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-amber-300/30 px-3 py-2 text-xs font-semibold text-amber-50 transition hover:bg-amber-300/10"
+            >
+              <RefreshCcw className="h-3.5 w-3.5" />
+              Muat ulang
+            </button>
+          </div>
+        )}
 
-      {/* Main Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 16, alignItems: 'start' }}>
+        <UserStatCards predictions={predictions} assessments={assessments} loading={historyLoading} />
 
-        {/* Left column: Trend chart + Questionnaire */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <PersonalTrendChart
-            predictions={predictions}
-            assessments={assessments}
-            loading={historyLoading}
-          />
-          {/* Pass callback so chart/cards refresh after submission */}
-          <DailyQuestionnaire onSubmitSuccess={handleAssessmentDone} />
-        </div>
+        <section className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_390px]">
+          <div className="flex min-w-0 flex-col gap-5">
+            <PersonalTrendChart
+              predictions={predictions}
+              assessments={assessments}
+              loading={historyLoading}
+            />
+            <DailyQuestionnaire onSubmitSuccess={fetchHistory} />
+          </div>
 
-        {/* Right column: Anonymous Venting Feed */}
-        <div>
-          <AnonymousVentingFeed />
-        </div>
-
+          <div className="min-w-0">
+            <AnonymousVentingFeed />
+          </div>
+        </section>
       </div>
-
-      <style>{`
-        @keyframes fadeSlideIn {
-          from { opacity: 0; transform: translateY(20px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-      `}</style>
-    </div>
+    </main>
   );
 }

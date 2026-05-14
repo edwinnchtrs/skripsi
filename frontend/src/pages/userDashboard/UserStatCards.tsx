@@ -1,45 +1,47 @@
-import { Activity, Zap, BrainCircuit, CalendarCheck } from 'lucide-react';
-import { card } from '../dashboard/styles';
+import type { ElementType } from 'react';
+import { Activity, BrainCircuit, CalendarCheck, Zap } from 'lucide-react';
 
 interface StatCardProps {
   label: string;
   value: string;
   sub?: string;
-  accent: string;
-  Icon: React.ElementType;
+  tone: 'teal' | 'green' | 'amber' | 'red' | 'violet' | 'slate';
+  Icon: ElementType;
   loading?: boolean;
 }
 
-function StatCard({ label, value, sub, accent, Icon, loading }: StatCardProps) {
+const toneClasses: Record<StatCardProps['tone'], { icon: string; ring: string; text: string }> = {
+  teal: { icon: 'bg-teal-400/10 text-teal-200', ring: 'ring-teal-300/20', text: 'text-teal-200' },
+  green: { icon: 'bg-emerald-400/10 text-emerald-200', ring: 'ring-emerald-300/20', text: 'text-emerald-200' },
+  amber: { icon: 'bg-amber-400/10 text-amber-200', ring: 'ring-amber-300/20', text: 'text-amber-200' },
+  red: { icon: 'bg-rose-400/10 text-rose-200', ring: 'ring-rose-300/20', text: 'text-rose-200' },
+  violet: { icon: 'bg-violet-400/10 text-violet-200', ring: 'ring-violet-300/20', text: 'text-violet-200' },
+  slate: { icon: 'bg-slate-400/10 text-slate-300', ring: 'ring-slate-300/10', text: 'text-slate-200' },
+};
+
+function StatCard({ label, value, sub, tone, Icon, loading }: StatCardProps) {
+  const classes = toneClasses[tone];
+
   return (
-    <div style={{ ...card, flex: 1, minWidth: 0, position: 'relative', overflow: 'hidden' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div style={{ flex: 1 }}>
-          <div style={{ color: '#8890a4', fontSize: 11, marginBottom: 6 }}>{label}</div>
-          <div style={{
-            color: loading ? '#3e3f50' : '#e2e8f0',
-            fontSize: 24, fontWeight: 700, lineHeight: 1.1,
-            background: loading ? 'linear-gradient(90deg, #1e2130 25%, #272a3e 50%, #1e2130 75%)' : 'none',
-            backgroundSize: loading ? '200% 100%' : 'auto',
-            animation: loading ? 'shimmer 1.5s infinite' : 'none',
-            borderRadius: loading ? 6 : 0,
-            minHeight: 28,
-          }}>
-            {loading ? '\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0' : value}
-          </div>
-          {sub && !loading && (
-            <div style={{ fontSize: 11, color: '#8890a4', marginTop: 4 }}>{sub}</div>
+    <article className={`min-w-0 rounded-2xl border border-white/10 bg-white/[0.04] p-4 shadow-xl shadow-black/10 ring-1 ${classes.ring}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-medium text-slate-400">{label}</p>
+          {loading ? (
+            <div className="mt-3 h-7 w-28 animate-pulse rounded-lg bg-slate-700/40" />
+          ) : (
+            <p className={`mt-2 break-words text-xl font-bold leading-tight tracking-normal sm:text-2xl ${classes.text}`}>
+              {value}
+            </p>
           )}
+          {sub && !loading && <p className="mt-2 line-clamp-2 text-xs leading-5 text-slate-400">{sub}</p>}
         </div>
-        <div style={{
-          width: 38, height: 38, borderRadius: 10,
-          background: accent + '22',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-        }}>
-          <Icon size={18} color={accent} />
+
+        <div className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl ${classes.icon}`}>
+          <Icon className="h-5 w-5" />
         </div>
       </div>
-    </div>
+    </article>
   );
 }
 
@@ -66,91 +68,92 @@ interface UserStatCardsProps {
   loading: boolean;
 }
 
-// Derived label helpers
-function getRiskLabel(level: string): { text: string; accent: string } {
+function getRiskLabel(level: string): { text: string; tone: StatCardProps['tone'] } {
   switch (level?.toLowerCase()) {
-    case 'low':    return { text: 'Rendah ✅', accent: '#22c55e' };
-    case 'medium': return { text: 'Sedang ⚠️', accent: '#f59e0b' };
-    case 'high':   return { text: 'Tinggi 🔴', accent: '#ef4444' };
-    default:       return { text: 'Belum Ada Data', accent: '#8890a4' };
+    case 'low':
+    case 'rendah':
+      return { text: 'Rendah', tone: 'green' };
+    case 'medium':
+    case 'sedang':
+      return { text: 'Sedang', tone: 'amber' };
+    case 'high':
+    case 'tinggi':
+      return { text: 'Tinggi', tone: 'red' };
+    default:
+      return { text: 'Belum Ada Data', tone: 'slate' };
   }
 }
 
+function latestByTimestamp<T extends { Timestamp: string }>(items: T[]): T | undefined {
+  return [...items].sort((a, b) => new Date(b.Timestamp).getTime() - new Date(a.Timestamp).getTime())[0];
+}
+
 function calcEnergyFromAssessment(a: Assessment): number {
-  // Energy proxy: efficacy (high = good) minus fatigue & cynicism (high = bad)
-  const raw = (a.EfficacyScore * 100) - (a.FatigueScore * 40) - (a.CynicismScore * 30);
+  const raw = 58 + a.EfficacyScore * 8 - a.FatigueScore * 7 - a.CynicismScore * 5 - a.InterferenceScore * 3;
   return Math.min(100, Math.max(0, Math.round(raw)));
 }
 
-function getEnergyLabel(pct: number): { text: string; accent: string; sub: string } {
-  if (pct >= 75) return { text: `${pct}%`, accent: '#22c55e', sub: 'Energi Optimal' };
-  if (pct >= 45) return { text: `${pct}%`, accent: '#f59e0b', sub: 'Sedikit Terkuras' };
-  return { text: `${pct}%`, accent: '#ef4444', sub: 'Energi Rendah' };
+function getEnergyLabel(pct: number): { text: string; tone: StatCardProps['tone']; sub: string } {
+  if (pct >= 75) return { text: `${pct}%`, tone: 'green', sub: 'Energi dalam rentang baik' };
+  if (pct >= 45) return { text: `${pct}%`, tone: 'amber', sub: 'Mulai terkuras, perlu jeda' };
+  return { text: `${pct}%`, tone: 'red', sub: 'Butuh pemulihan lebih serius' };
+}
+
+function getBurnoutSub(score: number) {
+  if (score < 34) return 'Masih dalam rentang rendah';
+  if (score < 67) return 'Perlu perhatian dan pemantauan';
+  return 'Prioritaskan pemulihan hari ini';
 }
 
 function calcStreak(assessments: Assessment[]): number {
   if (!assessments.length) return 0;
-  // Sort newest first
   const sorted = [...assessments].sort((a, b) => new Date(b.Timestamp).getTime() - new Date(a.Timestamp).getTime());
   let streak = 0;
   let prev = new Date();
   prev.setHours(0, 0, 0, 0);
-  for (const a of sorted) {
-    const d = new Date(a.Timestamp);
-    d.setHours(0, 0, 0, 0);
-    const diff = Math.round((prev.getTime() - d.getTime()) / 86400000);
+
+  for (const assessment of sorted) {
+    const date = new Date(assessment.Timestamp);
+    date.setHours(0, 0, 0, 0);
+    const diff = Math.round((prev.getTime() - date.getTime()) / 86400000);
     if (diff <= 1) {
-      streak++;
-      prev = d;
+      streak += 1;
+      prev = date;
     } else {
       break;
     }
   }
+
   return streak;
 }
 
 export default function UserStatCards({ predictions, assessments, loading }: UserStatCardsProps) {
-  const latestPred = predictions[0];
-  const latestAsmt = assessments[0];
+  const latestPred = latestByTimestamp(predictions);
+  const latestAsmt = latestByTimestamp(assessments);
 
-  // --- Stress / Risk Level card ---
-  const riskInfo = latestPred
-    ? getRiskLabel(latestPred.RiskLevel)
-    : { text: 'Belum Ada Data', accent: '#8890a4' };
-
+  const riskInfo = latestPred ? getRiskLabel(latestPred.RiskLevel) : { text: 'Belum Ada Data', tone: 'slate' as const };
   const stressSub = latestPred
-    ? `Burnout: ${latestPred.BurnoutScore.toFixed(1)} | Psiko: ${latestPred.PsychosomaticScore.toFixed(1)}`
-    : 'Isi kuisioner untuk mulai';
+    ? `Burnout ${latestPred.BurnoutScore.toFixed(1)} | Psikosomatik ${latestPred.PsychosomaticScore.toFixed(1)}`
+    : 'Isi kuisioner untuk mulai membaca tren';
 
-  // --- Energy card ---
   const energyPct = latestAsmt ? calcEnergyFromAssessment(latestAsmt) : null;
   const energyInfo = energyPct !== null
     ? getEnergyLabel(energyPct)
-    : { text: '—', accent: '#8890a4', sub: 'Belum Ada Asesmen' };
+    : { text: '-', tone: 'slate' as const, sub: 'Belum ada asesmen hari ini' };
 
-  // --- Burnout Score card ---
-  const burnoutValue = latestPred ? latestPred.BurnoutScore.toFixed(1) : '—';
-  const burnoutSub = latestPred
-    ? (latestPred.BurnoutScore < 4 ? 'Masih aman' : latestPred.BurnoutScore < 6 ? 'Perlu perhatian' : latestPred.BurnoutScore >= 7.5 ? 'Kritis' : 'Waspada')
-    : 'Belum ada prediksi';
+  const burnoutValue = latestPred ? latestPred.BurnoutScore.toFixed(1) : '-';
+  const burnoutSub = latestPred ? getBurnoutSub(latestPred.BurnoutScore) : 'Belum ada prediksi';
 
-  // --- Streak card ---
   const streak = calcStreak(assessments);
-  const streakSub = streak === 0 ? 'Mulai hari ini!' : streak >= 7 ? 'Luar biasa! 🔥' : 'Terus pertahankan!';
+  const streakSub = streak === 0 ? 'Mulai isi kuisioner hari ini' : streak >= 7 ? 'Konsisten selama satu pekan' : 'Pertahankan ritme harian';
 
   return (
-    <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
-      <style>{`
-        @keyframes shimmer {
-          0% { background-position: 200% 0; }
-          100% { background-position: -200% 0; }
-        }
-      `}</style>
+    <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
       <StatCard
         label="Risk Level Saat Ini"
         value={riskInfo.text}
         sub={stressSub}
-        accent={riskInfo.accent}
+        tone={riskInfo.tone}
         Icon={Activity}
         loading={loading}
       />
@@ -158,7 +161,7 @@ export default function UserStatCards({ predictions, assessments, loading }: Use
         label="Level Energi"
         value={energyInfo.text}
         sub={energyInfo.sub}
-        accent={energyInfo.accent}
+        tone={energyInfo.tone}
         Icon={Zap}
         loading={loading}
       />
@@ -166,18 +169,18 @@ export default function UserStatCards({ predictions, assessments, loading }: Use
         label="Skor Burnout Terakhir"
         value={burnoutValue}
         sub={burnoutSub}
-        accent="#3ecfcf"
+        tone="teal"
         Icon={BrainCircuit}
         loading={loading}
       />
       <StatCard
         label="Streak Kuisioner"
-        value={streak > 0 ? `${streak} Hari` : '0 Hari'}
+        value={`${streak} Hari`}
         sub={streakSub}
-        accent="#6c63ff"
+        tone="violet"
         Icon={CalendarCheck}
         loading={loading}
       />
-    </div>
+    </section>
   );
 }
