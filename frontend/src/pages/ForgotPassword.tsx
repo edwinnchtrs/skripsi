@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
   Brain, TrendingUp, RefreshCw, ShieldCheck,
   Users, Database, BarChart2, Percent,
-  Lock, Eye, EyeOff, Mail, KeyRound,
+  Lock, Eye, EyeOff, Mail, KeyRound, User,
 } from 'lucide-react';
 import api from '../api';
 
@@ -20,9 +20,20 @@ const stats = [
   { Icon: Percent,  v: '92.7%',   l: 'Akurasi Model' },
 ];
 
+const validatePassword = (value: string) => ({
+  min: value.length >= 8,
+  lower: /[a-z]/.test(value),
+  upper: /[A-Z]/.test(value),
+  number: /\d/.test(value),
+});
+
+const isUsernameValid = (value: string) => /^[a-zA-Z0-9._@-]{3,80}$/.test(value.trim());
+
 export default function ForgotPassword() {
   const nav = useNavigate();
   const [username,    setUsername]   = useState('');
+  const [nama,        setNama]       = useState('');
+  const [userType,    setUserType]   = useState<'mahasiswa' | 'karyawan'>('mahasiswa');
   const [password,    setPassword]   = useState('');
   const [confirm,     setConfirm]    = useState('');
   const [showPw,      setShowPw]     = useState(false);
@@ -30,23 +41,41 @@ export default function ForgotPassword() {
   const [err,         setErr]        = useState('');
   const [success,     setSuccess]    = useState('');
   const [busy,        setBusy]       = useState(false);
+  const passwordRules = useMemo(() => validatePassword(password), [password]);
+  const passwordSafe = Object.values(passwordRules).every(Boolean);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErr(''); setSuccess('');
 
+    const cleanUsername = username.trim().toLowerCase();
+    const cleanNama = nama.trim();
+
+    if (!isUsernameValid(cleanUsername)) {
+      setErr('Username hanya boleh berisi huruf, angka, titik, underscore, strip, atau email.');
+      return;
+    }
+    if (cleanNama.length < 3) {
+      setErr('Nama lengkap minimal 3 karakter.');
+      return;
+    }
     if (password !== confirm) {
       setErr('Kata sandi baru tidak cocok. Periksa kembali.');
       return;
     }
-    if (password.length < 6) {
-      setErr('Kata sandi minimal 6 karakter.');
+    if (!passwordSafe) {
+      setErr('Kata sandi harus minimal 8 karakter, mengandung huruf besar, huruf kecil, dan angka.');
       return;
     }
 
     setBusy(true);
     try {
-      const r = await api.post('/forgot-password', { username, new_password: password });
+      const r = await api.post('/forgot-password', {
+        username: cleanUsername,
+        nama: cleanNama,
+        user_type: userType,
+        new_password: password,
+      });
       setSuccess(r.data.message || 'Kata sandi berhasil direset! Mengarahkan ke halaman masuk...');
       setTimeout(() => nav('/login'), 2000);
     } catch (x: any) {
@@ -113,6 +142,17 @@ export default function ForgotPassword() {
 
         .err-box{background:#fef2f2;border:1px solid #fecaca;color:#dc2626;padding:8px 12px;border-radius:8px;font-size:12px;margin-bottom:13px}
         .ok-box{background:#f0fdf4;border:1px solid #bbf7d0;color:#16a34a;padding:8px 12px;border-radius:8px;font-size:12px;margin-bottom:13px}
+        .secure-note{background:#eff6ff;border:1px solid #bfdbfe;color:#1d4ed8;padding:9px 12px;border-radius:10px;font-size:11.5px;line-height:1.5;margin-bottom:13px}
+        .role-box{margin-bottom:13px}
+        .role-title{font-size:12px;font-weight:700;color:#374151;margin-bottom:8px}
+        .role-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+        .role-btn{border:1.5px solid #e5e7eb;background:#f9fafb;color:#475569;border-radius:12px;padding:10px 12px;text-align:left;cursor:pointer;font-family:'Inter',sans-serif;transition:all .18s}
+        .role-btn strong{display:block;font-size:12px;color:#111827;margin-bottom:2px}
+        .role-btn span{display:block;font-size:10.5px;line-height:1.35;color:#64748b}
+        .role-btn.active{border-color:#6366f1;background:#eef2ff;box-shadow:0 0 0 3px rgba(99,102,241,.12)}
+        .password-rules{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:-5px 0 13px}
+        .rule{font-size:10.5px;color:#94a3b8;background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;padding:5px 7px}
+        .rule.ok{color:#16a34a;border-color:#bbf7d0;background:#f0fdf4}
 
         .signin{text-align:center;font-size:12px;color:#6b7280;margin-top:18px}
         .signin a{color:#6366f1;font-weight:700;text-decoration:none}
@@ -165,13 +205,30 @@ export default function ForgotPassword() {
             <div className="rp-header">
               <div className="rp-brain"><KeyRound size={26} color="#6366f1" /></div>
               <h3>Lupa Kata Sandi?</h3>
-              <p>Atur ulang kata sandi Anda di sini</p>
+              <p>Verifikasi akun sebelum membuat kata sandi baru</p>
             </div>
 
             {err     && <div className="err-box">{err}</div>}
             {success && <div className="ok-box">{success}</div>}
+            <div className="secure-note">
+              Untuk keamanan, reset hanya berhasil jika username, nama lengkap, dan jenis akun cocok dengan data terdaftar.
+            </div>
 
             <form onSubmit={submit}>
+              <div className="role-box">
+                <div className="role-title">Jenis akun</div>
+                <div className="role-grid">
+                  <button type="button" className={`role-btn ${userType === 'mahasiswa' ? 'active' : ''}`} onClick={() => setUserType('mahasiswa')} disabled={busy}>
+                    <strong>Mahasiswa</strong>
+                    <span>Akun pelajar atau pengguna kampus.</span>
+                  </button>
+                  <button type="button" className={`role-btn ${userType === 'karyawan' ? 'active' : ''}`} onClick={() => setUserType('karyawan')} disabled={busy}>
+                    <strong>Karyawan</strong>
+                    <span>Akun pekerja atau staf organisasi.</span>
+                  </button>
+                </div>
+              </div>
+
               {/* Username */}
               <div className="field">
                 <label>Username Anda</label>
@@ -182,6 +239,22 @@ export default function ForgotPassword() {
                     value={username}
                     onChange={e => setUsername(e.target.value)}
                     placeholder="Masukkan username Anda"
+                    autoComplete="username"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="field">
+                <label>Nama Lengkap Terdaftar</label>
+                <div className="wrap">
+                  <User size={14} className="icon-l" />
+                  <input
+                    type="text"
+                    value={nama}
+                    onChange={e => setNama(e.target.value)}
+                    placeholder="Sesuai nama saat daftar"
+                    autoComplete="name"
                     required
                   />
                 </div>
@@ -196,13 +269,21 @@ export default function ForgotPassword() {
                     type={showPw ? 'text' : 'password'}
                     value={password}
                     onChange={e => setPassword(e.target.value)}
-                    placeholder="Minimal 6 karakter"
+                    placeholder="Minimal 8 karakter"
+                    autoComplete="new-password"
                     required
                   />
                   <button type="button" className="icon-r" onClick={() => setShowPw(!showPw)}>
                     {showPw ? <EyeOff size={14} /> : <Eye size={14} />}
                   </button>
                 </div>
+              </div>
+
+              <div className="password-rules">
+                <div className={`rule ${passwordRules.min ? 'ok' : ''}`}>Minimal 8 karakter</div>
+                <div className={`rule ${passwordRules.upper ? 'ok' : ''}`}>Huruf besar</div>
+                <div className={`rule ${passwordRules.lower ? 'ok' : ''}`}>Huruf kecil</div>
+                <div className={`rule ${passwordRules.number ? 'ok' : ''}`}>Angka</div>
               </div>
 
               {/* Konfirmasi Password */}
@@ -215,6 +296,7 @@ export default function ForgotPassword() {
                     value={confirm}
                     onChange={e => setConfirm(e.target.value)}
                     placeholder="Ulangi kata sandi baru Anda"
+                    autoComplete="new-password"
                     required
                   />
                   <button type="button" className="icon-r" onClick={() => setShowCf(!showCf)}>

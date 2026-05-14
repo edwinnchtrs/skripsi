@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
   Brain, TrendingUp, RefreshCw, ShieldCheck,
@@ -20,6 +20,15 @@ const stats = [
   { Icon: Percent,  v: '92.7%',   l: 'Akurasi Model' },
 ];
 
+const validatePassword = (value: string) => ({
+  min: value.length >= 8,
+  lower: /[a-z]/.test(value),
+  upper: /[A-Z]/.test(value),
+  number: /\d/.test(value),
+});
+
+const isUsernameValid = (value: string) => /^[a-zA-Z0-9._@-]{3,80}$/.test(value.trim());
+
 export default function Register() {
   const nav = useNavigate();
   const [nama,        setNama]       = useState('');
@@ -28,26 +37,40 @@ export default function Register() {
   const [confirm,     setConfirm]    = useState('');
   const [showPw,      setShowPw]     = useState(false);
   const [showCf,      setShowCf]     = useState(false);
+  const [userType,    setUserType]   = useState<'mahasiswa' | 'karyawan'>('mahasiswa');
   const [err,         setErr]        = useState('');
   const [success,     setSuccess]    = useState('');
   const [busy,        setBusy]       = useState(false);
+  const passwordRules = useMemo(() => validatePassword(password), [password]);
+  const passwordSafe = Object.values(passwordRules).every(Boolean);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErr(''); setSuccess('');
 
+    const cleanNama = nama.trim();
+    const cleanUsername = username.trim().toLowerCase();
+
+    if (cleanNama.length < 3) {
+      setErr('Nama lengkap minimal 3 karakter.');
+      return;
+    }
+    if (!isUsernameValid(cleanUsername)) {
+      setErr('Username hanya boleh berisi huruf, angka, titik, underscore, strip, atau email.');
+      return;
+    }
     if (password !== confirm) {
       setErr('Kata sandi tidak cocok. Periksa kembali.');
       return;
     }
-    if (password.length < 6) {
-      setErr('Kata sandi minimal 6 karakter.');
+    if (!passwordSafe) {
+      setErr('Kata sandi harus minimal 8 karakter, mengandung huruf besar, huruf kecil, dan angka.');
       return;
     }
 
     setBusy(true);
     try {
-      await api.post('/register', { username, password, nama });
+      await api.post('/register', { username: cleanUsername, password, nama: cleanNama, user_type: userType });
       setSuccess('Akun berhasil dibuat! Mengarahkan ke halaman masuk...');
       setTimeout(() => nav('/login'), 1500);
     } catch (x: any) {
@@ -114,6 +137,16 @@ export default function Register() {
 
         .err-box{background:#fef2f2;border:1px solid #fecaca;color:#dc2626;padding:8px 12px;border-radius:8px;font-size:12px;margin-bottom:13px}
         .ok-box{background:#f0fdf4;border:1px solid #bbf7d0;color:#16a34a;padding:8px 12px;border-radius:8px;font-size:12px;margin-bottom:13px}
+        .role-box{margin-bottom:13px}
+        .role-title{font-size:12px;font-weight:700;color:#374151;margin-bottom:8px}
+        .role-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+        .role-btn{border:1.5px solid #e5e7eb;background:#f9fafb;color:#475569;border-radius:12px;padding:10px 12px;text-align:left;cursor:pointer;font-family:'Inter',sans-serif;transition:all .18s}
+        .role-btn strong{display:block;font-size:12px;color:#111827;margin-bottom:2px}
+        .role-btn span{display:block;font-size:10.5px;line-height:1.35;color:#64748b}
+        .role-btn.active{border-color:#6366f1;background:#eef2ff;box-shadow:0 0 0 3px rgba(99,102,241,.12)}
+        .password-rules{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:-5px 0 13px}
+        .rule{font-size:10.5px;color:#94a3b8;background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;padding:5px 7px}
+        .rule.ok{color:#16a34a;border-color:#bbf7d0;background:#f0fdf4}
 
         .signin{text-align:center;font-size:12px;color:#6b7280;margin-top:18px}
         .signin a{color:#6366f1;font-weight:700;text-decoration:none}
@@ -173,6 +206,20 @@ export default function Register() {
             {success && <div className="ok-box">{success}</div>}
 
             <form onSubmit={submit}>
+              <div className="role-box">
+                <div className="role-title">Daftar sebagai</div>
+                <div className="role-grid">
+                  <button type="button" className={`role-btn ${userType === 'mahasiswa' ? 'active' : ''}`} onClick={() => setUserType('mahasiswa')} disabled={busy}>
+                    <strong>Mahasiswa</strong>
+                    <span>Akun untuk pelajar atau pengguna kampus.</span>
+                  </button>
+                  <button type="button" className={`role-btn ${userType === 'karyawan' ? 'active' : ''}`} onClick={() => setUserType('karyawan')} disabled={busy}>
+                    <strong>Karyawan</strong>
+                    <span>Akun untuk pekerja atau staf organisasi.</span>
+                  </button>
+                </div>
+              </div>
+
               {/* Nama Lengkap */}
               <div className="field">
                 <label>Nama Lengkap</label>
@@ -183,6 +230,7 @@ export default function Register() {
                     value={nama}
                     onChange={e => setNama(e.target.value)}
                     placeholder="Masukkan nama lengkap Anda"
+                    autoComplete="name"
                     required
                   />
                 </div>
@@ -197,7 +245,8 @@ export default function Register() {
                     type="text"
                     value={username}
                     onChange={e => setUsername(e.target.value)}
-                    placeholder="Pilih username unik Anda"
+                    placeholder="Username atau email"
+                    autoComplete="username"
                     required
                   />
                 </div>
@@ -212,13 +261,21 @@ export default function Register() {
                     type={showPw ? 'text' : 'password'}
                     value={password}
                     onChange={e => setPassword(e.target.value)}
-                    placeholder="Minimal 6 karakter"
+                    placeholder="Minimal 8 karakter"
+                    autoComplete="new-password"
                     required
                   />
                   <button type="button" className="icon-r" onClick={() => setShowPw(!showPw)}>
                     {showPw ? <EyeOff size={14} /> : <Eye size={14} />}
                   </button>
                 </div>
+              </div>
+
+              <div className="password-rules">
+                <div className={`rule ${passwordRules.min ? 'ok' : ''}`}>Minimal 8 karakter</div>
+                <div className={`rule ${passwordRules.upper ? 'ok' : ''}`}>Huruf besar</div>
+                <div className={`rule ${passwordRules.lower ? 'ok' : ''}`}>Huruf kecil</div>
+                <div className={`rule ${passwordRules.number ? 'ok' : ''}`}>Angka</div>
               </div>
 
               {/* Konfirmasi Password */}
@@ -231,6 +288,7 @@ export default function Register() {
                     value={confirm}
                     onChange={e => setConfirm(e.target.value)}
                     placeholder="Ulangi kata sandi Anda"
+                    autoComplete="new-password"
                     required
                   />
                   <button type="button" className="icon-r" onClick={() => setShowCf(!showCf)}>

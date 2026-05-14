@@ -70,9 +70,11 @@ func SeedAdmin() {
 	} else {
 		// Admin exists, update password and role to ensure it works
 		hashedPassword, _ := HashPassword("admin123")
-		admin.PasswordHash = hashedPassword
-		admin.Role = "admin"
-		DB.Save(&admin)
+		DB.Model(&admin).Updates(map[string]interface{}{
+			"password_hash": hashedPassword,
+			"role":          "admin",
+			"user_type":     "karyawan",
+		})
 		log.Println("Admin user updated to ensure login works (username: admin, password: admin123).")
 	}
 }

@@ -1,25 +1,6 @@
-import { useState, useRef, useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Download, Calendar, ChevronDown, Check } from 'lucide-react';
-
-const btn: React.CSSProperties = {
-  display: 'flex', alignItems: 'center', gap: 6,
-  background: '#131722', border: '1px solid #1e2130',
-  borderRadius: 8, color: '#c0c9e0', fontSize: 12,
-  padding: '7px 14px', cursor: 'pointer', position: 'relative' as any,
-};
-
-const dropdown: React.CSSProperties = {
-  position: 'absolute', top: '100%', left: 0, marginTop: 4,
-  background: '#131722', border: '1px solid #1e2130', borderRadius: 8,
-  padding: '4px', zIndex: 50, minWidth: 180, boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
-};
-
-const dropItem: React.CSSProperties = {
-  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-  padding: '8px 12px', borderRadius: 6, cursor: 'pointer',
-  fontSize: 12, color: '#c0c9e0', background: 'transparent', border: 'none', width: '100%',
-};
+import { Calendar, Check, ChevronDown, Download, RefreshCw, SlidersHorizontal, Users } from 'lucide-react';
 
 const datePeriods = [
   { label: '7 Hari Terakhir', value: '7d' },
@@ -39,88 +20,150 @@ const groupOptions = [
 interface Props {
   dateFilter: string;
   groupFilter: string;
-  onDateChange: (v: string) => void;
-  onGroupChange: (v: string) => void;
+  onDateChange: (value: string) => void;
+  onGroupChange: (value: string) => void;
+  onRefresh: () => void;
+  loading: boolean;
+  lastUpdated: Date | null;
 }
 
-export default function DashboardHeader({ dateFilter, groupFilter, onDateChange, onGroupChange }: Props) {
-  const nav = useNavigate();
-  const [dateOpen, setDateOpen] = useState(false);
-  const [groupOpen, setGroupOpen] = useState(false);
-  const dateRef = useRef<HTMLDivElement>(null);
-  const groupRef = useRef<HTMLDivElement>(null);
+interface FilterButtonProps {
+  icon: React.ElementType;
+  label: string;
+  open: boolean;
+  setOpen: (value: boolean) => void;
+  children: React.ReactNode;
+}
 
-  const selectedDate = datePeriods.find(d => d.value === dateFilter)?.label || 'Pilih Periode';
-  const selectedGroup = groupOptions.find(g => g.value === groupFilter)?.label || 'Semua Kelompok';
+function FilterButton({ icon: Icon, label, open, setOpen, children }: FilterButtonProps) {
+  const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (dateRef.current && !dateRef.current.contains(e.target as Node)) setDateOpen(false);
-      if (groupRef.current && !groupRef.current.contains(e.target as Node)) setGroupOpen(false);
+    const handler = (event: MouseEvent) => {
+      if (ref.current && !ref.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
     };
+
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
-  }, []);
+  }, [setOpen]);
 
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
-      <div>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: '#e2e8f0', margin: 0 }}>Dashboard</h1>
-        <p style={{ color: '#8890a4', fontSize: 12, marginTop: 3, marginBottom: 0 }}>
-          Overview analitik prediktif burnout dan risiko psikomatis
-        </p>
-      </div>
-      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-        {/* Date Filter Dropdown */}
-        <div ref={dateRef} style={{ position: 'relative' as any }}>
-          <button style={btn} onClick={() => { setDateOpen(!dateOpen); setGroupOpen(false); }}>
-            <Calendar size={13} /> {selectedDate} <ChevronDown size={12} />
-          </button>
-          {dateOpen && (
-            <div style={dropdown}>
-              {datePeriods.map(d => (
-                <button
-                  key={d.value}
-                  style={{ ...dropItem, color: dateFilter === d.value ? '#a89cff' : '#c0c9e0', background: dateFilter === d.value ? 'rgba(108,99,255,0.12)' : 'transparent' }}
-                  onClick={() => { onDateChange(d.value); setDateOpen(false); }}
-                >
-                  {d.label}
-                  {dateFilter === d.value && <Check size={14} color="#a89cff" />}
-                </button>
-              ))}
-            </div>
-          )}
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen(!open)}
+        className="inline-flex h-10 items-center gap-2 rounded-md border border-white/10 bg-white/[0.04] px-3 text-sm font-semibold text-slate-200 transition hover:border-cyan-300/40 hover:bg-white/[0.07]"
+      >
+        <Icon className="h-4 w-4 text-cyan-200" />
+        <span className="max-w-[150px] truncate">{label}</span>
+        <ChevronDown className={`h-4 w-4 text-slate-500 transition ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="absolute right-0 z-50 mt-2 w-56 rounded-lg border border-white/10 bg-slate-950 p-1.5 shadow-2xl shadow-black/40">
+          {children}
         </div>
-
-        {/* Group Filter Dropdown */}
-        <div ref={groupRef} style={{ position: 'relative' as any }}>
-          <button style={btn} onClick={() => { setGroupOpen(!groupOpen); setDateOpen(false); }}>
-            {selectedGroup} <ChevronDown size={12} />
-          </button>
-          {groupOpen && (
-            <div style={dropdown}>
-              {groupOptions.map(g => (
-                <button
-                  key={g.value}
-                  style={{ ...dropItem, color: groupFilter === g.value ? '#a89cff' : '#c0c9e0', background: groupFilter === g.value ? 'rgba(108,99,255,0.12)' : 'transparent' }}
-                  onClick={() => { onGroupChange(g.value); setGroupOpen(false); }}
-                >
-                  {g.label}
-                  {groupFilter === g.value && <Check size={14} color="#a89cff" />}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Export Button */}
-        <button
-          style={{ ...btn, background: '#6c63ff', border: 'none', color: '#fff', fontWeight: 600 }}
-          onClick={() => nav('/laporan')}
-        >
-          <Download size={13} /> Export Laporan
-        </button>
-      </div>
+      )}
     </div>
+  );
+}
+
+export default function DashboardHeader({
+  dateFilter,
+  groupFilter,
+  onDateChange,
+  onGroupChange,
+  onRefresh,
+  loading,
+  lastUpdated,
+}: Props) {
+  const navigate = useNavigate();
+  const [dateOpen, setDateOpen] = useState(false);
+  const [groupOpen, setGroupOpen] = useState(false);
+
+  const selectedDate = datePeriods.find((item) => item.value === dateFilter)?.label || 'Pilih Periode';
+  const selectedGroup = groupOptions.find((item) => item.value === groupFilter)?.label || 'Semua Kelompok';
+
+  const formattedUpdate = lastUpdated
+    ? lastUpdated.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+    : 'Belum diperbarui';
+
+  return (
+    <header className="rounded-lg border border-white/10 bg-slate-950 p-5 shadow-xl shadow-black/20">
+      <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+        <div className="min-w-0">
+          <div className="mb-3 inline-flex items-center gap-2 rounded-md border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 text-xs font-semibold text-cyan-100">
+            <SlidersHorizontal className="h-3.5 w-3.5" />
+            Admin analytics control
+          </div>
+          <h1 className="text-2xl font-semibold tracking-normal text-white sm:text-3xl">Dashboard</h1>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
+            Overview analitik prediktif burnout, risiko psikosomatis, performa model, dan responden yang perlu dipantau.
+          </p>
+          <p className="mt-2 text-xs text-slate-500">Update terakhir: {formattedUpdate}</p>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <FilterButton icon={Calendar} label={selectedDate} open={dateOpen} setOpen={(value) => {
+            setDateOpen(value);
+            if (value) setGroupOpen(false);
+          }}>
+            {datePeriods.map((item) => (
+              <button
+                key={item.value}
+                onClick={() => {
+                  onDateChange(item.value);
+                  setDateOpen(false);
+                }}
+                className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm transition ${
+                  dateFilter === item.value ? 'bg-cyan-300/15 text-cyan-100' : 'text-slate-300 hover:bg-white/[0.06]'
+                }`}
+              >
+                {item.label}
+                {dateFilter === item.value && <Check className="h-4 w-4" />}
+              </button>
+            ))}
+          </FilterButton>
+
+          <FilterButton icon={Users} label={selectedGroup} open={groupOpen} setOpen={(value) => {
+            setGroupOpen(value);
+            if (value) setDateOpen(false);
+          }}>
+            {groupOptions.map((item) => (
+              <button
+                key={item.value}
+                onClick={() => {
+                  onGroupChange(item.value);
+                  setGroupOpen(false);
+                }}
+                className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm transition ${
+                  groupFilter === item.value ? 'bg-emerald-300/15 text-emerald-100' : 'text-slate-300 hover:bg-white/[0.06]'
+                }`}
+              >
+                {item.label}
+                {groupFilter === item.value && <Check className="h-4 w-4" />}
+              </button>
+            ))}
+          </FilterButton>
+
+          <button
+            onClick={onRefresh}
+            disabled={loading}
+            className="inline-flex h-10 items-center gap-2 rounded-md border border-white/10 bg-white/[0.04] px-3 text-sm font-semibold text-slate-200 transition hover:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <RefreshCw className={`h-4 w-4 text-slate-300 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
+
+          <button
+            onClick={() => navigate('/laporan')}
+            className="inline-flex h-10 items-center gap-2 rounded-md bg-emerald-400 px-4 text-sm font-semibold text-slate-950 transition hover:bg-emerald-300"
+          >
+            <Download className="h-4 w-4" />
+            Export Laporan
+          </button>
+        </div>
+      </div>
+    </header>
   );
 }

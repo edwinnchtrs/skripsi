@@ -1,388 +1,580 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
-  Users, Search, UserPlus, Edit3, Trash2, Shield, ShieldAlert, UserCheck,
-  Mail, Calendar, X, Save, AlertTriangle, CheckCircle2, Loader2,
-  Filter, ChevronDown, RefreshCw, Info, MoreHorizontal
+  AlertTriangle,
+  Calendar,
+  CheckCircle2,
+  Edit3,
+  Loader2,
+  Mail,
+  PieChart as PieIcon,
+  Plus,
+  RefreshCw,
+  Save,
+  Search,
+  Shield,
+  Trash2,
+  UserCheck,
+  Users,
+  X,
 } from 'lucide-react';
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
+import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 import api from '../api';
-import { card, sectionTitle } from './dashboard/styles';
 
-interface UserType {
+type AccountFilter = 'all' | 'admin' | 'mahasiswa' | 'karyawan';
+type ModalMode = 'create' | 'edit';
+
+interface ManagedUser {
   id: number;
   username: string;
   nama: string;
   role: string;
+  user_type: string;
   bio: string;
   profile_pic: string;
   created_at: string;
   updated_at: string;
 }
 
-const roleColor: Record<string, string> = {
-  admin: '#a855f7',
-  user: '#3ecfcf',
+const emptyForm = {
+  nama: '',
+  username: '',
+  role: 'user',
+  user_type: 'mahasiswa',
+  password: '',
+  bio: '',
 };
 
-const roleBg: Record<string, string> = {
-  admin: 'rgba(168,85,247,0.12)',
-  user: 'rgba(62,207,207,0.12)',
+const accountMeta = {
+  admin: {
+    label: 'Admin',
+    icon: Shield,
+    chip: 'border-violet-300/25 bg-violet-500/10 text-violet-100',
+    accent: '#a78bfa',
+  },
+  mahasiswa: {
+    label: 'Mahasiswa',
+    icon: UserCheck,
+    chip: 'border-cyan-300/25 bg-cyan-500/10 text-cyan-100',
+    accent: '#67e8f9',
+  },
+  karyawan: {
+    label: 'Karyawan',
+    icon: Users,
+    chip: 'border-emerald-300/25 bg-emerald-500/10 text-emerald-100',
+    accent: '#34d399',
+  },
+};
+
+const getAccountType = (user: Pick<ManagedUser, 'role' | 'user_type'>): 'admin' | 'mahasiswa' | 'karyawan' => {
+  if (user.role === 'admin') return 'admin';
+  return user.user_type === 'karyawan' ? 'karyawan' : 'mahasiswa';
+};
+
+const formatDate = (date: string) => {
+  if (!date || date.startsWith('0001')) return '-';
+  return new Date(date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+};
+
+const passwordValid = (value: string) => {
+  if (!value) return false;
+  return value.length >= 8 && /[a-z]/.test(value) && /[A-Z]/.test(value) && /\d/.test(value);
 };
 
 export default function ManajemenUser() {
-  const [users, setUsers] = useState<UserType[]>([]);
+  const [users, setUsers] = useState<ManagedUser[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [roleFilter, setRoleFilter] = useState('all');
-  const [editModal, setEditModal] = useState<UserType | null>(null);
-  const [editForm, setEditForm] = useState({ nama: '', username: '', role: '', password: '', bio: '' });
-  const [deleteModal, setDeleteModal] = useState<UserType | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
-  const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState<AccountFilter>('all');
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [modalMode, setModalMode] = useState<ModalMode | null>(null);
+  const [selected, setSelected] = useState<ManagedUser | null>(null);
+  const [form, setForm] = useState(emptyForm);
+  const [deleteTarget, setDeleteTarget] = useState<ManagedUser | null>(null);
 
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      const res = await api.get('/admin/users');
-      setUsers(res.data.users || []);
-    } catch { setMsg({ type: 'error', text: 'Gagal memuat data user' }); }
-    finally { setLoading(false); }
+      const response = await api.get('/admin/users');
+      setUsers(response.data.users || []);
+    } catch (error: any) {
+      setMessage({ type: 'error', text: error.response?.data?.error || 'Gagal memuat data user' });
+    } finally {
+      setLoading(false);
+    }
   };
 
-  useEffect(() => { fetchUsers(); }, []);
+  useEffect(() => {
+    fetchUsers();
+  }, []);
 
-  useEffect(() => { if (msg) { const t = setTimeout(() => setMsg(null), 3000); return () => clearTimeout(t); } }, [msg]);
+  useEffect(() => {
+    if (!message) return;
+    const timeout = setTimeout(() => setMessage(null), 3500);
+    return () => clearTimeout(timeout);
+  }, [message]);
 
-  const filtered = useMemo(() => {
-    let arr = [...users];
-    if (roleFilter !== 'all') arr = arr.filter(u => u.role === roleFilter);
-    if (search) {
-      const s = search.toLowerCase();
-      arr = arr.filter(u => u.nama.toLowerCase().includes(s) || u.username.toLowerCase().includes(s));
-    }
-    return arr;
-  }, [users, search, roleFilter]);
+  const stats = useMemo(() => {
+    const admin = users.filter((user) => getAccountType(user) === 'admin').length;
+    const mahasiswa = users.filter((user) => getAccountType(user) === 'mahasiswa').length;
+    const karyawan = users.filter((user) => getAccountType(user) === 'karyawan').length;
+    return { total: users.length, admin, mahasiswa, karyawan };
+  }, [users]);
 
-  const stats = useMemo(() => ({
-    total: users.length,
-    admin: users.filter(u => u.role === 'admin').length,
-    user: users.filter(u => u.role === 'user').length,
-  }), [users]);
+  const filteredUsers = useMemo(() => {
+    const keyword = search.trim().toLowerCase();
+    return users.filter((user) => {
+      const type = getAccountType(user);
+      if (filter !== 'all' && type !== filter) return false;
+      if (!keyword) return true;
+      return `${user.nama} ${user.username} ${type} ${user.bio || ''}`.toLowerCase().includes(keyword);
+    });
+  }, [filter, search, users]);
 
-  const rolePie = [
-    { name: 'Admin', value: stats.admin, color: '#a855f7' },
-    { name: 'User', value: stats.user, color: '#3ecfcf' },
+  const pieData = [
+    { name: 'Admin', value: stats.admin, color: accountMeta.admin.accent },
+    { name: 'Mahasiswa', value: stats.mahasiswa, color: accountMeta.mahasiswa.accent },
+    { name: 'Karyawan', value: stats.karyawan, color: accountMeta.karyawan.accent },
   ];
 
-  const openEdit = (u: UserType) => {
-    setEditModal(u);
-    setEditForm({ nama: u.nama, username: u.username, role: u.role, password: '', bio: u.bio || '' });
+  const openCreate = () => {
+    setSelected(null);
+    setForm(emptyForm);
+    setModalMode('create');
   };
 
-  const handleEdit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const openEdit = (user: ManagedUser) => {
+    const type = getAccountType(user);
+    setSelected(user);
+    setForm({
+      nama: user.nama,
+      username: user.username,
+      role: user.role,
+      user_type: type === 'admin' ? 'karyawan' : type,
+      password: '',
+      bio: user.bio || '',
+    });
+    setModalMode('edit');
+  };
+
+  const closeModal = () => {
+    setModalMode(null);
+    setSelected(null);
+    setForm(emptyForm);
+  };
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const cleanForm = {
+      ...form,
+      nama: form.nama.trim(),
+      username: form.username.trim().toLowerCase(),
+      user_type: form.role === 'admin' ? 'karyawan' : form.user_type,
+    };
+
+    if (cleanForm.nama.length < 3) {
+      setMessage({ type: 'error', text: 'Nama minimal 3 karakter' });
+      return;
+    }
+    if (!/^[a-zA-Z0-9._@-]{3,80}$/.test(cleanForm.username)) {
+      setMessage({ type: 'error', text: 'Username hanya boleh huruf, angka, titik, underscore, strip, atau email' });
+      return;
+    }
+    if (modalMode === 'create' && !passwordValid(cleanForm.password)) {
+      setMessage({ type: 'error', text: 'Password minimal 8 karakter dan wajib ada huruf besar, huruf kecil, dan angka' });
+      return;
+    }
+    if (modalMode === 'edit' && cleanForm.password && !passwordValid(cleanForm.password)) {
+      setMessage({ type: 'error', text: 'Password baru belum memenuhi aturan keamanan' });
+      return;
+    }
+
     setActionLoading(true);
     try {
-      await api.put(`/admin/users/${editModal!.id}`, editForm);
-      setMsg({ type: 'success', text: `User ${editModal!.nama} berhasil diperbarui` });
-      setEditModal(null);
+      if (modalMode === 'create') {
+        await api.post('/admin/users', cleanForm);
+        setMessage({ type: 'success', text: `Akun ${cleanForm.nama} berhasil dibuat` });
+      } else if (selected) {
+        await api.put(`/admin/users/${selected.id}`, cleanForm);
+        setMessage({ type: 'success', text: `Akun ${cleanForm.nama} berhasil diperbarui` });
+      }
+      closeModal();
       fetchUsers();
-    } catch (x: any) { setMsg({ type: 'error', text: x.response?.data?.error || 'Gagal update user' }); }
-    finally { setActionLoading(false); }
+    } catch (error: any) {
+      setMessage({ type: 'error', text: error.response?.data?.error || 'Gagal menyimpan user' });
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const handleDelete = async () => {
+    if (!deleteTarget) return;
     setActionLoading(true);
     try {
-      await api.delete(`/admin/users/${deleteModal!.id}`);
-      setMsg({ type: 'success', text: `User ${deleteModal!.nama} berhasil dihapus` });
-      setDeleteModal(null);
+      await api.delete(`/admin/users/${deleteTarget.id}`);
+      setMessage({ type: 'success', text: `Akun ${deleteTarget.nama} berhasil dihapus` });
+      setDeleteTarget(null);
       fetchUsers();
-    } catch (x: any) { setMsg({ type: 'error', text: x.response?.data?.error || 'Gagal hapus user' }); }
-    finally { setActionLoading(false); }
+    } catch (error: any) {
+      setMessage({ type: 'error', text: error.response?.data?.error || 'Gagal menghapus user' });
+    } finally {
+      setActionLoading(false);
+    }
   };
 
-  const formatDate = (d: string) => new Date(d).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
-
   return (
-    <div style={{ padding: '22px 24px', background: '#0b0d14', minHeight: '100vh', color: '#e2e8f0', fontFamily: 'Inter, sans-serif' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-            <div style={{ width: 38, height: 38, borderRadius: 10, background: 'linear-gradient(135deg, #3ecfcf, #a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Users size={20} color="#fff" />
-            </div>
-            <h1 style={{ fontSize: 22, fontWeight: 700, color: '#e2e8f0', margin: 0 }}>Manajemen User</h1>
-            <span style={{ background: 'rgba(62,207,207,0.15)', color: '#3ecfcf', padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600 }}>
-              {stats.total} Akun
-            </span>
-          </div>
-          <p style={{ color: '#8890a4', fontSize: 13, margin: '2px 0 0' }}>
-            Kelola akun pengguna, ubah role, dan monitoring aktivitas sistem
-          </p>
-        </div>
-        <button onClick={fetchUsers} style={{ background: '#131722', border: '1px solid #1e2130', color: '#8890a4', padding: '8px 14px', borderRadius: 8, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
-          <RefreshCw size={14} /> Refresh
-        </button>
-      </div>
-
-      {/* Stat Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 16 }}>
-        {[
-          { icon: Users, label: 'Total User', value: stats.total, color: '#6c63ff' },
-          { icon: Shield, label: 'Admin', value: stats.admin, color: '#a855f7' },
-          { icon: UserCheck, label: 'User', value: stats.user, color: '#3ecfcf' },
-          { icon: AlertTriangle, label: 'Perlu Perhatian', value: 0, color: '#f59e0b' },
-        ].map(({ icon: Icon, label, value, color }) => (
-          <div key={label} style={{ ...card, display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px' }}>
-            <div style={{ width: 42, height: 42, borderRadius: 10, background: color + '18', border: `1px solid ${color}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <Icon size={20} color={color} />
-            </div>
+    <main className="min-h-screen bg-[#0b0d14] px-4 py-5 text-slate-100 sm:px-6 lg:px-7">
+      <div className="mx-auto flex max-w-[1680px] flex-col gap-5">
+        <header className="rounded-lg border border-white/10 bg-slate-950 p-5 shadow-xl shadow-black/20">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div>
-              <div style={{ fontSize: 11, color: '#8890a4' }}>{label}</div>
-              <div style={{ fontSize: 22, fontWeight: 700, color: '#e2e8f0', lineHeight: 1 }}>{loading ? '...' : value}</div>
+              <div className="mb-3 inline-flex items-center gap-2 rounded-md border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 text-xs font-semibold text-cyan-100">
+                <Users className="h-3.5 w-3.5" />
+                User access control
+              </div>
+              <h1 className="text-2xl font-semibold tracking-normal text-white sm:text-3xl">Manajemen User</h1>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
+                Kelola akun admin, mahasiswa, dan karyawan dari satu tempat. Tambah akun baru, ubah role, perbarui profil, atau hapus akun yang tidak digunakan.
+              </p>
             </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Message Toast */}
-      {msg && (
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, padding: '10px 16px',
-          borderRadius: 8, fontSize: 12, fontWeight: 500,
-          background: msg.type === 'success' ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
-          border: `1px solid ${msg.type === 'success' ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`,
-          color: msg.type === 'success' ? '#4ade80' : '#f87171',
-        }}>
-          {msg.type === 'success' ? <CheckCircle2 size={15} /> : <AlertTriangle size={15} />}
-          {msg.text}
-        </div>
-      )}
-
-      {/* Main Content */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 12 }}>
-        {/* Left: Table */}
-        <div style={card}>
-          {/* Filter Bar */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#0f1117', borderRadius: 8, padding: '7px 12px', flex: 1, border: '1px solid #1e2130' }}>
-              <Search size={14} color="#8890a4" />
-              <input
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                placeholder="Cari nama atau username..."
-                style={{ background: 'none', border: 'none', color: '#e2e8f0', fontSize: 12, outline: 'none', flex: 1 }}
-              />
-            </div>
-            <div style={{ display: 'flex', gap: 3, background: '#0f1117', borderRadius: 8, padding: 3, border: '1px solid #1e2130' }}>
-              {[
-                { key: 'all', label: 'Semua' },
-                { key: 'admin', label: 'Admin' },
-                { key: 'user', label: 'User' },
-              ].map(f => (
-                <button key={f.key} onClick={() => setRoleFilter(f.key)} style={{
-                  padding: '5px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 500,
-                  background: roleFilter === f.key ? 'rgba(108,99,255,0.15)' : 'transparent',
-                  color: roleFilter === f.key ? '#a89cff' : '#8890a4',
-                }}>
-                  {f.label}
-                </button>
-              ))}
-            </div>
-            <span style={{ color: '#4a5068', fontSize: 11, whiteSpace: 'nowrap' }}>{filtered.length} user</span>
-          </div>
-
-          {/* Table */}
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid #1e2130' }}>
-                  {['#', 'Nama / Username', 'Role', 'Dibuat', 'Terakhir Aktif', 'Aksi'].map(h => (
-                    <th key={h} style={{ padding: '10px 12px', textAlign: 'left', color: '#8890a4', fontWeight: 500, fontSize: 11 }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr>
-                    <td colSpan={6} style={{ padding: 40, textAlign: 'center' }}>
-                      <Loader2 size={20} color="#8890a4" style={{ animation: 'spin 1s linear infinite' }} />
-                    </td>
-                  </tr>
-                ) : filtered.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} style={{ padding: 40, textAlign: 'center', color: '#8890a4', fontSize: 13 }}>Tidak ada user ditemukan</td>
-                  </tr>
-                ) : (
-                  filtered.map((u, i) => (
-                    <tr key={u.id} style={{ borderBottom: '1px solid #1a1d2a', transition: 'background 0.15s' }}
-                      onMouseEnter={e => (e.currentTarget.style.background = '#181b28')}
-                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                    >
-                      <td style={{ padding: '12px', color: '#4a5068', fontSize: 11 }}>{i + 1}</td>
-                      <td style={{ padding: '12px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <div style={{
-                            width: 34, height: 34, borderRadius: '50%',
-                            background: `linear-gradient(135deg, ${roleColor[u.role] || '#6c63ff'}40, ${roleColor[u.role] || '#6c63ff'}15)`,
-                            border: `1.5px solid ${roleColor[u.role] || '#6c63ff'}40`,
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            fontSize: 13, fontWeight: 700, color: roleColor[u.role] || '#6c63ff',
-                            flexShrink: 0,
-                          }}>
-                            {u.nama.charAt(0).toUpperCase()}
-                          </div>
-                          <div style={{ overflow: 'hidden' }}>
-                            <div style={{ color: '#e2e8f0', fontWeight: 600, fontSize: 13 }}>{u.nama}</div>
-                            <div style={{ color: '#8890a4', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
-                              <Mail size={10} /> {u.username}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td style={{ padding: '12px' }}>
-                        <span style={{
-                          display: 'inline-flex', alignItems: 'center', gap: 5,
-                          padding: '4px 10px', borderRadius: 14, fontSize: 10, fontWeight: 600,
-                          background: roleBg[u.role] || '#1e2130',
-                          color: roleColor[u.role] || '#8890a4',
-                        }}>
-                          {u.role === 'admin' ? <Shield size={11} /> : <UserCheck size={11} />}
-                          {u.role === 'admin' ? 'Admin' : 'User'}
-                        </span>
-                      </td>
-                      <td style={{ padding: '12px', color: '#8890a4', fontSize: 11 }}>
-                        {formatDate(u.created_at)}
-                      </td>
-                      <td style={{ padding: '12px', color: '#8890a4', fontSize: 11 }}>
-                        {formatDate(u.updated_at)}
-                      </td>
-                      <td style={{ padding: '12px' }}>
-                        <div style={{ display: 'flex', gap: 4 }}>
-                          <button onClick={() => openEdit(u)} title="Edit" style={{
-                            padding: '6px 10px', borderRadius: 6, border: '1px solid #1e2130', background: 'transparent',
-                            color: '#8890a4', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: 11,
-                          }}>
-                            <Edit3 size={13} /> Edit
-                          </button>
-                          <button onClick={() => setDeleteModal(u)} title="Hapus" style={{
-                            padding: '6px 10px', borderRadius: 6, border: '1px solid rgba(239,68,68,0.15)', background: 'transparent',
-                            color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: 11,
-                          }}>
-                            <Trash2 size={13} /> Hapus
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Right Panel */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {/* Role Distribution */}
-          <div style={card}>
-            <h3 style={{ ...sectionTitle, margin: 0, fontSize: 14 }}>Distribusi Role</h3>
-            <ResponsiveContainer width="100%" height={170} minWidth={1} minHeight={1}>
-              <PieChart>
-                <Pie data={rolePie} cx="50%" cy="50%" innerRadius={45} outerRadius={70} paddingAngle={4} dataKey="value">
-                  {rolePie.map((entry, i) => (
-                    <Cell key={i} fill={entry.color} stroke="transparent" />
-                  ))}
-                </Pie>
-                <Tooltip contentStyle={{ background: '#1a1e2e', border: '1px solid #2a2e42', borderRadius: 8, fontSize: 11, color: '#e2e8f0' }} />
-              </PieChart>
-            </ResponsiveContainer>
-            <div style={{ display: 'flex', justifyContent: 'center', gap: 16 }}>
-              {rolePie.map(r => (
-                <div key={r.name} style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: r.color }}>{r.value}</div>
-                  <div style={{ fontSize: 10, color: '#8890a4' }}>{r.name}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Info Card */}
-          <div style={card}>
-            <h3 style={{ ...sectionTitle, margin: 0, fontSize: 14 }}>Informasi</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
-              {[
-                { icon: Shield, label: 'Admin', desc: 'Akses penuh ke dashboard, analitik, manajemen user, dan konfigurasi sistem', color: '#a855f7' },
-                { icon: UserCheck, label: 'User', desc: 'Akses dashboard personal, kuisioner, curhat AI, dan jaringan teman', color: '#3ecfcf' },
-              ].map(({ icon: Icon, label, desc, color }) => (
-                <div key={label} style={{ padding: '10px 12px', background: '#0f1117', borderRadius: 8, border: '1px solid #1e2130' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                    <Icon size={13} color={color} />
-                    <span style={{ fontSize: 12, fontWeight: 600, color: '#e2e8f0' }}>{label}</span>
-                  </div>
-                  <p style={{ margin: 0, fontSize: 10, color: '#8890a4', lineHeight: 1.5 }}>{desc}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Edit Modal */}
-      {editModal && (
-        <div style={{
-          position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
-        }} onClick={() => setEditModal(null)}>
-          <div style={{ ...card, width: 420, maxWidth: '90vw', padding: 24, zIndex: 1001 }} onClick={e => e.stopPropagation()}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#e2e8f0' }}>Edit User</h3>
-              <button onClick={() => setEditModal(null)} style={{ background: 'none', border: 'none', color: '#8890a4', cursor: 'pointer', padding: 4 }}>
-                <X size={18} />
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={fetchUsers}
+                disabled={loading}
+                className="inline-flex h-10 items-center gap-2 rounded-md border border-white/10 bg-white/[0.04] px-3 text-sm font-semibold text-slate-200 transition hover:bg-white/[0.07] disabled:opacity-60"
+              >
+                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                Refresh
+              </button>
+              <button
+                onClick={openCreate}
+                className="inline-flex h-10 items-center gap-2 rounded-md bg-emerald-400 px-4 text-sm font-semibold text-slate-950 transition hover:bg-emerald-300"
+              >
+                <Plus className="h-4 w-4" />
+                Tambah User
               </button>
             </div>
-            <form onSubmit={handleEdit}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: 11, color: '#8890a4', marginBottom: 4, fontWeight: 500 }}>Nama</label>
-                  <input value={editForm.nama} onChange={e => setEditForm({ ...editForm, nama: e.target.value })} required
-                    style={{ width: '100%', padding: '9px 12px', background: '#0f1117', border: '1px solid #1e2130', borderRadius: 7, color: '#e2e8f0', fontSize: 12, outline: 'none', boxSizing: 'border-box' }} />
+          </div>
+        </header>
+
+        {message && (
+          <div className={`flex items-center gap-2 rounded-lg border px-4 py-3 text-sm ${
+            message.type === 'success'
+              ? 'border-emerald-300/25 bg-emerald-500/10 text-emerald-100'
+              : 'border-rose-300/25 bg-rose-500/10 text-rose-100'
+          }`}>
+            {message.type === 'success' ? <CheckCircle2 className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />}
+            {message.text}
+          </div>
+        )}
+
+        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {[
+            { key: 'all', label: 'Total Akun', value: stats.total, icon: Users, className: 'text-slate-100 bg-slate-700/30' },
+            { key: 'admin', label: 'Admin', value: stats.admin, icon: Shield, className: 'text-violet-100 bg-violet-500/10' },
+            { key: 'mahasiswa', label: 'Mahasiswa', value: stats.mahasiswa, icon: UserCheck, className: 'text-cyan-100 bg-cyan-500/10' },
+            { key: 'karyawan', label: 'Karyawan', value: stats.karyawan, icon: Users, className: 'text-emerald-100 bg-emerald-500/10' },
+          ].map((item) => {
+            const Icon = item.icon;
+            return (
+              <button
+                key={item.key}
+                onClick={() => setFilter(item.key as AccountFilter)}
+                className={`rounded-lg border p-4 text-left shadow-xl shadow-black/10 transition ${
+                  filter === item.key ? 'border-cyan-300/40 bg-slate-900' : 'border-white/10 bg-slate-950 hover:bg-white/[0.04]'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">{item.label}</p>
+                    <p className="mt-2 text-3xl font-semibold text-white">{loading ? '-' : item.value}</p>
+                  </div>
+                  <span className={`flex h-11 w-11 items-center justify-center rounded-md ${item.className}`}>
+                    <Icon className="h-5 w-5" />
+                  </span>
                 </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: 11, color: '#8890a4', marginBottom: 4, fontWeight: 500 }}>Username</label>
-                  <input value={editForm.username} onChange={e => setEditForm({ ...editForm, username: e.target.value })} required
-                    style={{ width: '100%', padding: '9px 12px', background: '#0f1117', border: '1px solid #1e2130', borderRadius: 7, color: '#e2e8f0', fontSize: 12, outline: 'none', boxSizing: 'border-box' }} />
+              </button>
+            );
+          })}
+        </section>
+
+        <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="rounded-lg border border-white/10 bg-slate-950 p-5 shadow-xl shadow-black/10">
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+              <div>
+                <div className="flex items-center gap-2 text-sm font-semibold text-white">
+                  <Users className="h-4 w-4 text-cyan-200" />
+                  Daftar Akun
                 </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: 11, color: '#8890a4', marginBottom: 4, fontWeight: 500 }}>Role</label>
-                  <select value={editForm.role} onChange={e => setEditForm({ ...editForm, role: e.target.value })}
-                    style={{ width: '100%', padding: '9px 12px', background: '#0f1117', border: '1px solid #1e2130', borderRadius: 7, color: '#e2e8f0', fontSize: 12, outline: 'none', boxSizing: 'border-box' }}>
-                    <option value="admin">Admin</option>
-                    <option value="user">User</option>
-                  </select>
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: 11, color: '#8890a4', marginBottom: 4, fontWeight: 500 }}>Password Baru (kosongkan jika tidak diubah)</label>
-                  <input type="password" value={editForm.password} onChange={e => setEditForm({ ...editForm, password: e.target.value })}
-                    placeholder="••••••••"
-                    style={{ width: '100%', padding: '9px 12px', background: '#0f1117', border: '1px solid #1e2130', borderRadius: 7, color: '#e2e8f0', fontSize: 12, outline: 'none', boxSizing: 'border-box' }} />
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: 11, color: '#8890a4', marginBottom: 4, fontWeight: 500 }}>Bio</label>
-                  <input value={editForm.bio} onChange={e => setEditForm({ ...editForm, bio: e.target.value })}
-                    style={{ width: '100%', padding: '9px 12px', background: '#0f1117', border: '1px solid #1e2130', borderRadius: 7, color: '#e2e8f0', fontSize: 12, outline: 'none', boxSizing: 'border-box' }} />
-                </div>
+                <p className="mt-1 text-xs text-slate-500">{filteredUsers.length} akun sesuai filter</p>
               </div>
-              <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-                <button type="button" onClick={() => setEditModal(null)}
-                  style={{ flex: 1, padding: '9px', background: 'transparent', border: '1px solid #1e2130', borderRadius: 7, color: '#8890a4', fontSize: 12, cursor: 'pointer', fontWeight: 500 }}>
+              <label className="relative block">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                <input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Cari nama, username, atau kategori"
+                  className="h-10 w-full rounded-md border border-white/10 bg-white/[0.04] pl-9 pr-3 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-cyan-300/50 xl:w-80"
+                />
+              </label>
+            </div>
+
+            <div className="mt-5 overflow-hidden rounded-lg border border-white/10">
+              {loading ? (
+                <div className="flex h-40 items-center justify-center text-sm text-slate-400">
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Memuat data user...
+                </div>
+              ) : filteredUsers.length === 0 ? (
+                <div className="flex h-40 flex-col items-center justify-center text-center">
+                  <Users className="h-9 w-9 text-slate-600" />
+                  <p className="mt-2 text-sm font-semibold text-slate-300">Tidak ada user ditemukan</p>
+                  <p className="mt-1 text-xs text-slate-500">Ubah filter atau kata kunci pencarian.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-[980px] table-fixed border-collapse text-sm">
+                    <colgroup>
+                      <col className="w-16" />
+                      <col className="w-72" />
+                      <col className="w-40" />
+                      <col className="w-52" />
+                      <col className="w-36" />
+                      <col className="w-36" />
+                      <col className="w-40" />
+                    </colgroup>
+                    <thead className="bg-white/[0.03]">
+                      <tr className="border-b border-white/10 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                        <th className="px-4 py-3">No</th>
+                        <th className="px-4 py-3">Nama / Username</th>
+                        <th className="px-4 py-3">Kategori</th>
+                        <th className="px-4 py-3">Bio</th>
+                        <th className="px-4 py-3">Dibuat</th>
+                        <th className="px-4 py-3">Update</th>
+                        <th className="px-4 py-3">Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/10">
+                      {filteredUsers.map((user, index) => {
+                        const type = getAccountType(user);
+                        const meta = accountMeta[type];
+                        const Icon = meta.icon;
+                        return (
+                          <tr key={user.id} className="transition hover:bg-white/[0.03]">
+                            <td className="px-4 py-4 text-slate-500">{index + 1}</td>
+                            <td className="px-4 py-4">
+                              <div className="flex min-w-0 items-center gap-3">
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-sm font-semibold text-white">
+                                  {(user.nama || user.username || 'U').charAt(0).toUpperCase()}
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="truncate font-semibold text-slate-100" title={user.nama}>{user.nama || 'Tanpa nama'}</p>
+                                  <p className="mt-1 flex items-center gap-1 truncate text-xs text-slate-500" title={user.username}>
+                                    <Mail className="h-3 w-3 shrink-0" />
+                                    {user.username}
+                                  </p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-4 py-4">
+                              <span className={`inline-flex items-center gap-2 rounded-md border px-2.5 py-1 text-xs font-semibold ${meta.chip}`}>
+                                <Icon className="h-3.5 w-3.5" />
+                                {meta.label}
+                              </span>
+                            </td>
+                            <td className="px-4 py-4">
+                              <p className="truncate text-xs text-slate-400" title={user.bio || '-'}>{user.bio || '-'}</p>
+                            </td>
+                            <td className="px-4 py-4 text-xs text-slate-400">
+                              <span className="inline-flex items-center gap-1">
+                                <Calendar className="h-3.5 w-3.5" />
+                                {formatDate(user.created_at)}
+                              </span>
+                            </td>
+                            <td className="px-4 py-4 text-xs text-slate-400">{formatDate(user.updated_at)}</td>
+                            <td className="px-4 py-4">
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => openEdit(user)}
+                                  className="inline-flex h-9 items-center gap-1.5 rounded-md border border-white/10 bg-white/[0.04] px-3 text-xs font-semibold text-slate-200 transition hover:border-cyan-300/40 hover:text-cyan-100"
+                                >
+                                  <Edit3 className="h-3.5 w-3.5" />
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={() => setDeleteTarget(user)}
+                                  className="inline-flex h-9 items-center gap-1.5 rounded-md border border-rose-300/20 bg-rose-500/10 px-3 text-xs font-semibold text-rose-100 transition hover:bg-rose-500/20"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                  Hapus
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <aside className="flex flex-col gap-5">
+            <div className="rounded-lg border border-white/10 bg-slate-950 p-5 shadow-xl shadow-black/10">
+              <div className="flex items-center gap-2 text-sm font-semibold text-white">
+                <PieIcon className="h-4 w-4 text-violet-200" />
+                Distribusi Akun
+              </div>
+              <div className="mt-4 h-[210px] min-h-[210px] min-w-0 overflow-hidden">
+                <ResponsiveContainer width="100%" height={210} minWidth={1} minHeight={1}>
+                  <PieChart>
+                    <Pie data={pieData} cx="50%" cy="50%" innerRadius={58} outerRadius={82} paddingAngle={4} dataKey="value">
+                      {pieData.map((entry) => <Cell key={entry.name} fill={entry.color} stroke="transparent" />)}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={{ background: '#020617', border: '1px solid rgba(148,163,184,.2)', borderRadius: 8, color: '#fff', fontSize: 12 }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {pieData.map((item) => (
+                  <div key={item.name} className="rounded-md border border-white/10 bg-white/[0.03] px-3 py-2 text-center">
+                    <p className="text-lg font-semibold" style={{ color: item.color }}>{item.value}</p>
+                    <p className="text-[10px] text-slate-500">{item.name}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-white/10 bg-slate-950 p-5 shadow-xl shadow-black/10">
+              <div className="text-sm font-semibold text-white">Akses Sistem</div>
+              <div className="mt-4 space-y-3">
+                {[
+                  ['Admin', 'Akses penuh dashboard, responden, laporan, model, konfigurasi, dan manajemen user.', accountMeta.admin],
+                  ['Mahasiswa', 'Akses portal user, kuisioner, riwayat asesmen, curhat, dan jaringan teman.', accountMeta.mahasiswa],
+                  ['Karyawan', 'Akses portal user dengan kategori karyawan untuk segmentasi analitik.', accountMeta.karyawan],
+                ].map(([title, desc, meta]) => {
+                  const typedMeta = meta as typeof accountMeta.admin;
+                  const Icon = typedMeta.icon;
+                  return (
+                    <div key={title as string} className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
+                      <div className="flex items-center gap-2 text-sm font-semibold text-slate-100">
+                        <Icon className="h-4 w-4" style={{ color: typedMeta.accent }} />
+                        {title as string}
+                      </div>
+                      <p className="mt-2 text-xs leading-5 text-slate-500">{desc as string}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </aside>
+        </section>
+      </div>
+
+      {modalMode && (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm" onClick={closeModal}>
+          <div className="w-full max-w-lg rounded-lg border border-white/10 bg-slate-950 p-5 shadow-2xl" onClick={(event) => event.stopPropagation()}>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold text-white">{modalMode === 'create' ? 'Tambah User' : 'Edit User'}</h2>
+                <p className="mt-1 text-xs text-slate-500">
+                  {modalMode === 'create' ? 'Buat akun admin, mahasiswa, atau karyawan.' : 'Perbarui data akun dan akses pengguna.'}
+                </p>
+              </div>
+              <button onClick={closeModal} className="flex h-9 w-9 items-center justify-center rounded-md border border-white/10 text-slate-400 hover:text-white">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="mt-5 space-y-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="block">
+                  <span className="text-xs font-semibold text-slate-400">Nama lengkap</span>
+                  <input
+                    value={form.nama}
+                    onChange={(event) => setForm({ ...form, nama: event.target.value })}
+                    className="mt-1 h-10 w-full rounded-md border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none focus:border-cyan-300/50"
+                    required
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-xs font-semibold text-slate-400">Username / email</span>
+                  <input
+                    value={form.username}
+                    onChange={(event) => setForm({ ...form, username: event.target.value })}
+                    className="mt-1 h-10 w-full rounded-md border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none focus:border-cyan-300/50"
+                    required
+                  />
+                </label>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="block">
+                  <span className="text-xs font-semibold text-slate-400">Kategori akun</span>
+                  <select
+                    value={form.role === 'admin' ? 'admin' : form.user_type}
+                    onChange={(event) => {
+                      const value = event.target.value as AccountFilter;
+                      if (value === 'admin') {
+                        setForm({ ...form, role: 'admin', user_type: 'karyawan' });
+                      } else {
+                        setForm({ ...form, role: 'user', user_type: value });
+                      }
+                    }}
+                    className="mt-1 h-10 w-full rounded-md border border-white/10 bg-slate-900 px-3 text-sm text-white outline-none focus:border-cyan-300/50"
+                  >
+                    <option value="admin">Admin</option>
+                    <option value="mahasiswa">Mahasiswa</option>
+                    <option value="karyawan">Karyawan</option>
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="text-xs font-semibold text-slate-400">
+                    {modalMode === 'create' ? 'Password' : 'Password baru'}
+                  </span>
+                  <input
+                    type="password"
+                    value={form.password}
+                    onChange={(event) => setForm({ ...form, password: event.target.value })}
+                    placeholder={modalMode === 'create' ? 'Wajib diisi' : 'Kosongkan jika tidak diubah'}
+                    className="mt-1 h-10 w-full rounded-md border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/50"
+                    required={modalMode === 'create'}
+                  />
+                </label>
+              </div>
+
+              <div className="rounded-md border border-white/10 bg-white/[0.03] p-3 text-xs text-slate-500">
+                Password minimal 8 karakter dan wajib mengandung huruf besar, huruf kecil, serta angka.
+              </div>
+
+              <label className="block">
+                <span className="text-xs font-semibold text-slate-400">Bio</span>
+                <textarea
+                  value={form.bio}
+                  onChange={(event) => setForm({ ...form, bio: event.target.value })}
+                  rows={3}
+                  className="mt-1 w-full resize-none rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none focus:border-cyan-300/50"
+                />
+              </label>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={closeModal}
+                  className="inline-flex h-10 flex-1 items-center justify-center rounded-md border border-white/10 bg-white/[0.04] text-sm font-semibold text-slate-300 transition hover:bg-white/[0.07]"
+                >
                   Batal
                 </button>
-                <button type="submit" disabled={actionLoading}
-                  style={{ flex: 1, padding: '9px', background: 'linear-gradient(135deg, #6c63ff, #a855f7)', border: 'none', borderRadius: 7, color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                  {actionLoading ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Save size={14} />}
-                  {actionLoading ? 'Menyimpan...' : 'Simpan'}
+                <button
+                  type="submit"
+                  disabled={actionLoading}
+                  className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-md bg-emerald-400 text-sm font-semibold text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                  Simpan
                 </button>
               </div>
             </form>
@@ -390,34 +582,35 @@ export default function ManajemenUser() {
         </div>
       )}
 
-      {/* Delete Modal */}
-      {deleteModal && (
-        <div style={{
-          position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
-        }} onClick={() => setDeleteModal(null)}>
-          <div style={{ ...card, width: 380, maxWidth: '90vw', padding: 24, zIndex: 1001, textAlign: 'center' }} onClick={e => e.stopPropagation()}>
-            <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
-              <Trash2 size={24} color="#ef4444" />
+      {deleteTarget && (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm" onClick={() => setDeleteTarget(null)}>
+          <div className="w-full max-w-md rounded-lg border border-white/10 bg-slate-950 p-5 text-center shadow-2xl" onClick={(event) => event.stopPropagation()}>
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-rose-300/25 bg-rose-500/10 text-rose-100">
+              <Trash2 className="h-5 w-5" />
             </div>
-            <h3 style={{ margin: '0 0 6px', fontSize: 16, fontWeight: 700, color: '#e2e8f0' }}>Hapus User?</h3>
-            <p style={{ margin: '0 0 16px', fontSize: 12, color: '#8890a4', lineHeight: 1.5 }}>
-              Anda akan menghapus <strong style={{ color: '#e2e8f0' }}>{deleteModal.nama}</strong> ({deleteModal.username}) beserta seluruh data terkait. Tindakan ini tidak dapat dibatalkan.
+            <h2 className="mt-4 text-lg font-semibold text-white">Hapus User?</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-400">
+              Akun <span className="font-semibold text-white">{deleteTarget.nama}</span> akan dihapus dari sistem. Tindakan ini tidak dapat dibatalkan.
             </p>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => setDeleteModal(null)}
-                style={{ flex: 1, padding: '9px', background: 'transparent', border: '1px solid #1e2130', borderRadius: 7, color: '#8890a4', fontSize: 12, cursor: 'pointer', fontWeight: 500 }}>
+            <div className="mt-5 flex gap-2">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                className="inline-flex h-10 flex-1 items-center justify-center rounded-md border border-white/10 bg-white/[0.04] text-sm font-semibold text-slate-300 transition hover:bg-white/[0.07]"
+              >
                 Batal
               </button>
-              <button onClick={handleDelete} disabled={actionLoading}
-                style={{ flex: 1, padding: '9px', background: '#ef4444', border: 'none', borderRadius: 7, color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                {actionLoading ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Trash2 size={14} />}
-                {actionLoading ? 'Menghapus...' : 'Ya, Hapus'}
+              <button
+                onClick={handleDelete}
+                disabled={actionLoading}
+                className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-md bg-rose-500 text-sm font-semibold text-white transition hover:bg-rose-400 disabled:opacity-60"
+              >
+                {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                Hapus
               </button>
             </div>
           </div>
         </div>
       )}
-    </div>
+    </main>
   );
 }

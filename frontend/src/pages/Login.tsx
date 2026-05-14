@@ -25,6 +25,7 @@ export default function Login() {
   const [rem, setRem] = useState(false);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
+  const [userType, setUserType] = useState<'mahasiswa' | 'karyawan'>('mahasiswa');
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault(); setErr(''); setBusy(true);
@@ -42,7 +43,8 @@ export default function Login() {
       setErr(''); setBusy(true);
       try {
         const r = await api.post('/google-login', { 
-          access_token: tokenResponse.access_token
+          access_token: tokenResponse.access_token,
+          user_type: userType,
         });
         localStorage.setItem('token', r.data.token);
         localStorage.setItem('user', JSON.stringify(r.data.user));
@@ -131,6 +133,14 @@ export default function Login() {
         .rp-footer{margin-top:28px;font-size:11px;color:#94a3b8;position:relative;z-index:1}
 
         .err-box{background:#fef2f2;border:1px solid #fecaca;color:#dc2626;padding:8px 12px;border-radius:8px;font-size:12px;margin-bottom:14px}
+        .role-box{margin:18px 0 12px}
+        .role-title{font-size:12px;font-weight:700;color:#374151;margin-bottom:8px}
+        .role-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+        .role-btn{border:1.5px solid #e5e7eb;background:#f9fafb;color:#475569;border-radius:12px;padding:10px 12px;text-align:left;cursor:pointer;font-family:'Inter',sans-serif;transition:all .18s}
+        .role-btn strong{display:block;font-size:12px;color:#111827;margin-bottom:2px}
+        .role-btn span{display:block;font-size:10.5px;line-height:1.35;color:#64748b}
+        .role-btn.active{border-color:#6366f1;background:#eef2ff;box-shadow:0 0 0 3px rgba(99,102,241,.12)}
+        .role-help{margin:7px 0 0;font-size:10.5px;line-height:1.45;color:#64748b}
 
         @media(max-width:1024px){.lp{display:none}.rp{width:100%}}
       `}</style>
@@ -211,6 +221,21 @@ export default function Login() {
             </form>
 
             <div className="divider"><span>atau masuk dengan</span></div>
+
+            <div className="role-box">
+              <div className="role-title">Pilih jenis akun untuk Google</div>
+              <div className="role-grid">
+                <button type="button" className={`role-btn ${userType === 'mahasiswa' ? 'active' : ''}`} onClick={() => setUserType('mahasiswa')} disabled={busy}>
+                  <strong>Mahasiswa</strong>
+                  <span>Untuk pengguna kampus atau pelajar.</span>
+                </button>
+                <button type="button" className={`role-btn ${userType === 'karyawan' ? 'active' : ''}`} onClick={() => setUserType('karyawan')} disabled={busy}>
+                  <strong>Karyawan</strong>
+                  <span>Untuk pekerja atau staf organisasi.</span>
+                </button>
+              </div>
+              <p className="role-help">Pilihan ini dipakai saat akun Google baru pertama kali dibuat.</p>
+            </div>
 
             <div className="socials">
               <button type="button" className="social-btn" onClick={() => handleGoogleLogin()} disabled={busy}>

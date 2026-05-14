@@ -1,45 +1,101 @@
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
-import { card, sectionTitle, tooltipStyle } from './styles';
+import { useMemo, useState } from 'react';
+import { Line, LineChart, ResponsiveContainer, CartesianGrid, Tooltip, XAxis, YAxis } from 'recharts';
+import { Activity, LineChart as LineChartIcon } from 'lucide-react';
+import { tooltipStyle } from './styles';
 
-export default function TrendChart({ data, loading }: { data: any[], loading: boolean }) {
-  const chartData = data && data.length > 0 ? data : []; // Use empty array if no data to show empty state
+function toWeeklyData(data: any[]) {
+  const grouped: any[] = [];
+  for (let index = 0; index < data.length; index += 7) {
+    const slice = data.slice(index, index + 7);
+    const avg = (key: string) => slice.reduce((sum, item) => sum + Number(item[key] || 0), 0) / Math.max(slice.length, 1);
+    grouped.push({
+      date: slice.length > 1 ? `${slice[0].date}-${slice[slice.length - 1].date}` : slice[0]?.date,
+      semua: Number(avg('semua').toFixed(1)),
+      mahasiswa: Number(avg('mahasiswa').toFixed(1)),
+      karyawan: Number(avg('karyawan').toFixed(1)),
+    });
+  }
+  return grouped;
+}
+
+export default function TrendChart({ data, loading }: { data: any[]; loading: boolean }) {
+  const [mode, setMode] = useState<'daily' | 'weekly'>('daily');
+  const chartData = useMemo(() => {
+    const base = data && data.length > 0 ? data : [];
+    return mode === 'weekly' ? toWeeklyData(base) : base;
+  }, [data, mode]);
 
   return (
-    <div style={card}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <div style={sectionTitle}>Tren Burnout Score (Rata-rata)</div>
-        <select style={{ background: '#1e2130', border: '1px solid #2a2e42', color: '#8890a4', borderRadius: 6, fontSize: 11, padding: '3px 8px' }}>
-          <option>Harian</option>
-          <option>Mingguan</option>
-        </select>
+    <div className="flex h-full min-h-[390px] flex-col rounded-lg border border-white/10 bg-slate-950 p-5 shadow-xl shadow-black/10">
+      <div className="flex flex-col gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 text-sm font-semibold text-white">
+            <LineChartIcon className="h-4 w-4 shrink-0 text-cyan-200" />
+            <span className="truncate">Tren Burnout</span>
+          </div>
+          <p className="mt-1 text-xs text-slate-500">Rata-rata skor berdasarkan periode</p>
+        </div>
+        <div className="grid w-full grid-cols-2 rounded-md border border-white/10 bg-white/[0.03] p-1">
+          {[
+            ['daily', 'Harian'],
+            ['weekly', 'Mingguan'],
+          ].map(([value, label]) => (
+            <button
+              key={value}
+              onClick={() => setMode(value as 'daily' | 'weekly')}
+              className={`h-8 min-w-0 rounded px-2 text-xs font-semibold transition ${
+                mode === value ? 'bg-cyan-300 text-slate-950' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
-      <div style={{ display: 'flex', gap: 12, marginBottom: 8 }}>
-        {[['Semua','#6c63ff'],['Mahasiswa','#22c55e'],['Karyawan','#f59e0b']].map(([l,c]) => (
-          <span key={l} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#8890a4' }}>
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: c, display: 'inline-block' }} /> {l}
+
+      <div className="mt-4 grid grid-cols-3 gap-2 text-[11px] text-slate-400">
+        {[
+          ['Semua', 'bg-violet-300'],
+          ['Mahasiswa', 'bg-emerald-300'],
+          ['Karyawan', 'bg-amber-300'],
+        ].map(([label, color]) => (
+          <span key={label} className="inline-flex min-w-0 items-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-2 py-1">
+            <span className={`h-2 w-2 shrink-0 rounded-full ${color}`} />
+            <span className="truncate">{label}</span>
           </span>
         ))}
       </div>
+
       {loading ? (
-        <div style={{ height: 170, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8890a4', fontSize: 13 }}>
+        <div className="mt-4 flex h-[240px] items-center justify-center rounded-lg border border-white/10 bg-white/[0.03] text-sm text-slate-400">
           Memuat data...
         </div>
       ) : chartData.length === 0 ? (
-        <div style={{ height: 170, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8890a4', fontSize: 13 }}>
-          Belum ada data tren
+        <div className="mt-4 flex h-[240px] flex-col items-center justify-center rounded-lg border border-dashed border-white/10 bg-white/[0.03] text-center">
+          <Activity className="h-8 w-8 text-slate-600" />
+          <p className="mt-2 text-sm font-semibold text-slate-300">Belum ada data tren</p>
         </div>
       ) : (
-        <ResponsiveContainer width="100%" height={170} minWidth={1} minHeight={1}>
-          <LineChart data={chartData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#1e2130" />
-            <XAxis dataKey="date" tick={{ fill: '#8890a4', fontSize: 9 }} />
-            <YAxis tick={{ fill: '#8890a4', fontSize: 9 }} domain={[40, 100]} />
-            <Tooltip contentStyle={tooltipStyle} />
-            <Line type="monotone" dataKey="semua" stroke="#6c63ff" strokeWidth={2} dot={{ r: 3 }} name="Semua" />
-            <Line type="monotone" dataKey="mahasiswa" stroke="#22c55e" strokeWidth={2} dot={false} name="Mahasiswa (Mock)" />
-            <Line type="monotone" dataKey="karyawan" stroke="#f59e0b" strokeWidth={2} dot={false} name="Karyawan (Mock)" />
-          </LineChart>
-        </ResponsiveContainer>
+        <div className="mt-4 h-[240px] min-h-[240px] min-w-0 overflow-hidden rounded-lg">
+          <ResponsiveContainer width="100%" height={240} minWidth={1} minHeight={1}>
+            <LineChart data={chartData} margin={{ top: 8, right: 8, left: -18, bottom: 20 }}>
+              <CartesianGrid strokeDasharray="4 4" stroke="rgba(148, 163, 184, 0.12)" />
+              <XAxis
+                dataKey="date"
+                tick={{ fill: '#94a3b8', fontSize: 9 }}
+                axisLine={false}
+                tickLine={false}
+                interval="preserveStartEnd"
+                minTickGap={18}
+              />
+              <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} axisLine={false} tickLine={false} domain={[0, 100]} />
+              <Tooltip contentStyle={tooltipStyle} />
+              <Line type="monotone" dataKey="semua" stroke="#a78bfa" strokeWidth={2.5} dot={{ r: 3 }} name="Semua" />
+              <Line type="monotone" dataKey="mahasiswa" stroke="#34d399" strokeWidth={2.5} dot={false} name="Mahasiswa" />
+              <Line type="monotone" dataKey="karyawan" stroke="#fbbf24" strokeWidth={2.5} dot={false} name="Karyawan" />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
       )}
     </div>
   );

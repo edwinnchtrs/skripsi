@@ -85,6 +85,7 @@ func main() {
 			protected.GET("/responden/:id/history", RespondenHistoryHandler)
 
 			protected.GET("/admin/users", AdminUsersGetHandler)
+			protected.POST("/admin/users", AdminUsersCreateHandler)
 			protected.GET("/admin/users/:id", AdminUsersGetByIDHandler)
 			protected.PUT("/admin/users/:id", AdminUsersPutHandler)
 			protected.DELETE("/admin/users/:id", AdminUsersDeleteHandler)

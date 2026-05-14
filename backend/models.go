@@ -12,6 +12,7 @@ type User struct {
 	PasswordHash           string
 	Nama                   string
 	Role                   string `gorm:"default:user"`
+	UserType               string `gorm:"size:32;default:mahasiswa"`
 	Bio                    string
 	ProfilePic             string
 	Assessments            []Assessment

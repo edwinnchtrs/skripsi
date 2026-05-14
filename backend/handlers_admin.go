@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -36,6 +37,7 @@ func RespondenGetHandler(c *gin.Context) {
 		LatestRisk          string    `json:"latest_risk"`
 		LatestPsychosomatic float64   `json:"latest_psychosomatic"`
 		LastActivity        time.Time `json:"last_activity"`
+		UserType            string    `json:"user_type"`
 	}
 
 	var result []RespondenDTO
@@ -48,6 +50,7 @@ func RespondenGetHandler(c *gin.Context) {
 			ID:       u.ID,
 			Nama:     u.Nama,
 			Username: u.Username,
+			UserType: normalizeUserType(u.UserType),
 		}
 
 		if len(u.Predictions) > 0 {
@@ -98,6 +101,7 @@ func AdminUsersGetHandler(c *gin.Context) {
 		Role       string    `json:"role"`
 		Bio        string    `json:"bio"`
 		ProfilePic string    `json:"profile_pic"`
+		UserType   string    `json:"user_type"`
 		CreatedAt  time.Time `json:"created_at"`
 		UpdatedAt  time.Time `json:"updated_at"`
 	}
@@ -105,7 +109,7 @@ func AdminUsersGetHandler(c *gin.Context) {
 	for _, u := range users {
 		result = append(result, UserDTO{
 			ID: u.ID, Username: u.Username, Nama: u.Nama,
-			Role: u.Role, Bio: u.Bio, ProfilePic: u.ProfilePic,
+			Role: u.Role, Bio: u.Bio, ProfilePic: u.ProfilePic, UserType: normalizeUserType(u.UserType),
 			CreatedAt: u.CreatedAt, UpdatedAt: u.UpdatedAt,
 		})
 	}
@@ -124,9 +128,83 @@ func AdminUsersGetByIDHandler(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"id": user.ID, "username": user.Username, "nama": user.Nama,
-		"role": user.Role, "bio": user.Bio, "profile_pic": user.ProfilePic,
+		"role": user.Role, "bio": user.Bio, "profile_pic": user.ProfilePic, "user_type": normalizeUserType(user.UserType),
 		"created_at": user.CreatedAt, "updated_at": user.UpdatedAt,
 	})
+}
+
+func AdminUsersCreateHandler(c *gin.Context) {
+	if !AdminGuard(c) {
+		return
+	}
+
+	var input struct {
+		Username string `json:"username" binding:"required"`
+		Nama     string `json:"nama" binding:"required"`
+		Role     string `json:"role" binding:"required"`
+		UserType string `json:"user_type"`
+		Password string `json:"password" binding:"required"`
+		Bio      string `json:"bio"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	input.Username = strings.ToLower(strings.TrimSpace(input.Username))
+	input.Nama = strings.TrimSpace(input.Nama)
+	input.Role = strings.ToLower(strings.TrimSpace(input.Role))
+
+	if input.Role != "admin" && input.Role != "user" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Role harus admin atau user"})
+		return
+	}
+	if input.Nama == "" || len(input.Nama) < 3 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Nama lengkap minimal 3 karakter"})
+		return
+	}
+	if message := validateUsername(input.Username); message != "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": message})
+		return
+	}
+	if message := validatePassword(input.Password); message != "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": message})
+		return
+	}
+
+	userType := normalizeUserType(input.UserType)
+	if input.Role == "user" && !isValidUserType(input.UserType) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Pilih mahasiswa atau karyawan"})
+		return
+	}
+	if input.Role == "admin" {
+		userType = "karyawan"
+	}
+
+	var count int64
+	DB.Model(&User{}).Where("username = ?", input.Username).Count(&count)
+	if count > 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Username already taken"})
+		return
+	}
+
+	hashedPassword, _ := HashPassword(input.Password)
+	user := User{
+		Username:     input.Username,
+		PasswordHash: hashedPassword,
+		Nama:         input.Nama,
+		Role:         input.Role,
+		UserType:     userType,
+		Bio:          input.Bio,
+	}
+	if err := DB.Create(&user).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat user"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "User created", "user": gin.H{
+		"id": user.ID, "username": user.Username, "nama": user.Nama, "role": user.Role, "user_type": normalizeUserType(user.UserType),
+	}})
 }
 
 func AdminUsersPutHandler(c *gin.Context) {
@@ -145,6 +223,7 @@ func AdminUsersPutHandler(c *gin.Context) {
 		Role     string `json:"role"`
 		Bio      string `json:"bio"`
 		Password string `json:"password"`
+		UserType string `json:"user_type"`
 	}
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -168,6 +247,13 @@ func AdminUsersPutHandler(c *gin.Context) {
 	}
 	if input.Bio != "" {
 		updates["bio"] = input.Bio
+	}
+	if input.UserType != "" {
+		if !isValidUserType(input.UserType) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Jenis pengguna tidak valid"})
+			return
+		}
+		updates["user_type"] = normalizeUserType(input.UserType)
 	}
 	if input.Password != "" {
 		hashedPassword, _ := HashPassword(input.Password)

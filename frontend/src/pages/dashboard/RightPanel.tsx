@@ -1,115 +1,140 @@
-import { AlertTriangle, User, FileUp, FileText, Bell, Brain } from 'lucide-react';
-import { quickActions } from './data';
-import { card } from './styles';
+import { useNavigate } from 'react-router-dom';
+import { AlertTriangle, Bell, Brain, FileText, FileUp, Settings, User, Users } from 'lucide-react';
 
-const actionIcons = [User, FileUp, FileText, Bell];
+const actions = [
+  { title: 'Prediksi Individu', desc: 'Buka analisis responden', color: 'text-violet-200', bg: 'bg-violet-400/10', icon: User, path: '/prediksi' },
+  { title: 'Data Responden', desc: 'Kelola dan beri terapi', color: 'text-cyan-200', bg: 'bg-cyan-400/10', icon: Users, path: '/responden' },
+  { title: 'Laporan Lengkap', desc: 'Analisis dan export', color: 'text-emerald-200', bg: 'bg-emerald-400/10', icon: FileText, path: '/laporan' },
+  { title: 'Pengaturan Sistem', desc: 'Atur threshold dan batas', color: 'text-amber-200', bg: 'bg-amber-400/10', icon: Settings, path: '/settings' },
+];
 
-export default function RightPanel({ data, loading }: { data: any, loading: boolean }) {
-  const highBurnout = data?.burnoutDist?.["Tinggi"] ?? 0;
-  const highPsycho = data?.psychoDist?.["Tinggi"] ?? 0;
+export default function RightPanel({ data, loading }: { data: any; loading: boolean }) {
+  const navigate = useNavigate();
+  const highBurnout = data?.burnoutDist?.Tinggi ?? 0;
+  const highPsycho = data?.psychoDist?.Tinggi ?? 0;
   const total = data?.totalRespondents ?? 0;
+  const highTotal = highBurnout + highPsycho;
 
   const earlyWarnings = [
-    { label: 'Risiko Burnout Tinggi', count: `${highBurnout} orang`, desc: 'Perlu perhatian segera', color: '#ef4444' },
-    { label: 'Risiko Psikomatis Tinggi', count: `${highPsycho} orang`, desc: 'Perlu monitoring', color: '#f59e0b' },
-    { label: 'Perubahan Drastis', count: 'Mokup data', desc: 'Perubahan > 30% dari minggu lalu', color: '#f59e0b' },
+    { label: 'Risiko Burnout Tinggi', count: `${highBurnout} orang`, desc: 'Prioritas intervensi', color: 'rose' },
+    { label: 'Risiko Psikosomatis Tinggi', count: `${highPsycho} orang`, desc: 'Butuh monitoring', color: 'amber' },
+    { label: 'Total Sinyal Prioritas', count: `${highTotal} catatan`, desc: 'Gabungan indikator tinggi', color: 'cyan' },
   ];
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-
-      {/* Early Warning */}
-      <div style={card}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-          <span style={{ color: '#e2e8f0', fontSize: 13, fontWeight: 600 }}>Early Warning System</span>
-          <span style={{ fontSize: 11, color: '#6c63ff', cursor: 'pointer' }}>Lihat Semua</span>
+    <aside className="flex flex-col gap-5">
+      <section className="rounded-lg border border-white/10 bg-slate-950 p-5 shadow-xl shadow-black/10">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-sm font-semibold text-white">
+            <Bell className="h-4 w-4 text-rose-200" />
+            Early Warning
+          </div>
+          <button onClick={() => navigate('/responden')} className="text-xs font-semibold text-cyan-200 transition hover:text-cyan-100">
+            Lihat semua
+          </button>
         </div>
-        {loading ? (
-          <div style={{ color: '#8890a4', fontSize: 12, padding: '10px 0' }}>Memuat peringatan...</div>
-        ) : (
-          earlyWarnings.map((w, i) => (
-            <div key={i} style={{
-              display: 'flex', gap: 10, alignItems: 'flex-start',
-              padding: '9px 10px', borderRadius: 8, marginBottom: 6,
-              background: w.color + '12', border: `1px solid ${w.color}30`,
-            }}>
-              <AlertTriangle size={15} color={w.color} style={{ flexShrink: 0, marginTop: 2 }} />
-              <div>
-                <div style={{ fontSize: 12, color: '#e2e8f0', fontWeight: 600 }}>{w.label}</div>
-                <div style={{ fontSize: 13, color: w.color, fontWeight: 700 }}>{w.count}</div>
-                <div style={{ fontSize: 10, color: '#8890a4' }}>{w.desc}</div>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
 
-      {/* Quick Actions */}
-      <div style={card}>
-        <div style={{ color: '#e2e8f0', fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Quick Actions</div>
-        {quickActions.map((a, i) => {
-          const Icon = actionIcons[i];
-          return (
-            <div key={i} style={{
-              display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0',
-              borderBottom: i < quickActions.length - 1 ? '1px solid #1e2130' : 'none', cursor: 'pointer',
-            }}>
-              <div style={{
-                width: 30, height: 30, borderRadius: 8, flexShrink: 0,
-                background: a.color + '22', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-                <Icon size={14} color={a.color} />
-              </div>
-              <div>
-                <div style={{ fontSize: 12, color: '#c0c9e0', fontWeight: 500 }}>{a.title}</div>
-                <div style={{ fontSize: 10, color: '#8890a4' }}>{a.desc}</div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+        <div className="mt-4 space-y-3">
+          {loading ? (
+            Array.from({ length: 3 }).map((_, index) => (
+              <div key={index} className="h-20 animate-pulse rounded-lg bg-slate-800" />
+            ))
+          ) : (
+            earlyWarnings.map((item) => {
+              const tone = item.color === 'rose'
+                ? 'border-rose-300/20 bg-rose-500/10 text-rose-100'
+                : item.color === 'amber'
+                  ? 'border-amber-300/20 bg-amber-500/10 text-amber-100'
+                  : 'border-cyan-300/20 bg-cyan-500/10 text-cyan-100';
 
-      {/* Ringkasan Kuisioner Harian (User) */}
-      <div style={card}>
-        <div style={{ color: '#e2e8f0', fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Ringkasan Kuisioner Harian</div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-          <span style={{ fontSize: 11, color: '#8890a4' }}>Total Partisipasi</span>
-          <span style={{ fontSize: 12, color: '#3ecfcf', fontWeight: 600 }}>{loading ? '-' : total} User</span>
+              return (
+                <button
+                  key={item.label}
+                  onClick={() => navigate('/responden')}
+                  className={`flex w-full gap-3 rounded-lg border p-3 text-left transition hover:brightness-110 ${tone}`}
+                >
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>
+                    <span className="block text-xs font-semibold text-slate-100">{item.label}</span>
+                    <span className="mt-1 block text-lg font-semibold">{item.count}</span>
+                    <span className="block text-xs text-slate-400">{item.desc}</span>
+                  </span>
+                </button>
+              );
+            })
+          )}
         </div>
-        <div style={{ background: '#1e2130', borderRadius: 4, height: 6, width: '100%', overflow: 'hidden', marginBottom: 12 }}>
-          <div style={{ height: '100%', borderRadius: 4, background: '#3ecfcf', width: '100%' }} />
+      </section>
+
+      <section className="rounded-lg border border-white/10 bg-slate-950 p-5 shadow-xl shadow-black/10">
+        <div className="flex items-center gap-2 text-sm font-semibold text-white">
+          <FileUp className="h-4 w-4 text-violet-200" />
+          Quick Actions
         </div>
-        <div style={{ fontSize: 10, color: '#8890a4', display: 'flex', justifyContent: 'space-between' }}>
-          <span>Rata-rata Stres: <span style={{ color: '#f59e0b' }}>Sedang</span></span>
+        <div className="mt-4 space-y-2">
+          {actions.map((action) => {
+            const Icon = action.icon;
+            return (
+              <button
+                key={action.title}
+                onClick={() => navigate(action.path)}
+                className="flex w-full items-center gap-3 rounded-lg border border-white/10 bg-white/[0.03] p-3 text-left transition hover:border-cyan-300/30 hover:bg-white/[0.07]"
+              >
+                <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-md ${action.bg}`}>
+                  <Icon className={`h-5 w-5 ${action.color}`} />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold text-slate-100">{action.title}</span>
+                  <span className="block text-xs text-slate-500">{action.desc}</span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="rounded-lg border border-white/10 bg-slate-950 p-5 shadow-xl shadow-black/10">
+        <div className="text-sm font-semibold text-white">Ringkasan Kuisioner</div>
+        <div className="mt-4 flex items-center justify-between text-sm">
+          <span className="text-slate-400">Total Partisipasi</span>
+          <span className="font-semibold text-cyan-100">{loading ? '-' : total} User</span>
+        </div>
+        <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-800">
+          <div className="h-full rounded-full bg-cyan-300" style={{ width: total > 0 ? '100%' : '0%' }} />
+        </div>
+        <div className="mt-3 flex justify-between text-xs text-slate-500">
+          <span>Rata-rata burnout: <span className="text-amber-100">{data?.avgBurnout ? data.avgBurnout.toFixed(1) : '-'}</span></span>
           <span>Target: {loading ? '-' : total}</span>
         </div>
-      </div>
+      </section>
 
-      {/* Informasi Model */}
-      <div style={card}>
-        <div style={{ color: '#e2e8f0', fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Informasi Model</div>
-        {[
-          ['Algoritma Utama', 'Regresi Linier'],
-          ['Pendekatan', 'Quantum Cognition + Regresi Linier'],
-          ['Terakhir Dilatih', 'Otomatis Update'],
-          ['Dataset', `${loading ? '-' : total} sampel`],
-          ['Fitur Digunakan', '12 variabel'],
-        ].map(([label, val]) => (
-          <div key={label} style={{ marginBottom: 8 }}>
-            <div style={{ fontSize: 10, color: '#8890a4' }}>{label}</div>
-            <div style={{ fontSize: 11, color: '#c0c9e0', fontWeight: 500 }}>{val}</div>
-          </div>
-        ))}
-        <button style={{
-          marginTop: 6, width: '100%', padding: '8px 0', borderRadius: 8,
-          background: 'linear-gradient(135deg,#6c63ff,#3ecfcf)', border: 'none',
-          color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-        }}>
-          <Brain size={14} /> Lihat Detail Model
+      <section className="rounded-lg border border-white/10 bg-slate-950 p-5 shadow-xl shadow-black/10">
+        <div className="flex items-center gap-2 text-sm font-semibold text-white">
+          <Brain className="h-4 w-4 text-emerald-200" />
+          Informasi Model
+        </div>
+        <div className="mt-4 space-y-3">
+          {[
+            ['Algoritma Utama', 'Regresi Linier'],
+            ['Pendekatan', 'Quantum Cognition + Regresi'],
+            ['Terakhir Dilatih', 'Otomatis update'],
+            ['Dataset', `${loading ? '-' : total} sampel`],
+            ['Fitur Digunakan', '12 variabel'],
+          ].map(([label, value]) => (
+            <div key={label} className="rounded-md border border-white/10 bg-white/[0.03] px-3 py-2">
+              <p className="text-[10px] uppercase tracking-[0.14em] text-slate-500">{label}</p>
+              <p className="mt-1 text-xs font-semibold text-slate-100">{value}</p>
+            </div>
+          ))}
+        </div>
+        <button
+          onClick={() => navigate('/model')}
+          className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-cyan-300 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200"
+        >
+          <Brain className="h-4 w-4" />
+          Lihat Detail Model
         </button>
-      </div>
-
-    </div>
+      </section>
+    </aside>
   );
 }

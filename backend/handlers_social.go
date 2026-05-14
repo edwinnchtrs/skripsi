@@ -43,6 +43,7 @@ func UserProfileGetHandler(c *gin.Context) {
 		"nama":            user.Nama,
 		"bio":             user.Bio,
 		"profile_pic":     user.ProfilePic,
+		"user_type":       normalizeUserType(user.UserType),
 		"follower_count":  followerCount,
 		"following_count": followingCount,
 	})
@@ -55,6 +56,7 @@ func UserProfilePutHandler(c *gin.Context) {
 		Password   string `json:"password"`
 		Bio        string `json:"bio"`
 		ProfilePic string `json:"profile_pic"`
+		UserType   string `json:"user_type"`
 	}
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -67,6 +69,13 @@ func UserProfilePutHandler(c *gin.Context) {
 
 	if input.ProfilePic != "" {
 		updates["profile_pic"] = input.ProfilePic
+	}
+	if input.UserType != "" {
+		if !isValidUserType(input.UserType) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Jenis pengguna tidak valid"})
+			return
+		}
+		updates["user_type"] = normalizeUserType(input.UserType)
 	}
 
 	authChanged := false
@@ -112,6 +121,7 @@ func NetworkUsersHandler(c *gin.Context) {
 		Username   string `json:"username"`
 		Bio        string `json:"bio"`
 		ProfilePic string `json:"profile_pic"`
+		UserType   string `json:"user_type"`
 		IsFollowed bool   `json:"is_followed"`
 		Affinity   string `json:"affinity"`
 	}
@@ -135,6 +145,7 @@ func NetworkUsersHandler(c *gin.Context) {
 			Username:   u.Username,
 			Bio:        u.Bio,
 			ProfilePic: u.ProfilePic,
+			UserType:   normalizeUserType(u.UserType),
 			IsFollowed: count > 0,
 			Affinity:   affinityType,
 		})
@@ -450,6 +461,5 @@ func NetworkUserProfileHandler(c *gin.Context) {
 		"activity":         activityItems,
 	})
 }
-
 
 
