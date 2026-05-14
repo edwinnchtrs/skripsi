@@ -1,16 +1,41 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  FileText, Download, Printer, FileSpreadsheet, FileType, Loader2,
-  TrendingUp, Users, AlertTriangle, Calendar, Filter, RefreshCw,
-  BarChart3, PieChart, Activity, Eye, ChevronDown
+  Activity,
+  AlertTriangle,
+  BarChart3,
+  Calendar,
+  CheckCircle2,
+  ClipboardList,
+  Download,
+  FileSpreadsheet,
+  FileText,
+  FileType,
+  Filter,
+  Loader2,
+  PieChart,
+  Printer,
+  RefreshCw,
+  Search,
+  ShieldCheck,
+  TrendingUp,
+  Users,
 } from 'lucide-react';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  PieChart as RePieChart, Pie, Cell, LineChart, Line, Legend
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Legend,
+  Line,
+  LineChart,
+  Pie,
+  PieChart as RePieChart,
+  Tooltip,
+  XAxis,
+  YAxis,
 } from 'recharts';
 import ChartShell from '../components/ChartShell';
 import api from '../api';
-import { card, sectionTitle } from './dashboard/styles';
 
 interface Analytics {
   totalRespondents: number;
@@ -38,88 +63,208 @@ interface UserType {
   username: string;
   nama: string;
   role: string;
+  user_type?: string;
   created_at: string;
   updated_at: string;
 }
 
-const reportTypes = [
-  { key: 'burnout', label: 'Ringkasan Burnout', icon: TrendingUp },
-  { key: 'psycho', label: 'Risiko Psikosomatis', icon: AlertTriangle },
-  { key: 'respondent', label: 'Data Responden', icon: Users },
-  { key: 'trend', label: 'Tren & Analitik', icon: Activity },
+type ReportKey = 'burnout' | 'psycho' | 'respondent' | 'trend';
+
+const reportTypes: Array<{ key: ReportKey; label: string; subtitle: string; icon: typeof TrendingUp }> = [
+  { key: 'burnout', label: 'Ringkasan Burnout', subtitle: 'Distribusi risiko dan ringkasan prediksi', icon: TrendingUp },
+  { key: 'psycho', label: 'Risiko Psikosomatis', subtitle: 'Sebaran risiko gejala fisik terkait stres', icon: AlertTriangle },
+  { key: 'respondent', label: 'Data Responden', subtitle: 'Tabel operasional responden dan status terakhir', icon: Users },
+  { key: 'trend', label: 'Tren & Analitik', subtitle: 'Pergerakan skor dari waktu ke waktu', icon: Activity },
 ];
+
+const donutColors = ['#34d399', '#fbbf24', '#fb7185'];
+const tooltipStyle = {
+  background: '#0f172a',
+  border: '1px solid rgba(148, 163, 184, 0.22)',
+  borderRadius: 12,
+  color: '#e2e8f0',
+  boxShadow: '0 18px 50px rgba(0,0,0,0.35)',
+};
+
+function formatNumber(value: number | undefined, digits = 1) {
+  if (typeof value !== 'number' || Number.isNaN(value)) return '-';
+  return value.toFixed(digits);
+}
+
+function normalizeRisk(risk: string) {
+  const value = (risk || '').toLowerCase();
+  if (value.includes('high') || value.includes('tinggi')) return 'High';
+  if (value.includes('medium') || value.includes('sedang')) return 'Medium';
+  if (value.includes('low') || value.includes('rendah')) return 'Low';
+  return risk || '-';
+}
+
+function riskBadge(riskValue: string) {
+  const risk = normalizeRisk(riskValue);
+  if (risk === 'High') return { label: 'Tinggi', className: 'border-rose-300/25 bg-rose-400/10 text-rose-200', dot: 'bg-rose-300' };
+  if (risk === 'Medium') return { label: 'Sedang', className: 'border-amber-300/25 bg-amber-400/10 text-amber-200', dot: 'bg-amber-300' };
+  if (risk === 'Low') return { label: 'Rendah', className: 'border-emerald-300/25 bg-emerald-400/10 text-emerald-200', dot: 'bg-emerald-300' };
+  return { label: risk, className: 'border-slate-400/20 bg-slate-400/10 text-slate-300', dot: 'bg-slate-400' };
+}
+
+function safePct(part: number, total: number) {
+  if (!total) return '0.0';
+  return ((part / total) * 100).toFixed(1);
+}
+
+function escapeCSV(value: unknown) {
+  const text = String(value ?? '').replace(/"/g, '""');
+  return `"${text}"`;
+}
+
+function SectionCard({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+  return (
+    <section className={`rounded-2xl border border-white/10 bg-white/[0.04] shadow-xl shadow-black/10 ${className}`}>
+      {children}
+    </section>
+  );
+}
 
 export default function Laporan() {
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [respondents, setRespondents] = useState<Respondent[]>([]);
   const [users, setUsers] = useState<UserType[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeReport, setActiveReport] = useState('burnout');
+  const [activeReport, setActiveReport] = useState<ReportKey>('burnout');
   const [dateRange, setDateRange] = useState('all');
+  const [keyword, setKeyword] = useState('');
+  const [riskFilter, setRiskFilter] = useState('all');
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [error, setError] = useState('');
   const printRef = useRef<HTMLDivElement>(null);
 
+  const fetchData = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const [aRes, rRes, uRes] = await Promise.all([
+        api.get('/admin/analytics'),
+        api.get('/responden'),
+        api.get('/admin/users'),
+      ]);
+      setAnalytics(aRes.data);
+      setRespondents(rRes.data.respondents || []);
+      setUsers(uRes.data.users || []);
+      setLastUpdated(new Date());
+    } catch (e) {
+      console.error('Failed to fetch report data', e);
+      setError('Gagal memuat data laporan. Pastikan backend aktif dan akun admin masih login.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [aRes, rRes, uRes] = await Promise.all([
-          api.get('/admin/analytics'),
-          api.get('/responden'),
-          api.get('/admin/users'),
-        ]);
-        setAnalytics(aRes.data);
-        setRespondents(rRes.data.respondents || []);
-        setUsers(uRes.data.users || []);
-      } catch (e) { console.error('Failed to fetch report data', e); }
-      finally { setLoading(false); }
-    };
     fetchData();
   }, []);
 
-  const formatDate = (d: string) => {
-    if (!d) return '-';
-    return new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+  const formatDateTime = (date: string | Date | null) => {
+    if (!date) return '-';
+    return new Date(date).toLocaleString('id-ID', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
   };
 
-  const formatDateTime = (d: string) => {
-    if (!d) return '-';
-    return new Date(d).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const withinDateRange = (dateString: string) => {
+    if (dateRange === 'all' || !dateString) return true;
+    const days = dateRange === '7d' ? 7 : dateRange === '30d' ? 30 : 90;
+    const date = new Date(dateString).getTime();
+    if (Number.isNaN(date)) return true;
+    return Date.now() - date <= days * 86400000;
   };
 
-  // ---- EXPORT HELPERS (pure JS, no libraries) ----
+  const filteredRespondents = useMemo(() => {
+    const q = keyword.trim().toLowerCase();
+    return respondents
+      .filter((item) => withinDateRange(item.last_activity))
+      .filter((item) => riskFilter === 'all' || normalizeRisk(item.latest_risk) === riskFilter)
+      .filter((item) => !q || `${item.nama} ${item.username}`.toLowerCase().includes(q));
+  }, [respondents, keyword, riskFilter, dateRange]);
+
+  const trendData = useMemo(() => analytics?.trendData || [], [analytics]);
+
+  const burnoutRows = useMemo(() => {
+    const dist = analytics?.burnoutDist || {};
+    const total = analytics?.totalRespondents || 0;
+    return [
+      { label: 'Rendah', value: dist.Rendah || 0, color: '#34d399' },
+      { label: 'Sedang', value: dist.Sedang || 0, color: '#fbbf24' },
+      { label: 'Tinggi', value: dist.Tinggi || 0, color: '#fb7185' },
+    ].map((row) => ({ ...row, pct: safePct(row.value, total) }));
+  }, [analytics]);
+
+  const psychoRows = useMemo(() => {
+    const dist = analytics?.psychoDist || {};
+    const total = Math.max(1, (dist.Rendah || 0) + (dist.Sedang || 0) + (dist.Tinggi || 0));
+    return [
+      { label: 'Rendah', value: dist.Rendah || 0, color: '#34d399' },
+      { label: 'Sedang', value: dist.Sedang || 0, color: '#fbbf24' },
+      { label: 'Tinggi', value: dist.Tinggi || 0, color: '#fb7185' },
+    ].map((row) => ({ ...row, pct: safePct(row.value, total) }));
+  }, [analytics]);
+
+  const executiveStats = useMemo(() => {
+    const highRisk = filteredRespondents.filter((item) => normalizeRisk(item.latest_risk) === 'High').length;
+    const avgPsycho = filteredRespondents.length
+      ? filteredRespondents.reduce((sum, item) => sum + (item.latest_psychosomatic || 0), 0) / filteredRespondents.length
+      : 0;
+    return {
+      totalRespondents: analytics?.totalRespondents || respondents.length,
+      visibleRespondents: filteredRespondents.length,
+      avgBurnout: analytics?.avgBurnout || 0,
+      highRisk,
+      avgPsycho,
+      predictions: analytics?.totalPredictions || 0,
+    };
+  }, [analytics, respondents.length, filteredRespondents]);
+
+  const userSegments = useMemo(() => {
+    const admins = users.filter((user) => user.role === 'admin').length;
+    const mahasiswa = users.filter((user) => user.user_type === 'mahasiswa' && user.role !== 'admin').length;
+    const karyawan = users.filter((user) => user.user_type === 'karyawan' && user.role !== 'admin').length;
+    const regular = users.filter((user) => user.role !== 'admin').length;
+    return { admins, mahasiswa, karyawan, regular };
+  }, [users]);
+
+  const reportTitle = reportTypes.find((report) => report.key === activeReport)?.label || 'Laporan';
 
   const downloadBlob = (content: string, filename: string, mime: string) => {
     const blob = new Blob(['\uFEFF' + content], { type: mime });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
     URL.revokeObjectURL(url);
-  };
-
-  const escapeCSV = (v: any) => {
-    const s = String(v ?? '').replace(/"/g, '""');
-    return `"${s}"`;
   };
 
   const generateReportHTML = (title: string, subtitle: string, tableHTML: string, summaries: string) => `
     <html><head><meta charset="utf-8"><title>${title}</title>
     <style>
-      body{font-family:Inter,sans-serif;color:#1e293b;padding:24px 32px;max-width:900px;margin:auto}
-      h1{font-size:20px;color:#0f172a;margin:0 0 4px}
+      body{font-family:Inter,Arial,sans-serif;color:#1e293b;padding:24px 32px;max-width:980px;margin:auto}
+      h1{font-size:21px;color:#0f172a;margin:0 0 4px}
       h2{font-size:13px;color:#64748b;font-weight:400;margin:0 0 20px}
       .meta{font-size:10px;color:#94a3b8;margin-bottom:16px}
       .summaries{display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap}
-      .sum-box{flex:1;min-width:120px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 14px;text-align:center}
-      .sum-box .v{font-size:20px;font-weight:700;color:#0f172a}
-      .sum-box .l{font-size:10px;color:#94a3b8;margin-top:2px}
+      .sum-box{flex:1;min-width:130px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;text-align:center}
+      .sum-box .v{font-size:22px;font-weight:800;color:#0f172a}
+      .sum-box .l{font-size:10px;color:#64748b;margin-top:3px}
       table{width:100%;border-collapse:collapse;font-size:11px}
-      th{background:#f1f5f9;padding:8px 10px;text-align:left;font-weight:600;color:#475569;border-bottom:2px solid #e2e8f0}
-      td{padding:7px 10px;border-bottom:1px solid #f1f5f9}
+      th{background:#f1f5f9;padding:9px 10px;text-align:left;font-weight:700;color:#475569;border-bottom:2px solid #e2e8f0}
+      td{padding:8px 10px;border-bottom:1px solid #f1f5f9}
       tr:nth-child(even){background:#fafbfc}
-      .badge{padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600}
+      .badge{padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700}
       .badge-high{background:#fef2f2;color:#dc2626}
       .badge-med{background:#fffbeb;color:#d97706}
       .badge-low{background:#f0fdf4;color:#16a34a}
@@ -131,465 +276,525 @@ export default function Laporan() {
     ${tableHTML}
     </body></html>`;
 
-  // ---- CSV EXPORT ----
   const exportCSV = () => {
+    const date = new Date().toISOString().slice(0, 10);
     let csv = '';
-    const t = new Date().toISOString().slice(0, 10);
 
     if (activeReport === 'burnout') {
-      csv = 'Kategori,Jumlah\n';
-      if (analytics) {
-        csv += `Rendah,${analytics.burnoutDist?.Rendah || 0}\n`;
-        csv += `Sedang,${analytics.burnoutDist?.Sedang || 0}\n`;
-        csv += `Tinggi,${analytics.burnoutDist?.Tinggi || 0}\n`;
-      }
-      csv += `\nTotal Responden,${analytics?.totalRespondents || 0}\n`;
-      csv += `Rata-rata Burnout,${analytics?.avgBurnout?.toFixed(1) || 0}\n`;
-      csv += `Risiko Tinggi,${analytics?.highRiskCount || 0}\n`;
-      downloadBlob(csv, `laporan-burnout-${t}.csv`, 'text/csv');
+      csv = 'Kategori,Jumlah,Persentase\n';
+      burnoutRows.forEach((row) => {
+        csv += `${row.label},${row.value},${row.pct}%\n`;
+      });
+      csv += `\nTotal Responden,${executiveStats.totalRespondents}\n`;
+      csv += `Rata-rata Burnout,${formatNumber(executiveStats.avgBurnout)}\n`;
+      csv += `Risiko Tinggi,${executiveStats.highRisk}\n`;
+      downloadBlob(csv, `laporan-burnout-${date}.csv`, 'text/csv');
     } else if (activeReport === 'psycho') {
-      csv = 'Kategori,Jumlah\n';
-      if (analytics) {
-        csv += `Rendah,${analytics.psychoDist?.Rendah || 0}\n`;
-        csv += `Sedang,${analytics.psychoDist?.Sedang || 0}\n`;
-        csv += `Tinggi,${analytics.psychoDist?.Tinggi || 0}\n`;
-      }
-      downloadBlob(csv, `laporan-psikosomatis-${t}.csv`, 'text/csv');
+      csv = 'Kategori,Jumlah,Persentase\n';
+      psychoRows.forEach((row) => {
+        csv += `${row.label},${row.value},${row.pct}%\n`;
+      });
+      downloadBlob(csv, `laporan-psikosomatis-${date}.csv`, 'text/csv');
     } else if (activeReport === 'respondent') {
       csv = 'No,Nama,Username,Skor Burnout,Risiko,Skor Psikosomatis,Aktivitas Terakhir\n';
-      respondents.forEach((r, i) => {
-        csv += `${i + 1},${escapeCSV(r.nama)},${escapeCSV(r.username)},${r.latest_burnout?.toFixed(1) || '-'},${r.latest_risk || '-'},${r.latest_psychosomatic?.toFixed(1) || '-'},${escapeCSV(formatDateTime(r.last_activity))}\n`;
+      filteredRespondents.forEach((item, index) => {
+        csv += `${index + 1},${escapeCSV(item.nama)},${escapeCSV(item.username)},${formatNumber(item.latest_burnout)},${riskBadge(item.latest_risk).label},${formatNumber(item.latest_psychosomatic)},${escapeCSV(formatDateTime(item.last_activity))}\n`;
       });
-      downloadBlob(csv, `laporan-responden-${t}.csv`, 'text/csv');
-    } else if (activeReport === 'trend') {
-      csv = 'Tanggal,Rata-rata Burnout\n';
-      analytics?.trendData?.forEach(d => {
-        csv += `${d.date},${d.semua.toFixed(1)}\n`;
-      });
-      downloadBlob(csv, `laporan-tren-${t}.csv`, 'text/csv');
-    }
-  };
-
-  // ---- EXCEL EXPORT (HTML-based) ----
-  const exportExcel = () => {
-    const t = new Date().toISOString().slice(0, 10);
-    let tableHTML = '';
-    let summaries = '';
-    let title = '';
-    let subtitle = '';
-
-    if (activeReport === 'burnout') {
-      title = 'Laporan Ringkasan Burnout';
-      subtitle = `Total Responden: ${analytics?.totalRespondents || 0} | Rata-rata: ${analytics?.avgBurnout?.toFixed(1) || 0}%`;
-      summaries = `<div class="summaries">
-        <div class="sum-box"><div class="v">${analytics?.totalRespondents || 0}</div><div class="l">Total Responden</div></div>
-        <div class="sum-box"><div class="v">${analytics?.avgBurnout?.toFixed(1) || 0}%</div><div class="l">Rata-rata Burnout</div></div>
-        <div class="sum-box"><div class="v">${analytics?.highRiskCount || 0}</div><div class="l">Risiko Tinggi</div></div>
-        <div class="sum-box"><div class="v">${analytics?.totalPredictions || 0}</div><div class="l">Total Prediksi</div></div>
-      </div>`;
-      const dist = analytics?.burnoutDist || {};
-      tableHTML = `<table><tr><th>Kategori</th><th>Jumlah</th><th>Persentase</th></tr>
-        <tr><td>Rendah</td><td>${dist.Rendah || 0}</td><td>${analytics ? ((dist.Rendah || 0) / (analytics.totalRespondents || 1) * 100).toFixed(1) : 0}%</td></tr>
-        <tr><td>Sedang</td><td>${dist.Sedang || 0}</td><td>${analytics ? ((dist.Sedang || 0) / (analytics.totalRespondents || 1) * 100).toFixed(1) : 0}%</td></tr>
-        <tr><td>Tinggi</td><td>${dist.Tinggi || 0}</td><td>${analytics ? ((dist.Tinggi || 0) / (analytics.totalRespondents || 1) * 100).toFixed(1) : 0}%</td></tr>
-      </table>`;
-    } else if (activeReport === 'psycho') {
-      title = 'Laporan Risiko Psikosomatis';
-      subtitle = `Distribusi risiko psikosomatis responden`;
-      const dist = analytics?.psychoDist || {};
-      summaries = `<div class="summaries">
-        <div class="sum-box"><div class="v">${dist.Rendah || 0}</div><div class="l">Risiko Rendah</div></div>
-        <div class="sum-box"><div class="v">${dist.Sedang || 0}</div><div class="l">Risiko Sedang</div></div>
-        <div class="sum-box"><div class="v">${dist.Tinggi || 0}</div><div class="l">Risiko Tinggi</div></div>
-      </div>`;
-      tableHTML = `<table><tr><th>Kategori</th><th>Jumlah</th></tr>
-        <tr><td>Rendah</td><td>${dist.Rendah || 0}</td></tr>
-        <tr><td>Sedang</td><td>${dist.Sedang || 0}</td></tr>
-        <tr><td>Tinggi</td><td>${dist.Tinggi || 0}</td></tr>
-      </table>`;
-    } else if (activeReport === 'respondent') {
-      title = 'Laporan Data Responden';
-      subtitle = `${respondents.length} responden terdaftar`;
-      summaries = `<div class="summaries">
-        <div class="sum-box"><div class="v">${respondents.length}</div><div class="l">Total Responden</div></div>
-        <div class="sum-box"><div class="v">${respondents.filter(r => r.latest_risk === 'High').length}</div><div class="l">Risiko Tinggi</div></div>
-      </div>`;
-      tableHTML = '<table><tr><th>No</th><th>Nama</th><th>Username</th><th>Skor Burnout</th><th>Risiko</th><th>Skor Psikosomatis</th><th>Aktivitas Terakhir</th></tr>';
-      respondents.forEach((r, i) => {
-        const riskBadge = r.latest_risk === 'High' ? 'badge-high' : r.latest_risk === 'Medium' ? 'badge-med' : 'badge-low';
-        tableHTML += `<tr><td>${i + 1}</td><td>${r.nama}</td><td>${r.username}</td><td>${r.latest_burnout?.toFixed(1) || '-'}</td><td><span class="badge ${riskBadge}">${r.latest_risk || '-'}</span></td><td>${r.latest_psychosomatic?.toFixed(1) || '-'}</td><td>${formatDateTime(r.last_activity)}</td></tr>`;
-      });
-      tableHTML += '</table>';
-    } else if (activeReport === 'trend') {
-      title = 'Laporan Tren Burnout';
-      subtitle = 'Tren rata-rata skor burnout per tanggal';
-      tableHTML = '<table><tr><th>Tanggal</th><th>Rata-rata Burnout</th></tr>';
-      analytics?.trendData?.forEach(d => {
-        tableHTML += `<tr><td>${d.date}</td><td>${d.semua.toFixed(1)}%</td></tr>`;
-      });
-      tableHTML += '</table>';
-    }
-
-    const html = generateReportHTML(title, subtitle, tableHTML, summaries);
-    downloadBlob(html, `laporan-${activeReport}-${t}.xls`, 'application/vnd.ms-excel');
-  };
-
-  // ---- PDF EXPORT (browser print) ----
-  const exportPDF = () => {
-    const t = new Date().toISOString().slice(0, 10);
-    let title = '';
-    let bodyHTML = '';
-    let subtitle = '';
-
-    if (activeReport === 'burnout') {
-      title = 'Laporan Ringkasan Burnout';
-      subtitle = `Total: ${analytics?.totalRespondents || 0} responden | Rata-rata: ${analytics?.avgBurnout?.toFixed(1) || 0}%`;
-      const dist = analytics?.burnoutDist || {};
-      bodyHTML = `<table><tr><th>Kategori</th><th>Jumlah</th><th>%</th></tr>
-        <tr><td>Rendah</td><td>${dist.Rendah || 0}</td><td>${analytics ? ((dist.Rendah || 0) / (analytics.totalRespondents || 1) * 100).toFixed(1) : 0}%</td></tr>
-        <tr><td>Sedang</td><td>${dist.Sedang || 0}</td><td>${analytics ? ((dist.Sedang || 0) / (analytics.totalRespondents || 1) * 100).toFixed(1) : 0}%</td></tr>
-        <tr><td>Tinggi</td><td>${dist.Tinggi || 0}</td><td>${analytics ? ((dist.Tinggi || 0) / (analytics.totalRespondents || 1) * 100).toFixed(1) : 0}%</td></tr>
-      </table>`;
-    } else if (activeReport === 'respondent') {
-      title = 'Laporan Data Responden';
-      subtitle = `${respondents.length} responden`;
-      bodyHTML = '<table><tr><th>No</th><th>Nama</th><th>Username</th><th>Skor Burnout</th><th>Risiko</th><th>Skor Psikosomatis</th></tr>';
-      respondents.forEach((r, i) => {
-        bodyHTML += `<tr><td>${i + 1}</td><td>${r.nama}</td><td>${r.username}</td><td>${r.latest_burnout?.toFixed(1) || '-'}</td><td>${r.latest_risk || '-'}</td><td>${r.latest_psychosomatic?.toFixed(1) || '-'}</td></tr>`;
-      });
-      bodyHTML += '</table>';
-    } else if (activeReport === 'trend') {
-      title = 'Laporan Tren Burnout';
-      bodyHTML = '<table><tr><th>Tanggal</th><th>Rata-rata Burnout</th></tr>';
-      analytics?.trendData?.forEach(d => {
-        bodyHTML += `<tr><td>${d.date}</td><td>${d.semua.toFixed(1)}%</td></tr>`;
-      });
-      bodyHTML += '</table>';
+      downloadBlob(csv, `laporan-responden-${date}.csv`, 'text/csv');
     } else {
-      title = 'Laporan Risiko Psikosomatis';
-      const dist = analytics?.psychoDist || {};
-      bodyHTML = `<table><tr><th>Kategori</th><th>Jumlah</th></tr>
-        <tr><td>Rendah</td><td>${dist.Rendah || 0}</td></tr>
-        <tr><td>Sedang</td><td>${dist.Sedang || 0}</td></tr>
-        <tr><td>Tinggi</td><td>${dist.Tinggi || 0}</td></tr>
-      </table>`;
-    }
-
-    const printWin = window.open('', '_blank', 'width=900,height=700');
-    if (printWin) {
-      printWin.document.write(`
-        <html><head><meta charset="utf-8"><title>${title}</title>
-        <style>
-          body{font-family:Inter,sans-serif;color:#1e293b;padding:24px 32px}
-          h1{font-size:18px;color:#0f172a;margin:0 0 4px}
-          h2{font-size:12px;color:#64748b;font-weight:400;margin:0 0 16px}
-          .meta{font-size:10px;color:#94a3b8;margin-bottom:16px}
-          table{width:100%;border-collapse:collapse;font-size:11px}
-          th{background:#f1f5f9;padding:8px 10px;text-align:left;font-weight:600;border-bottom:2px solid #e2e8f0}
-          td{padding:7px 10px;border-bottom:1px solid #f1f5f9}
-          @media print{body{padding:0}@page{margin:1.2cm}}
-        </style></head><body>
-        <h1>${title}</h1><h2>${subtitle}</h2>
-        <div class="meta">Dicetak: ${new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })} | QC Analytics</div>
-        ${bodyHTML}
-        </body></html>
-      `);
-      printWin.document.close();
-      setTimeout(() => printWin.print(), 500);
+      csv = 'Tanggal,Rata-rata Burnout\n';
+      trendData.forEach((item) => {
+        csv += `${item.date},${formatNumber(item.semua)}\n`;
+      });
+      downloadBlob(csv, `laporan-tren-${date}.csv`, 'text/csv');
     }
   };
 
-  // ---- PRINT (full page) ----
-  const handlePrint = () => { window.print(); };
+  const exportExcel = () => {
+    const date = new Date().toISOString().slice(0, 10);
+    const summaries = `<div class="summaries">
+      <div class="sum-box"><div class="v">${executiveStats.totalRespondents}</div><div class="l">Total Responden</div></div>
+      <div class="sum-box"><div class="v">${formatNumber(executiveStats.avgBurnout)}%</div><div class="l">Rata-rata Burnout</div></div>
+      <div class="sum-box"><div class="v">${executiveStats.highRisk}</div><div class="l">Risiko Tinggi</div></div>
+      <div class="sum-box"><div class="v">${executiveStats.predictions}</div><div class="l">Total Prediksi</div></div>
+    </div>`;
 
-  const riskBadge = (risk: string) => {
-    const map: Record<string, { bg: string; c: string }> = {
-      High: { bg: 'rgba(239,68,68,0.12)', c: '#ef4444' },
-      Medium: { bg: 'rgba(245,158,11,0.12)', c: '#f59e0b' },
-      Low: { bg: 'rgba(34,197,94,0.12)', c: '#22c55e' },
-    };
-    const s = map[risk] || { bg: 'rgba(136,144,164,0.12)', c: '#8890a4' };
-    return { ...s, label: risk === 'High' ? 'Tinggi' : risk === 'Medium' ? 'Sedang' : risk === 'Low' ? 'Rendah' : risk || '-' };
+    let tableHTML = '';
+    if (activeReport === 'burnout') {
+      tableHTML = `<table><tr><th>Kategori</th><th>Jumlah</th><th>Persentase</th></tr>${burnoutRows.map((row) => `<tr><td>${row.label}</td><td>${row.value}</td><td>${row.pct}%</td></tr>`).join('')}</table>`;
+    } else if (activeReport === 'psycho') {
+      tableHTML = `<table><tr><th>Kategori</th><th>Jumlah</th><th>Persentase</th></tr>${psychoRows.map((row) => `<tr><td>${row.label}</td><td>${row.value}</td><td>${row.pct}%</td></tr>`).join('')}</table>`;
+    } else if (activeReport === 'respondent') {
+      tableHTML = '<table><tr><th>No</th><th>Nama</th><th>Username</th><th>Skor Burnout</th><th>Risiko</th><th>Skor Psikosomatis</th><th>Aktivitas Terakhir</th></tr>';
+      filteredRespondents.forEach((item, index) => {
+        const risk = normalizeRisk(item.latest_risk);
+        const klass = risk === 'High' ? 'badge-high' : risk === 'Medium' ? 'badge-med' : 'badge-low';
+        tableHTML += `<tr><td>${index + 1}</td><td>${item.nama}</td><td>${item.username}</td><td>${formatNumber(item.latest_burnout)}</td><td><span class="badge ${klass}">${riskBadge(item.latest_risk).label}</span></td><td>${formatNumber(item.latest_psychosomatic)}</td><td>${formatDateTime(item.last_activity)}</td></tr>`;
+      });
+      tableHTML += '</table>';
+    } else {
+      tableHTML = `<table><tr><th>Tanggal</th><th>Rata-rata Burnout</th></tr>${trendData.map((item) => `<tr><td>${item.date}</td><td>${formatNumber(item.semua)}%</td></tr>`).join('')}</table>`;
+    }
+
+    downloadBlob(
+      generateReportHTML(reportTitle, `Rentang: ${dateRange === 'all' ? 'Semua waktu' : dateRange}`, tableHTML, summaries),
+      `laporan-${activeReport}-${date}.xls`,
+      'application/vnd.ms-excel',
+    );
   };
 
-  const donutColors = ['#22c55e', '#f59e0b', '#ef4444'];
+  const exportPDF = () => {
+    const summaries = `<div class="summaries">
+      <div class="sum-box"><div class="v">${executiveStats.totalRespondents}</div><div class="l">Total Responden</div></div>
+      <div class="sum-box"><div class="v">${formatNumber(executiveStats.avgBurnout)}%</div><div class="l">Rata-rata Burnout</div></div>
+      <div class="sum-box"><div class="v">${executiveStats.highRisk}</div><div class="l">Risiko Tinggi</div></div>
+    </div>`;
+
+    let tableHTML = '<table><tr><th>No</th><th>Nama</th><th>Username</th><th>Burnout</th><th>Risiko</th><th>Psikosomatis</th></tr>';
+    filteredRespondents.slice(0, 80).forEach((item, index) => {
+      tableHTML += `<tr><td>${index + 1}</td><td>${item.nama}</td><td>${item.username}</td><td>${formatNumber(item.latest_burnout)}</td><td>${riskBadge(item.latest_risk).label}</td><td>${formatNumber(item.latest_psychosomatic)}</td></tr>`;
+    });
+    tableHTML += '</table>';
+
+    const printWindow = window.open('', '_blank', 'width=980,height=720');
+    if (!printWindow) return;
+    printWindow.document.write(generateReportHTML(reportTitle, 'Dokumen siap simpan sebagai PDF melalui dialog print browser', tableHTML, summaries));
+    printWindow.document.close();
+    setTimeout(() => printWindow.print(), 500);
+  };
+
+  const handlePrint = () => window.print();
 
   if (loading) {
     return (
-      <div style={{ padding: '22px 24px', background: '#0b0d14', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Inter, sans-serif' }}>
-        <Loader2 size={24} color="#8890a4" style={{ animation: 'spin 1s linear infinite' }} />
+      <div className="flex min-h-screen items-center justify-center bg-[#090b12] text-slate-100">
+        <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-8 text-center shadow-xl shadow-black/20">
+          <Loader2 className="mx-auto h-8 w-8 animate-spin text-teal-200" />
+          <p className="mt-4 text-sm text-slate-400">Memuat pusat laporan...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div style={{ padding: '22px 24px', background: '#0b0d14', minHeight: '100vh', color: '#e2e8f0', fontFamily: 'Inter, sans-serif' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-            <div style={{ width: 38, height: 38, borderRadius: 10, background: 'linear-gradient(135deg, #22c55e, #3ecfcf)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <FileText size={20} color="#fff" />
-            </div>
-            <h1 style={{ fontSize: 22, fontWeight: 700, color: '#e2e8f0', margin: 0 }}>Laporan</h1>
-            <span style={{ background: 'rgba(34,197,94,0.15)', color: '#4ade80', padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600 }}>
-              Export Ready
-            </span>
-          </div>
-          <p style={{ color: '#8890a4', fontSize: 13, margin: '2px 0 0' }}>
-            Generate dan ekspor laporan analitik dalam format PDF, Excel, CSV, atau cetak langsung
-          </p>
-        </div>
-      </div>
+    <main className="min-h-screen bg-[#090b12] px-4 py-5 text-slate-100 sm:px-6 lg:px-8">
+      <div className="pointer-events-none fixed inset-0 -z-0 bg-[radial-gradient(circle_at_top_left,rgba(45,212,191,0.14),transparent_30%),radial-gradient(circle_at_88%_0%,rgba(34,197,94,0.12),transparent_26%),linear-gradient(180deg,rgba(15,23,42,0.7),rgba(9,11,18,0.98))]" />
 
-      {/* Report Type Tabs */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 16, background: '#131722', borderRadius: 10, padding: 4, width: 'fit-content', border: '1px solid #1e2130' }}>
-        {reportTypes.map(({ key, label, icon: Icon }) => (
-          <button key={key} onClick={() => setActiveReport(key)}
-            style={{
-              padding: '8px 18px', borderRadius: 7, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 500,
-              background: activeReport === key ? 'rgba(34,197,94,0.15)' : 'transparent',
-              color: activeReport === key ? '#4ade80' : '#8890a4',
-              display: 'flex', alignItems: 'center', gap: 7, transition: 'all 0.15s',
-            }}>
-            <Icon size={14} /> {label}
-          </button>
+      <div className="relative z-10 mx-auto flex max-w-7xl flex-col gap-5" ref={printRef}>
+        <header className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] shadow-2xl shadow-black/20 print:border-slate-300 print:bg-white print:text-slate-950">
+          <div className="grid gap-5 p-5 sm:p-6 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center">
+            <div className="min-w-0">
+              <div className="mb-3 flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-300/10 px-3 py-1 text-xs font-semibold text-emerald-100 print:border-emerald-200 print:text-emerald-700">
+                  <FileText className="h-3.5 w-3.5" />
+                  Report center
+                </span>
+                <span className="inline-flex items-center gap-2 rounded-full border border-teal-300/20 bg-teal-300/10 px-3 py-1 text-xs font-semibold text-teal-100 print:border-teal-200 print:text-teal-700">
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                  Export ready
+                </span>
+              </div>
+              <h1 className="text-2xl font-bold tracking-normal text-white print:text-slate-950 sm:text-3xl">Laporan Analitik</h1>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400 print:text-slate-600">
+                Buat, tinjau, filter, dan ekspor laporan burnout, psikosomatis, responden, serta tren prediktif dalam satu ruang kerja.
+              </p>
+            </div>
+
+            <div className="grid gap-2 sm:grid-cols-2 xl:w-[430px]">
+              <button onClick={exportCSV} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-sky-300/20 bg-sky-400/10 px-4 text-sm font-semibold text-sky-100 transition hover:bg-sky-400/15 print:hidden">
+                <FileType className="h-4 w-4" />
+                CSV
+              </button>
+              <button onClick={exportExcel} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-4 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-400/15 print:hidden">
+                <FileSpreadsheet className="h-4 w-4" />
+                Excel
+              </button>
+              <button onClick={exportPDF} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-rose-300/20 bg-rose-400/10 px-4 text-sm font-semibold text-rose-100 transition hover:bg-rose-400/15 print:hidden">
+                <Download className="h-4 w-4" />
+                PDF
+              </button>
+              <button onClick={handlePrint} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-amber-300/20 bg-amber-400/10 px-4 text-sm font-semibold text-amber-100 transition hover:bg-amber-400/15 print:hidden">
+                <Printer className="h-4 w-4" />
+                Cetak
+              </button>
+            </div>
+          </div>
+        </header>
+
+        {error && (
+          <div className="rounded-xl border border-rose-300/25 bg-rose-400/10 px-4 py-3 text-sm text-rose-100">
+            {error}
+          </div>
+        )}
+
+        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+          {[
+            { label: 'Total Responden', value: executiveStats.totalRespondents, icon: Users, className: 'text-violet-200 bg-violet-400/10 ring-violet-300/20' },
+            { label: 'Terfilter', value: executiveStats.visibleRespondents, icon: Filter, className: 'text-teal-200 bg-teal-400/10 ring-teal-300/20' },
+            { label: 'Rata-rata Burnout', value: `${formatNumber(executiveStats.avgBurnout)}%`, icon: TrendingUp, className: 'text-amber-200 bg-amber-400/10 ring-amber-300/20' },
+            { label: 'Risiko Tinggi', value: executiveStats.highRisk, icon: AlertTriangle, className: 'text-rose-200 bg-rose-400/10 ring-rose-300/20' },
+            { label: 'Total Prediksi', value: executiveStats.predictions, icon: ClipboardList, className: 'text-emerald-200 bg-emerald-400/10 ring-emerald-300/20' },
+          ].map(({ label, value, icon: Icon, className }) => (
+            <article key={label} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 shadow-xl shadow-black/10 print:border-slate-200 print:bg-white">
+              <div className="flex items-center gap-3">
+                <div className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl ring-1 ${className}`}>
+                  <Icon className="h-5 w-5" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-slate-400 print:text-slate-500">{label}</p>
+                  <p className="mt-1 text-2xl font-bold leading-tight text-white print:text-slate-950">{value}</p>
+                </div>
+              </div>
+            </article>
+          ))}
+        </section>
+
+        <SectionCard className="p-3 print:hidden">
+          <div className="flex flex-wrap gap-2">
+            {reportTypes.map(({ key, label, subtitle, icon: Icon }) => (
+              <button
+                key={key}
+                onClick={() => setActiveReport(key)}
+                className={`flex min-w-[220px] flex-1 items-center gap-3 rounded-xl border px-4 py-3 text-left transition ${
+                  activeReport === key
+                    ? 'border-teal-300/30 bg-teal-400/10 text-teal-100'
+                    : 'border-white/10 bg-slate-950/35 text-slate-400 hover:border-slate-600 hover:text-slate-200'
+                }`}
+              >
+                <Icon className="h-5 w-5 shrink-0" />
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold">{label}</span>
+                  <span className="mt-0.5 block truncate text-xs opacity-70">{subtitle}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+        </SectionCard>
+
+        <SectionCard className="p-4 print:hidden">
+          <div className="grid gap-3 xl:grid-cols-[minmax(240px,1fr)_auto_auto_auto] xl:items-center">
+            <label className="flex min-w-0 items-center gap-2 rounded-xl border border-white/10 bg-slate-950/50 px-3 py-2.5">
+              <Search className="h-4 w-4 shrink-0 text-slate-500" />
+              <input
+                value={keyword}
+                onChange={(event) => setKeyword(event.target.value)}
+                placeholder="Cari nama atau username responden..."
+                className="min-w-0 flex-1 bg-transparent text-sm text-slate-100 outline-none placeholder:text-slate-600"
+              />
+            </label>
+
+            <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-slate-950/50 px-3 py-2.5">
+              <Calendar className="h-4 w-4 text-slate-500" />
+              <select value={dateRange} onChange={(event) => setDateRange(event.target.value)} className="bg-transparent text-sm font-semibold text-slate-200 outline-none">
+                <option value="all">Semua waktu</option>
+                <option value="7d">7 hari terakhir</option>
+                <option value="30d">30 hari terakhir</option>
+                <option value="90d">90 hari terakhir</option>
+              </select>
+            </label>
+
+            <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-slate-950/50 px-3 py-2.5">
+              <AlertTriangle className="h-4 w-4 text-slate-500" />
+              <select value={riskFilter} onChange={(event) => setRiskFilter(event.target.value)} className="bg-transparent text-sm font-semibold text-slate-200 outline-none">
+                <option value="all">Semua risiko</option>
+                <option value="High">Risiko tinggi</option>
+                <option value="Medium">Risiko sedang</option>
+                <option value="Low">Risiko rendah</option>
+              </select>
+            </label>
+
+            <button onClick={fetchData} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-white/10 bg-slate-950/50 px-4 text-sm font-semibold text-slate-300 transition hover:border-teal-300/30 hover:text-white">
+              <RefreshCw className="h-4 w-4" />
+              Refresh
+            </button>
+          </div>
+        </SectionCard>
+
+        <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
+          <div className="grid min-w-0 gap-5">
+            {activeReport === 'burnout' && (
+              <>
+                <div className="grid gap-5 lg:grid-cols-2">
+                  <DistributionTable title="Distribusi Burnout" rows={burnoutRows} />
+                  <DistributionDonut title="Visualisasi Burnout" rows={burnoutRows} />
+                </div>
+                <RespondentTable respondents={filteredRespondents.slice(0, 8)} formatDateTime={formatDateTime} compact />
+              </>
+            )}
+
+            {activeReport === 'psycho' && (
+              <>
+                <div className="grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
+                  <DistributionTable title="Distribusi Psikosomatis" rows={psychoRows} />
+                  <SectionCard className="min-w-0 p-4 sm:p-5">
+                    <h2 className="text-base font-semibold text-white">Bar Risiko Psikosomatis</h2>
+                    <p className="mt-1 text-xs text-slate-500">Jumlah responden per tingkat risiko.</p>
+                    <ChartShell height={300} className="mt-4">
+                      <BarChart data={psychoRows} margin={{ top: 12, right: 16, bottom: 0, left: -20 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.12)" />
+                        <XAxis dataKey="label" tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} />
+                        <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                        <Tooltip contentStyle={tooltipStyle} />
+                        <Bar dataKey="value" radius={[8, 8, 0, 0]} barSize={70}>
+                          {psychoRows.map((row) => <Cell key={row.label} fill={row.color} />)}
+                        </Bar>
+                      </BarChart>
+                    </ChartShell>
+                  </SectionCard>
+                </div>
+                <RespondentTable respondents={filteredRespondents.slice(0, 8)} formatDateTime={formatDateTime} compact />
+              </>
+            )}
+
+            {activeReport === 'respondent' && (
+              <RespondentTable respondents={filteredRespondents} formatDateTime={formatDateTime} />
+            )}
+
+            {activeReport === 'trend' && (
+              <>
+                <SectionCard className="min-w-0 p-4 sm:p-5">
+                  <h2 className="text-base font-semibold text-white">Tren Rata-rata Burnout</h2>
+                  <p className="mt-1 text-xs text-slate-500">Pergerakan rata-rata skor burnout berdasarkan periode data.</p>
+                  <ChartShell height={340} className="mt-4">
+                    <LineChart data={trendData} margin={{ top: 12, right: 18, bottom: 0, left: -18 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.12)" />
+                      <XAxis dataKey="date" tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} domain={[0, 100]} axisLine={false} tickLine={false} />
+                      <Tooltip contentStyle={tooltipStyle} />
+                      <Legend wrapperStyle={{ color: '#94a3b8', fontSize: 12 }} />
+                      <Line type="monotone" dataKey="semua" stroke="#8b5cf6" strokeWidth={2.8} dot={{ r: 4, fill: '#8b5cf6' }} name="Rata-rata Burnout" />
+                    </LineChart>
+                  </ChartShell>
+                </SectionCard>
+                <TrendTable data={trendData} />
+              </>
+            )}
+          </div>
+
+          <aside className="grid gap-5">
+            <SectionCard className="p-4 sm:p-5">
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-base font-semibold text-white">Ringkasan Eksekutif</h2>
+                <CheckCircle2 className="h-5 w-5 text-emerald-300" />
+              </div>
+              <div className="space-y-3">
+                {[
+                  ['Laporan aktif', reportTitle],
+                  ['Terakhir diperbarui', formatDateTime(lastUpdated)],
+                  ['Rata-rata psikosomatis', `${formatNumber(executiveStats.avgPsycho)}%`],
+                  ['Akun non-admin', userSegments.regular],
+                ].map(([label, value]) => (
+                  <div key={label} className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-slate-950/45 px-3 py-2.5">
+                    <span className="text-xs text-slate-500">{label}</span>
+                    <span className="truncate text-sm font-semibold text-slate-100">{value}</span>
+                  </div>
+                ))}
+              </div>
+            </SectionCard>
+
+            <SectionCard className="p-4 sm:p-5">
+              <h2 className="text-base font-semibold text-white">Segmentasi User</h2>
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                {[
+                  ['Mahasiswa', userSegments.mahasiswa, 'text-teal-200 bg-teal-400/10'],
+                  ['Karyawan', userSegments.karyawan, 'text-amber-200 bg-amber-400/10'],
+                  ['Admin', userSegments.admins, 'text-violet-200 bg-violet-400/10'],
+                  ['Total akun', users.length, 'text-sky-200 bg-sky-400/10'],
+                ].map(([label, value, className]) => (
+                  <div key={label} className={`rounded-xl p-3 ${className}`}>
+                    <p className="text-xs opacity-80">{label}</p>
+                    <p className="mt-1 text-2xl font-bold">{value}</p>
+                  </div>
+                ))}
+              </div>
+            </SectionCard>
+
+            <SectionCard className="p-4 sm:p-5">
+              <h2 className="text-base font-semibold text-white">Kesiapan Dokumen</h2>
+              <div className="mt-4 space-y-3">
+                {[
+                  ['Data analitik', Boolean(analytics), 'Sumber ringkasan dan chart'],
+                  ['Data responden', respondents.length > 0, `${respondents.length} baris tersedia`],
+                  ['Filter aktif', keyword || riskFilter !== 'all' || dateRange !== 'all', 'Mempengaruhi tabel responden'],
+                ].map(([label, ok, detail]) => (
+                  <div key={String(label)} className="flex items-start gap-3 rounded-xl border border-white/10 bg-slate-950/45 p-3">
+                    <span className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${ok ? 'bg-emerald-300' : 'bg-slate-600'}`} />
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-slate-200">{label}</p>
+                      <p className="mt-1 text-xs leading-5 text-slate-500">{detail}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </SectionCard>
+          </aside>
+        </section>
+      </div>
+    </main>
+  );
+}
+
+function DistributionTable({ title, rows }: { title: string; rows: Array<{ label: string; value: number; pct: string; color: string }> }) {
+  return (
+    <SectionCard className="p-4 sm:p-5">
+      <h2 className="text-base font-semibold text-white">{title}</h2>
+      <div className="mt-4 overflow-hidden rounded-xl border border-white/10">
+        <table className="w-full text-sm">
+          <thead className="bg-slate-950/65 text-left text-xs font-semibold uppercase tracking-normal text-slate-500">
+            <tr>
+              <th className="px-4 py-3">Kategori</th>
+              <th className="px-4 py-3 text-right">Jumlah</th>
+              <th className="px-4 py-3">Persentase</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-white/10">
+            {rows.map((row) => (
+              <tr key={row.label}>
+                <td className="px-4 py-4">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: row.color }} />
+                    <span className="font-semibold text-slate-100">{row.label}</span>
+                  </div>
+                </td>
+                <td className="px-4 py-4 text-right font-bold text-white">{row.value}</td>
+                <td className="px-4 py-4">
+                  <div className="flex items-center gap-3">
+                    <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-800">
+                      <div className="h-full rounded-full" style={{ width: `${row.pct}%`, backgroundColor: row.color }} />
+                    </div>
+                    <span className="w-12 text-right text-xs font-semibold text-slate-400">{row.pct}%</span>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </SectionCard>
+  );
+}
+
+function DistributionDonut({ title, rows }: { title: string; rows: Array<{ label: string; value: number; color: string }> }) {
+  return (
+    <SectionCard className="min-w-0 p-4 sm:p-5">
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="text-base font-semibold text-white">{title}</h2>
+        <PieChart className="h-4 w-4 text-teal-200" />
+      </div>
+      <ChartShell height={250}>
+        <RePieChart>
+          <Pie data={rows} cx="50%" cy="50%" innerRadius={62} outerRadius={94} paddingAngle={3} dataKey="value" nameKey="label">
+            {rows.map((row, index) => <Cell key={row.label} fill={row.color || donutColors[index]} stroke="transparent" />)}
+          </Pie>
+          <Tooltip contentStyle={tooltipStyle} />
+        </RePieChart>
+      </ChartShell>
+      <div className="mt-3 grid grid-cols-3 gap-2">
+        {rows.map((row) => (
+          <div key={row.label} className="rounded-lg bg-slate-950/45 px-3 py-2 text-center">
+            <p className="text-xs text-slate-500">{row.label}</p>
+            <p className="mt-1 text-lg font-bold text-white">{row.value}</p>
+          </div>
         ))}
       </div>
+    </SectionCard>
+  );
+}
 
-      {/* Export Buttons + Date Filter */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={exportCSV}
-            style={{ padding: '8px 16px', borderRadius: 8, background: '#131722', border: '1px solid #1e2130', color: '#8890a4', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 500 }}>
-            <FileType size={14} /> Export CSV
-          </button>
-          <button onClick={exportExcel}
-            style={{ padding: '8px 16px', borderRadius: 8, background: '#131722', border: '1px solid #22c55e40', color: '#4ade80', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 500 }}>
-            <FileSpreadsheet size={14} /> Export Excel
-          </button>
-          <button onClick={exportPDF}
-            style={{ padding: '8px 16px', borderRadius: 8, background: '#131722', border: '1px solid #ef444440', color: '#f87171', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 500 }}>
-            <FileText size={14} /> Export PDF
-          </button>
-          <button onClick={handlePrint}
-            style={{ padding: '8px 16px', borderRadius: 8, background: '#131722', border: '1px solid #f59e0b40', color: '#fbbf24', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 500 }}>
-            <Printer size={14} /> Cetak
-          </button>
+function RespondentTable({
+  respondents,
+  formatDateTime,
+  compact = false,
+}: {
+  respondents: Respondent[];
+  formatDateTime: (date: string | Date | null) => string;
+  compact?: boolean;
+}) {
+  return (
+    <SectionCard className="min-w-0 overflow-hidden p-4 sm:p-5">
+      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-base font-semibold text-white">Data Responden</h2>
+          <p className="mt-1 text-xs text-slate-500">{respondents.length} responden tampil pada laporan ini.</p>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#131722', border: '1px solid #1e2130', borderRadius: 8, padding: '6px 12px' }}>
-          <Calendar size={13} color="#8890a4" />
-          <select value={dateRange} onChange={e => setDateRange(e.target.value)}
-            style={{ background: 'none', border: 'none', color: '#e2e8f0', fontSize: 11, outline: 'none', cursor: 'pointer' }}>
-            <option value="all">Semua Waktu</option>
-            <option value="7d">7 Hari Terakhir</option>
-            <option value="30d">30 Hari Terakhir</option>
-            <option value="90d">90 Hari Terakhir</option>
-          </select>
-        </div>
+        {compact && <span className="rounded-full bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-400">Preview 8 baris</span>}
       </div>
-
-      <div ref={printRef}>
-        {/* Report Content */}
-        {activeReport === 'burnout' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {/* Summary Cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
-              {[
-                { label: 'Total Responden', value: analytics?.totalRespondents || 0, color: '#6c63ff' },
-                { label: 'Rata-rata Burnout', value: (analytics?.avgBurnout || 0).toFixed(1) + '%', color: '#f59e0b' },
-                { label: 'Risiko Tinggi', value: analytics?.highRiskCount || 0, color: '#ef4444' },
-                { label: 'Total Prediksi', value: analytics?.totalPredictions || 0, color: '#3ecfcf' },
-              ].map(s => (
-                <div key={s.label} style={{ ...card, textAlign: 'center', padding: '18px 16px' }}>
-                  <div style={{ fontSize: 28, fontWeight: 800, color: s.color }}>{s.value}</div>
-                  <div style={{ fontSize: 11, color: '#8890a4', marginTop: 4 }}>{s.label}</div>
-                </div>
-              ))}
-            </div>
-
-            {/* Distribution Table + Chart */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div style={card}>
-                <h3 style={{ ...sectionTitle, margin: 0, fontSize: 14, marginBottom: 12 }}>Distribusi Burnout</h3>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-                  <thead>
-                    <tr style={{ borderBottom: '1px solid #1e2130' }}>
-                      {['Kategori', 'Jumlah', 'Persentase', 'Status'].map(h => (
-                        <th key={h} style={{ padding: '10px 12px', textAlign: 'left', color: '#8890a4', fontWeight: 500, fontSize: 11 }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {[
-                      { label: 'Rendah', key: 'Rendah' as const, color: '#22c55e' },
-                      { label: 'Sedang', key: 'Sedang' as const, color: '#f59e0b' },
-                      { label: 'Tinggi', key: 'Tinggi' as const, color: '#ef4444' },
-                    ].map(row => {
-                      const val = analytics?.burnoutDist?.[row.key] || 0;
-                      const pct = analytics ? (val / (analytics.totalRespondents || 1) * 100).toFixed(1) : '0';
-                      return (
-                        <tr key={row.key} style={{ borderBottom: '1px solid #1a1d2a' }}>
-                          <td style={{ padding: '10px 12px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                              <span style={{ width: 8, height: 8, borderRadius: 2, background: row.color }} />
-                              <span style={{ color: '#e2e8f0', fontWeight: 500 }}>{row.label}</span>
-                            </div>
-                          </td>
-                          <td style={{ padding: '10px 12px', color: '#c0c9e0', fontWeight: 600 }}>{val}</td>
-                          <td style={{ padding: '10px 12px', color: '#8890a4' }}>{pct}%</td>
-                          <td style={{ padding: '10px 12px' }}>
-                            <div style={{ width: '100%', maxWidth: 100, height: 6, background: '#1e2130', borderRadius: 3, overflow: 'hidden' }}>
-                              <div style={{ width: `${pct}%`, height: '100%', background: row.color, borderRadius: 3 }} />
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-
-              <div style={card}>
-                <h3 style={{ ...sectionTitle, margin: 0, fontSize: 14, marginBottom: 12 }}>Visualisasi Distribusi</h3>
-                <ChartShell height={200}>
-                  <RePieChart>
-                    <Pie data={[
-                      { name: 'Rendah', value: analytics?.burnoutDist?.Rendah || 0 },
-                      { name: 'Sedang', value: analytics?.burnoutDist?.Sedang || 0 },
-                      { name: 'Tinggi', value: analytics?.burnoutDist?.Tinggi || 0 },
-                    ]} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={3} dataKey="value">
-                      {donutColors.map((c, i) => <Cell key={i} fill={c} stroke="transparent" />)}
-                    </Pie>
-                    <Tooltip contentStyle={{ background: '#1a1e2e', border: '1px solid #2a2e42', borderRadius: 8, fontSize: 11, color: '#e2e8f0' }} />
-                  </RePieChart>
-                </ChartShell>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {activeReport === 'psycho' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
-              {[
-                { label: 'Risiko Rendah', value: analytics?.psychoDist?.Rendah || 0, color: '#22c55e' },
-                { label: 'Risiko Sedang', value: analytics?.psychoDist?.Sedang || 0, color: '#f59e0b' },
-                { label: 'Risiko Tinggi', value: analytics?.psychoDist?.Tinggi || 0, color: '#ef4444' },
-              ].map(s => (
-                <div key={s.label} style={{ ...card, textAlign: 'center', padding: '18px 16px' }}>
-                  <div style={{ fontSize: 28, fontWeight: 800, color: s.color }}>{s.value}</div>
-                  <div style={{ fontSize: 11, color: '#8890a4', marginTop: 4 }}>{s.label}</div>
-                </div>
-              ))}
-            </div>
-            <div style={{ ...card, padding: '16px 20px' }}>
-              <h3 style={{ ...sectionTitle, margin: 0, fontSize: 14, marginBottom: 12 }}>Distribusi Risiko Psikosomatis</h3>
-              <ChartShell height={300}>
-                <BarChart data={[
-                  { name: 'Rendah', value: analytics?.psychoDist?.Rendah || 0, fill: '#22c55e' },
-                  { name: 'Sedang', value: analytics?.psychoDist?.Sedang || 0, fill: '#f59e0b' },
-                  { name: 'Tinggi', value: analytics?.psychoDist?.Tinggi || 0, fill: '#ef4444' },
-                ]} margin={{ top: 10, right: 10, bottom: 5, left: -15 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1e2130" />
-                  <XAxis dataKey="name" tick={{ fill: '#8890a4', fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fill: '#8890a4', fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <Tooltip contentStyle={{ background: '#1a1e2e', border: '1px solid #2a2e42', borderRadius: 8, fontSize: 11, color: '#e2e8f0' }} />
-                  <Bar dataKey="value" radius={[4, 4, 0, 0]} barSize={60}>
-                    {[0, 1, 2].map(i => <Cell key={i} fill={['#22c55e', '#f59e0b', '#ef4444'][i]} />)}
-                  </Bar>
-                </BarChart>
-              </ChartShell>
-            </div>
-          </div>
-        )}
-
-        {activeReport === 'respondent' && (
-          <div style={{ ...card, overflow: 'hidden' }}>
-            <h3 style={{ ...sectionTitle, margin: 0, fontSize: 14, marginBottom: 12 }}>
-              Data Responden ({respondents.length})
-            </h3>
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-                <thead>
-                  <tr style={{ borderBottom: '1px solid #1e2130' }}>
-                    {['No', 'Nama', 'Username', 'Skor Burnout', 'Risiko', 'Skor Psikosomatis', 'Aktivitas Terakhir'].map(h => (
-                      <th key={h} style={{ padding: '10px 12px', textAlign: 'left', color: '#8890a4', fontWeight: 500, fontSize: 11 }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {respondents.map((r, i) => {
-                    const risk = riskBadge(r.latest_risk);
-                    return (
-                      <tr key={r.id} style={{ borderBottom: '1px solid #1a1d2a' }}
-                        onMouseEnter={e => (e.currentTarget.style.background = '#181b28')}
-                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                      >
-                        <td style={{ padding: '10px 12px', color: '#4a5068', fontSize: 11 }}>{i + 1}</td>
-                        <td style={{ padding: '10px 12px', color: '#e2e8f0', fontWeight: 500 }}>{r.nama}</td>
-                        <td style={{ padding: '10px 12px', color: '#8890a4', fontSize: 11 }}>{r.username}</td>
-                        <td style={{ padding: '10px 12px', color: '#c0c9e0', fontWeight: 600 }}>{r.latest_burnout?.toFixed(1) || '-'}</td>
-                        <td style={{ padding: '10px 12px' }}>
-                          <span style={{ padding: '3px 10px', borderRadius: 12, fontSize: 10, fontWeight: 600, background: risk.bg, color: risk.c }}>
-                            {risk.label}
-                          </span>
-                        </td>
-                        <td style={{ padding: '10px 12px', color: '#c0c9e0' }}>{r.latest_psychosomatic?.toFixed(1) || '-'}</td>
-                        <td style={{ padding: '10px 12px', color: '#8890a4', fontSize: 11 }}>{formatDateTime(r.last_activity)}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {activeReport === 'trend' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ ...card, padding: '16px 20px' }}>
-              <h3 style={{ ...sectionTitle, margin: 0, fontSize: 14, marginBottom: 12 }}>Tren Rata-rata Burnout</h3>
-              <ChartShell height={320}>
-                <LineChart data={analytics?.trendData || []} margin={{ top: 10, right: 10, bottom: 5, left: -15 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1e2130" />
-                  <XAxis dataKey="date" tick={{ fill: '#8890a4', fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fill: '#8890a4', fontSize: 10 }} domain={[40, 90]} axisLine={false} tickLine={false} />
-                  <Tooltip contentStyle={{ background: '#1a1e2e', border: '1px solid #2a2e42', borderRadius: 8, fontSize: 11, color: '#e2e8f0' }} />
-                  <Line type="monotone" dataKey="semua" stroke="#6c63ff" strokeWidth={2.5} dot={{ r: 5, fill: '#6c63ff' }} name="Rata-rata Burnout" />
-                </LineChart>
-              </ChartShell>
-            </div>
-            <div style={card}>
-              <h3 style={{ ...sectionTitle, margin: 0, fontSize: 14, marginBottom: 12 }}>Data Tren (Tabel)</h3>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-                <thead>
-                  <tr style={{ borderBottom: '1px solid #1e2130' }}>
-                    <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8890a4', fontWeight: 500, fontSize: 11 }}>Tanggal</th>
-                    <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8890a4', fontWeight: 500, fontSize: 11 }}>Rata-rata Burnout</th>
-                    <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8890a4', fontWeight: 500, fontSize: 11 }}>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {analytics?.trendData?.map((d, i) => {
-                    const status = d.semua >= 67 ? 'Tinggi' : d.semua >= 34 ? 'Sedang' : 'Rendah';
-                    const sc = status === 'Tinggi' ? '#ef4444' : status === 'Sedang' ? '#f59e0b' : '#22c55e';
-                    return (
-                      <tr key={i} style={{ borderBottom: '1px solid #1a1d2a' }}>
-                        <td style={{ padding: '10px 12px', color: '#e2e8f0' }}>{d.date}</td>
-                        <td style={{ padding: '10px 12px', color: '#c0c9e0', fontWeight: 600 }}>{d.semua.toFixed(1)}%</td>
-                        <td style={{ padding: '10px 12px' }}>
-                          <span style={{ padding: '3px 10px', borderRadius: 12, fontSize: 10, fontWeight: 600, background: sc + '18', color: sc }}>{status}</span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
+      <div className="overflow-x-auto rounded-xl border border-white/10">
+        <table className="w-full min-w-[920px] table-fixed text-sm">
+          <thead className="bg-slate-950/65 text-left text-xs font-semibold uppercase tracking-normal text-slate-500">
+            <tr>
+              <th className="w-14 px-4 py-3">No</th>
+              <th className="w-52 px-4 py-3">Nama</th>
+              <th className="w-40 px-4 py-3">Username</th>
+              <th className="w-32 px-4 py-3 text-right">Burnout</th>
+              <th className="w-32 px-4 py-3 text-center">Risiko</th>
+              <th className="w-40 px-4 py-3 text-right">Psikosomatis</th>
+              <th className="w-48 px-4 py-3">Aktivitas Terakhir</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-white/10">
+            {respondents.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="px-4 py-10 text-center text-sm text-slate-500">Tidak ada responden sesuai filter.</td>
+              </tr>
+            ) : respondents.map((item, index) => {
+              const risk = riskBadge(item.latest_risk);
+              return (
+                <tr key={item.id} className="transition hover:bg-white/[0.03]">
+                  <td className="px-4 py-4 text-xs font-semibold text-slate-600">{index + 1}</td>
+                  <td className="px-4 py-4">
+                    <p className="truncate font-semibold text-slate-100" title={item.nama}>{item.nama || 'Tanpa nama'}</p>
+                  </td>
+                  <td className="px-4 py-4 text-slate-400">@{item.username}</td>
+                  <td className="px-4 py-4 text-right font-semibold text-slate-100">{formatNumber(item.latest_burnout)}</td>
+                  <td className="px-4 py-4 text-center">
+                    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${risk.className}`}>
+                      <span className={`h-1.5 w-1.5 rounded-full ${risk.dot}`} />
+                      {risk.label}
+                    </span>
+                  </td>
+                  <td className="px-4 py-4 text-right font-semibold text-slate-100">{formatNumber(item.latest_psychosomatic)}</td>
+                  <td className="px-4 py-4 text-xs text-slate-500">{formatDateTime(item.last_activity)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
-    </div>
+    </SectionCard>
+  );
+}
+
+function TrendTable({ data }: { data: Array<{ date: string; semua: number }> }) {
+  return (
+    <SectionCard className="p-4 sm:p-5">
+      <h2 className="text-base font-semibold text-white">Data Tren</h2>
+      <div className="mt-4 overflow-hidden rounded-xl border border-white/10">
+        <table className="w-full text-sm">
+          <thead className="bg-slate-950/65 text-left text-xs font-semibold uppercase tracking-normal text-slate-500">
+            <tr>
+              <th className="px-4 py-3">Tanggal</th>
+              <th className="px-4 py-3 text-right">Rata-rata Burnout</th>
+              <th className="px-4 py-3 text-center">Status</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-white/10">
+            {data.map((item, index) => {
+              const status = item.semua >= 67 ? 'Tinggi' : item.semua >= 34 ? 'Sedang' : 'Rendah';
+              const badge = riskBadge(status);
+              return (
+                <tr key={`${item.date}-${index}`}>
+                  <td className="px-4 py-4 font-semibold text-slate-100">{item.date}</td>
+                  <td className="px-4 py-4 text-right font-bold text-white">{formatNumber(item.semua)}%</td>
+                  <td className="px-4 py-4 text-center">
+                    <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${badge.className}`}>{badge.label}</span>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </SectionCard>
   );
 }
