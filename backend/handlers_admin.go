@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -619,10 +620,12 @@ func AdminQuantumHandler(c *gin.Context) {
 		return
 	}
 
-	var sumI, minI, maxI float64
-	minI = 999
+	var sumI, sumOrder, sumDissonance, minI, maxI float64
+	minI = assessments[0].InterferenceScore
 	for _, a := range assessments {
 		sumI += a.InterferenceScore
+		sumOrder += a.OrderEffectScore
+		sumDissonance += a.CognitiveDissonanceScore
 		if a.InterferenceScore < minI {
 			minI = a.InterferenceScore
 		}
@@ -631,17 +634,8 @@ func AdminQuantumHandler(c *gin.Context) {
 		}
 	}
 	avgI := sumI / float64(len(assessments))
-
-	fCounts, cCounts, eCounts := map[int]int{}, map[int]int{}, map[int]int{}
-	for _, a := range assessments {
-		fCounts[int(a.FatigueScore)]++
-		cCounts[int(a.CynicismScore)]++
-		eCounts[int(a.EfficacyScore)]++
-	}
-	total := float64(len(assessments))
-	alpha := float64(fCounts[1]+fCounts[2]) / total
-	beta := float64(fCounts[3]) / total
-	gamma := float64(fCounts[4]+fCounts[5]) / total
+	avgOrder := sumOrder / float64(len(assessments))
+	avgDissonance := sumDissonance / float64(len(assessments))
 
 	orderGroups := make(map[string][]Assessment)
 	for _, a := range assessments {
@@ -654,15 +648,17 @@ func AdminQuantumHandler(c *gin.Context) {
 		AvgCynicism     float64 `json:"avg_cynicism"`
 		AvgEfficacy     float64 `json:"avg_efficacy"`
 		AvgInterference float64 `json:"avg_interference"`
+		AvgOrderEffect  float64 `json:"avg_order_effect"`
 	}
 	var orderEffects []OrderEffect
 	for ot, group := range orderGroups {
-		var sf, sc, se, si float64
+		var sf, sc, se, si, so float64
 		for _, a := range group {
 			sf += a.FatigueScore
 			sc += a.CynicismScore
 			se += a.EfficacyScore
 			si += a.InterferenceScore
+			so += a.OrderEffectScore
 		}
 		n := float64(len(group))
 		otDisplay := ot
@@ -671,44 +667,41 @@ func AdminQuantumHandler(c *gin.Context) {
 		}
 		orderEffects = append(orderEffects, OrderEffect{
 			OrderType: otDisplay, Count: len(group),
-			AvgFatigue: sf / n, AvgCynicism: sc / n, AvgEfficacy: se / n, AvgInterference: si / n,
+			AvgFatigue: sf / n, AvgCynicism: sc / n, AvgEfficacy: se / n, AvgInterference: si / n, AvgOrderEffect: so / n,
 		})
 	}
+	sort.SliceStable(orderEffects, func(i, j int) bool {
+		return orderEffects[i].OrderType < orderEffects[j].OrderType
+	})
 
 	contextuality := 0.0
 	if len(orderEffects) > 1 {
 		var means []float64
 		for _, oe := range orderEffects {
-			means = append(means, oe.AvgInterference)
+			means = append(means, (oe.AvgInterference+oe.AvgOrderEffect)/2)
 		}
-		avgM := 0.0
-		for _, m := range means {
-			avgM += m
-		}
-		avgM /= float64(len(means))
+		avgM := mean(means)
 		for _, m := range means {
 			contextuality += (m - avgM) * (m - avgM)
 		}
 		contextuality = contextuality / float64(len(means))
 	}
-	contextualityNorm := contextuality / (contextuality + 0.5)
-	if contextualityNorm > 1 {
-		contextualityNorm = 1
-	}
+	contextualityNorm := clamp(contextuality/(contextuality+0.05), 0, 1)
 
 	entanglement := 0.0
 	if len(assessments) > 1 {
-		cross := 0.0
+		fatigue := make([]float64, 0, len(assessments))
+		cynicism := make([]float64, 0, len(assessments))
+		efficacy := make([]float64, 0, len(assessments))
 		for _, a := range assessments {
-			cross += a.FatigueScore * a.CynicismScore * a.EfficacyScore / 125.0
+			fatigue = append(fatigue, a.FatigueScore)
+			cynicism = append(cynicism, a.CynicismScore)
+			efficacy = append(efficacy, a.EfficacyScore)
 		}
-		entanglement = cross / float64(len(assessments))
-		if entanglement > 1 {
-			entanglement = 1
-		}
-		if entanglement < 0 {
-			entanglement = 0
-		}
+		fcCorrelation := math.Abs(pearsonCorrelation(fatigue, cynicism))
+		feCorrelation := math.Abs(pearsonCorrelation(fatigue, efficacy))
+		ceCorrelation := math.Abs(pearsonCorrelation(cynicism, efficacy))
+		entanglement = clamp((fcCorrelation+feCorrelation+ceCorrelation)/3, 0, 1)
 	}
 
 	type ScoreDist struct {
@@ -716,27 +709,35 @@ func AdminQuantumHandler(c *gin.Context) {
 		Count int     `json:"count"`
 		Pct   float64 `json:"pct"`
 	}
-	var dist []ScoreDist
-	ranges := []struct {
-		lo, hi float64
-		label  string
-	}{
-		{0, 33, "Rendah"}, {34, 66, "Sedang"}, {67, 100, "Tinggi"},
-	}
 	var predictions []Prediction
 	DB.Find(&predictions)
-	for _, r := range ranges {
-		cnt := 0
-		for _, p := range predictions {
-			if p.BurnoutScore >= r.lo && p.BurnoutScore <= r.hi {
-				cnt++
-			}
+	counts := map[string]int{"Rendah": 0, "Sedang": 0, "Tinggi": 0}
+	for _, prediction := range predictions {
+		switch normalizeRiskLabel(prediction.RiskLevel) {
+		case "Medium":
+			counts["Sedang"]++
+		case "High":
+			counts["Tinggi"]++
+		default:
+			counts["Rendah"]++
 		}
+	}
+	dist := make([]ScoreDist, 0, 3)
+	for _, label := range []string{"Rendah", "Sedang", "Tinggi"} {
+		cnt := counts[label]
 		pct := 0.0
 		if len(predictions) > 0 {
 			pct = float64(cnt) / float64(len(predictions)) * 100
 		}
-		dist = append(dist, ScoreDist{Label: r.label, Count: cnt, Pct: pct})
+		dist = append(dist, ScoreDist{Label: label, Count: cnt, Pct: pct})
+	}
+
+	alpha, beta, gamma := 0.0, 0.0, 0.0
+	if len(predictions) > 0 {
+		total := float64(len(predictions))
+		alpha = math.Sqrt(float64(counts["Rendah"]) / total)
+		beta = math.Sqrt(float64(counts["Sedang"]) / total)
+		gamma = math.Sqrt(float64(counts["Tinggi"]) / total)
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -745,6 +746,8 @@ func AdminQuantumHandler(c *gin.Context) {
 		"interference_avg":    avgI,
 		"interference_min":    minI,
 		"interference_max":    maxI,
+		"order_effect_avg":    avgOrder,
+		"dissonance_avg":      avgDissonance,
 		"superposition":       gin.H{"alpha": alpha, "beta": beta, "gamma": gamma},
 		"order_effects":       orderEffects,
 		"contextuality_index": contextualityNorm,

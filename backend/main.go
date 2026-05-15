@@ -98,7 +98,7 @@ func main() {
 			protected.GET("/admin/config", AdminConfigGetHandler)
 			protected.PUT("/admin/config", AdminConfigPutHandler)
 			protected.GET("/admin/quantum", AdminQuantumHandler)
-			protected.GET("/admin/model-evaluation", AdminModelEvaluationHandler)
+			protected.GET("/admin/model-evaluation", AdminModelEvaluationV2Handler)
 		}
 	}
 

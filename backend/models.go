@@ -36,14 +36,17 @@ type Affinity struct {
 
 type Assessment struct {
 	gorm.Model
-	UserID            uint
-	OrderType         string
-	ResponsesJSON     string
-	InterferenceScore float64
-	FatigueScore      float64
-	CynicismScore     float64
-	EfficacyScore     float64
-	Timestamp         time.Time `gorm:"autoCreateTime"`
+	UserID                   uint
+	OrderType                string
+	ResponsesJSON            string
+	InterferenceScore        float64
+	OrderEffectScore         float64
+	CognitiveDissonanceScore float64
+	FatigueScore             float64
+	CynicismScore            float64
+	EfficacyScore            float64
+	NLPStressScore           float64
+	Timestamp                time.Time `gorm:"autoCreateTime"`
 }
 
 type Curhat struct {
@@ -68,10 +71,12 @@ type GossipReact struct {
 
 type Prediction struct {
 	gorm.Model
+	AssessmentID           uint `gorm:"index"`
 	UserID                 uint
 	BurnoutScore           float64
 	PsychosomaticScore     float64
 	RiskLevel              string
+	ModelVersion           string
 	Timestamp              time.Time `gorm:"autoCreateTime"`
 	TherapyRecommendations []TherapyRecommendation
 }

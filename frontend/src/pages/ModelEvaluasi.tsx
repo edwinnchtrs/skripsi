@@ -53,8 +53,26 @@ interface ModelData {
   confusion_matrix: Record<string, number>;
   feature_importance: { feature: string; importance: number; color: string }[];
   cross_val_scores: number[];
-  model_comparison: { qc_r2: number; lr_r2: number; rf_r2: number; svm_r2: number };
+  model_comparison: {
+    model: string;
+    short: string;
+    r2: number;
+    accuracy: number;
+    mae: number;
+    color: string;
+  }[];
   formula: { burnout: string; psychosomatic: string };
+  metadata: {
+    active_model: string;
+    trained: boolean;
+    training_samples: number;
+    minimum_samples: number;
+    label_source: string;
+    model_version: string;
+    quantum_features: number;
+    comparison_models: number;
+    validation_strategy: string;
+  };
 }
 
 type TabKey = 'overview' | 'comparison' | 'details';
@@ -133,14 +151,13 @@ export default function ModelEvaluasi() {
     const cvMax = data.cross_val_scores.length ? Math.max(...data.cross_val_scores) : 0;
     const cvStability = cvMax - cvMin;
 
-    const compare = data.model_comparison;
-    const qcBase = compare.qc_r2 || 0.01;
-    const compBarData = [
-      { model: 'Quantum Cognition', short: 'QC', r2: compare.qc_r2, acc: data.accuracy, color: '#8b5cf6', rank: 1 },
-      { model: 'Random Forest', short: 'RF', r2: compare.rf_r2, acc: (compare.rf_r2 / qcBase) * data.accuracy, color: '#34d399', rank: 2 },
-      { model: 'Linear Regression', short: 'LR', r2: compare.lr_r2, acc: (compare.lr_r2 / qcBase) * data.accuracy, color: '#fb7185', rank: 3 },
-      { model: 'SVM', short: 'SVM', r2: compare.svm_r2, acc: (compare.svm_r2 / qcBase) * data.accuracy, color: '#fbbf24', rank: 4 },
-    ].sort((a, b) => b.r2 - a.r2).map((item, index) => ({ ...item, rank: index + 1 }));
+    const compBarData = (data.model_comparison || [])
+      .map((item) => ({
+        ...item,
+        acc: item.accuracy,
+      }))
+      .sort((a, b) => b.r2 - a.r2)
+      .map((item, index) => ({ ...item, rank: index + 1 }));
 
     const radarData = [
       { metric: 'R2', value: clampPct(data.r2_score * 100) },
@@ -184,9 +201,9 @@ export default function ModelEvaluasi() {
                   </span>
                 </div>
                 <h1 className="text-2xl font-bold tracking-normal text-white sm:text-3xl">Model & Evaluasi</h1>
-                <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
-                  Dashboard evaluasi sudah siap. Tambahkan data asesmen dan prediksi agar metrik, chart, dan confusion matrix dapat dihitung.
-                </p>
+                  <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
+                    Dashboard evaluasi sudah siap. Tambahkan data asesmen dan prediksi agar model ridge quantum dapat dilatih dari data historis yang nyata.
+                  </p>
               </div>
               <button
                 type="button"
@@ -210,7 +227,7 @@ export default function ModelEvaluasi() {
                 <div>
                   <h2 className="text-xl font-bold text-white">Belum Ada Data Evaluasi</h2>
                   <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
-                    Sistem membutuhkan pasangan data asesmen dan hasil prediksi untuk menghitung R2, akurasi, MAE, RMSE, MAPE, F1 score, validasi silang, dan confusion matrix.
+                    Sistem membutuhkan pasangan data asesmen dan hasil prediksi untuk melatih regresi ridge, menghitung metrik nyata, dan menguji kontribusi fitur quantum cognition.
                   </p>
                   <div className="mt-5 grid gap-3 sm:grid-cols-3">
                     {[
@@ -291,12 +308,12 @@ export default function ModelEvaluasi() {
                 </span>
                 <span className="inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-300/10 px-3 py-1 text-xs font-semibold text-emerald-100">
                   <ShieldCheck className="h-3.5 w-3.5" />
-                  Production metrics
+                  {data.metadata.trained ? 'Model terlatih' : 'Fallback aktif'}
                 </span>
               </div>
               <h1 className="text-2xl font-bold tracking-normal text-white sm:text-3xl">Model & Evaluasi</h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
-                Pantau akurasi, stabilitas validasi, confusion matrix, bobot fitur, formula prediksi, dan perbandingan model dalam satu dashboard.
+                Pantau akurasi, stabilitas validasi, confusion matrix, bobot fitur, formula prediksi, dan status pipeline machine learning dalam satu dashboard.
               </p>
             </div>
 
@@ -399,18 +416,24 @@ export default function ModelEvaluasi() {
 
                 <SectionCard className="min-w-0 p-4 sm:p-5">
                   <h2 className="text-base font-semibold text-white">Feature Importance</h2>
-                  <p className="mt-1 text-xs text-slate-500">Bobot fitur yang berkontribusi terhadap skor prediksi.</p>
-                  <ChartShell height={280} className="mt-4">
-                    <BarChart data={data.feature_importance} layout="vertical" margin={{ top: 8, right: 18, bottom: 8, left: 8 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.12)" horizontal={false} />
-                      <XAxis type="number" domain={[0, 0.6]} tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(value) => `${(Number(value) * 100).toFixed(0)}%`} />
-                      <YAxis dataKey="feature" type="category" width={120} tick={{ fill: '#cbd5e1', fontSize: 11 }} axisLine={false} tickLine={false} />
-                      <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => `${(value * 100).toFixed(1)}%`} />
-                      <Bar dataKey="importance" radius={[0, 8, 8, 0]} barSize={18}>
-                        {data.feature_importance.map((feature, index) => <Cell key={index} fill={feature.color} />)}
-                      </Bar>
-                    </BarChart>
-                  </ChartShell>
+                  <p className="mt-1 text-xs text-slate-500">Bobot fitur yang benar-benar dipelajari model ridge quantum.</p>
+                  {data.feature_importance.length > 0 ? (
+                    <ChartShell height={280} className="mt-4">
+                      <BarChart data={data.feature_importance} layout="vertical" margin={{ top: 8, right: 18, bottom: 8, left: 8 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.12)" horizontal={false} />
+                        <XAxis type="number" domain={[0, 0.6]} tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(value) => `${(Number(value) * 100).toFixed(0)}%`} />
+                        <YAxis dataKey="feature" type="category" width={145} tick={{ fill: '#cbd5e1', fontSize: 11 }} axisLine={false} tickLine={false} />
+                        <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => `${(value * 100).toFixed(1)}%`} />
+                        <Bar dataKey="importance" radius={[0, 8, 8, 0]} barSize={18}>
+                          {data.feature_importance.map((feature, index) => <Cell key={index} fill={feature.color} />)}
+                        </Bar>
+                      </BarChart>
+                    </ChartShell>
+                  ) : (
+                    <div className="mt-4 rounded-xl border border-white/10 bg-slate-950/45 p-4 text-sm leading-6 text-slate-400">
+                      Feature importance akan muncul setelah minimal {data.metadata.minimum_samples} sampel tersedia dan model ridge berhasil dilatih.
+                    </div>
+                  )}
                 </SectionCard>
               </div>
 
@@ -472,7 +495,7 @@ export default function ModelEvaluasi() {
           <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
             <SectionCard className="min-w-0 p-4 sm:p-5">
               <h2 className="text-base font-semibold text-white">Perbandingan R2 dan Akurasi</h2>
-              <p className="mt-1 text-xs text-slate-500">Membandingkan model utama dengan baseline dan model alternatif.</p>
+              <p className="mt-1 text-xs text-slate-500">Membandingkan model yang benar-benar dihitung dari dataset aktif.</p>
               <ChartShell height={380} className="mt-4">
                 <BarChart data={derived.compBarData} margin={{ top: 12, right: 18, bottom: 0, left: -12 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.12)" />
@@ -496,9 +519,11 @@ export default function ModelEvaluasi() {
                     <div className="min-w-0 flex-1">
                       <h3 className="truncate text-sm font-semibold text-white">{model.model}</h3>
                       <p className="mt-1 text-xs leading-5 text-slate-500">
-                        {model.model === 'Quantum Cognition'
-                          ? 'Model utama dengan kombinasi bobot psikologis dan term quantum.'
-                          : 'Model pembanding untuk membaca gap performa terhadap model utama.'}
+                        {model.model === 'Quantum ridge regression'
+                          ? 'Model ridge dengan fitur fatigue, cynicism, efficacy deficit, interference, order effect, dissonance, dan NLP stress.'
+                          : model.model === 'Classical ridge regression'
+                            ? 'Baseline klasik yang hanya memakai dimensi psikologis utama tanpa fitur quantum.'
+                            : 'Formula psikometrik fallback saat jumlah sampel belum cukup untuk melatih model machine learning.'}
                       </p>
                       <div className="mt-3 grid grid-cols-2 gap-2">
                         <div className="rounded-lg bg-slate-950/45 px-3 py-2">
@@ -535,31 +560,31 @@ export default function ModelEvaluasi() {
               ]}
             />
             <DetailPanel
-              title="Formula & Bobot"
+              title="Status Training"
               icon={Sigma}
               items={[
-                ['Fatigue Weight', '0.4'],
-                ['Cynicism Weight', '0.3'],
-                ['Efficacy Weight', '0.2 x (5 - E)'],
-                ['Interference Weight', '0.1'],
-                ['NLP Stress Weight', '2.0'],
-                ['Clamp Range', '0 - 10'],
-                ['Risk Low', '< 4.0'],
-                ['Risk Medium', '4.0 - 6.0'],
+                ['Active Model', data.metadata.active_model],
+                ['Model Version', data.metadata.model_version],
+                ['Trained', data.metadata.trained ? 'Ya' : 'Belum'],
+                ['Training Samples', `${data.metadata.training_samples}/${data.metadata.minimum_samples}`],
+                ['Label Source', data.metadata.label_source],
+                ['Quantum Features', data.metadata.quantum_features],
+                ['Comparison Models', data.metadata.comparison_models],
+                ['Validation', data.metadata.validation_strategy],
               ]}
             />
             <DetailPanel
               title="Model Info"
               icon={Brain}
               items={[
-                ['Tipe', 'Linear Weighted + Quantum'],
+                ['Tipe', data.metadata.trained ? 'Ridge Regression + Quantum' : 'Psychometric Fallback'],
                 ['Framework', 'Go Native'],
-                ['Input Features', 'F, C, E, I, S'],
+                ['Input Features', 'F, C, E, I, O, D, S'],
                 ['Output', 'Burnout + Psycho + Risk'],
                 ['Database', 'MySQL via GORM'],
                 ['NLP Engine', 'Lexicon-based'],
-                ['Quantum Term', 'Interference x 0.1'],
-                ['Version', '1.0.0'],
+                ['Quantum Term', 'I + O + D'],
+                ['Risk Range', 'Low / Medium / High / Crisis'],
               ]}
             />
             <DetailPanel

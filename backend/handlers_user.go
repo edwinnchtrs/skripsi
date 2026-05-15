@@ -50,17 +50,19 @@ func AssessmentSubmitHandler(c *gin.Context) {
 		return
 	}
 
-	fScore, cScore, eScore, iScore := calculateQuantumParameters(input.Responses)
+	metrics := calculateQuantumMetrics(input.Responses)
 
 	responsesJSON, _ := json.Marshal(input.Responses)
 	assessment := Assessment{
-		UserID:            user.ID,
-		OrderType:         input.OrderType,
-		ResponsesJSON:     string(responsesJSON),
-		InterferenceScore: iScore,
-		FatigueScore:      fScore,
-		CynicismScore:     cScore,
-		EfficacyScore:     eScore,
+		UserID:                   user.ID,
+		OrderType:                input.OrderType,
+		ResponsesJSON:            string(responsesJSON),
+		InterferenceScore:        metrics.InterferenceScore,
+		OrderEffectScore:         metrics.OrderEffectScore,
+		CognitiveDissonanceScore: metrics.CognitiveDissonanceScore,
+		FatigueScore:             metrics.FatigueScore,
+		CynicismScore:            metrics.CynicismScore,
+		EfficacyScore:            metrics.EfficacyScore,
 	}
 	DB.Create(&assessment)
 
@@ -74,14 +76,18 @@ func AssessmentSubmitHandler(c *gin.Context) {
 		}
 		avgStress /= float64(len(recentCurhats))
 	}
+	assessment.NLPStressScore = avgStress
+	DB.Model(&assessment).Update("nlp_stress_score", avgStress)
 
-	bScore, pScore, risk := predictBurnout(fScore, cScore, eScore, iScore, avgStress)
+	bScore, pScore, risk, modelVersion := predictWithBestAvailableModel(metrics, avgStress)
 
 	prediction := Prediction{
+		AssessmentID:       assessment.ID,
 		UserID:             user.ID,
 		BurnoutScore:       bScore,
 		PsychosomaticScore: pScore,
 		RiskLevel:          risk,
+		ModelVersion:       modelVersion,
 	}
 	DB.Create(&prediction)
 

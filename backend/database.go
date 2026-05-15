@@ -52,6 +52,7 @@ func ConnectDatabase() {
 	DB = database
 
 	SeedAdmin()
+	backfillLegacyQuantumMetrics()
 }
 
 func SeedAdmin() {

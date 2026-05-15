@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"math"
 	"net/http"
 	"os"
 	"regexp"
@@ -219,100 +218,6 @@ func getQuestions() ([]Question, string) {
 	// order_type string
 	hash := md5.Sum([]byte("default-order"))
 	return questions, hex.EncodeToString(hash[:])
-}
-
-func calculateQuantumParameters(responses []Response) (float64, float64, float64, float64) {
-	if len(responses) == 0 {
-		return 0, 0, 0, 0
-	}
-
-	var fatigueSum, cynicismSum, efficacySum, rTimeSum float64
-	var fCount, cCount, eCount float64
-
-	var reactionTimes []float64
-
-	for _, r := range responses {
-		val := float64(r.Value)
-		switch r.ConstructType {
-		case "fatigue":
-			fatigueSum += val
-			fCount++
-		case "cynicism":
-			cynicismSum += val
-			cCount++
-		case "efficacy":
-			efficacySum += (6.0 - val) // reverse score
-			eCount++
-		}
-		rt := float64(r.ReactionTimeMs)
-		if rt == 0 {
-			rt = 1000
-		}
-		reactionTimes = append(reactionTimes, rt)
-		rTimeSum += rt
-	}
-
-	fScore := 0.0
-	if fCount > 0 {
-		fScore = fatigueSum / fCount
-	}
-	cScore := 0.0
-	if cCount > 0 {
-		cScore = cynicismSum / cCount
-	}
-	eScore := 0.0
-	if eCount > 0 {
-		eScore = efficacySum / eCount
-	}
-
-	avgRT := 1.0
-	if len(reactionTimes) > 0 {
-		avgRT = rTimeSum / float64(len(reactionTimes))
-	}
-	rtVariance := 0.0
-	for _, rt := range reactionTimes {
-		rtVariance += (rt - avgRT) * (rt - avgRT)
-	}
-	if len(reactionTimes) > 0 {
-		rtVariance /= float64(len(reactionTimes))
-	}
-
-	iScore := math.Log1p(rtVariance) / 10.0
-
-	return fScore, cScore, eScore, iScore
-}
-
-// --- Regression Engine ---
-func predictBurnout(fatigue, cynicism, efficacy, interference, nlpStress float64) (float64, float64, string) {
-	// Simple manual dot product based on the dummy Python model
-	// Features: [fatigue, cynicism, efficacy, interference, nlpStress]
-	// Since the python model was basically fitting random points, we will approximate a logical linear weighting
-	// Burnout = 0.4*fatigue + 0.3*cynicism - 0.2*efficacy + 0.1*interference + 0.5*nlpStress
-
-	burnoutScore := (0.4 * fatigue) + (0.3 * cynicism) + (0.2 * (5.0 - efficacy)) + (0.1 * interference) + (2.0 * nlpStress)
-	if burnoutScore < 0 {
-		burnoutScore = 0
-	} else if burnoutScore > 10 {
-		burnoutScore = 10
-	}
-
-	psychosomaticScore := (burnoutScore * 0.8) + (interference * 1.5)
-	if psychosomaticScore < 0 {
-		psychosomaticScore = 0
-	} else if psychosomaticScore > 10 {
-		psychosomaticScore = 10
-	}
-
-	riskLevel := "Low"
-	if burnoutScore > 7.5 {
-		riskLevel = "Crisis"
-	} else if burnoutScore > 6.0 {
-		riskLevel = "High"
-	} else if burnoutScore > 4.0 {
-		riskLevel = "Medium"
-	}
-
-	return burnoutScore, psychosomaticScore, riskLevel
 }
 
 // --- AI-Generated Daily Questions ---
