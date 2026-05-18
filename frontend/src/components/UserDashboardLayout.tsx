@@ -5,7 +5,7 @@ const SIDEBAR_WIDTH = 220;
 
 export default function UserDashboardLayout() {
   return (
-    <div style={{ display: 'flex', background: 'var(--theme-bg)', minHeight: '100vh' }}>
+    <div className="dashboard-theme" style={{ display: 'flex', background: 'var(--theme-bg)', minHeight: '100vh' }}>
       <UserSidebar />
       <main
         style={{

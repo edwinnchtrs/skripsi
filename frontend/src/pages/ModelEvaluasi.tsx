@@ -126,6 +126,39 @@ export default function ModelEvaluasi() {
     fetchData();
   }, []);
 
+  const exportSnapshot = () => {
+    if (!data) return;
+    const payload = JSON.stringify(
+      {
+        exported_at: new Date().toISOString(),
+        metrics: {
+          r2_score: data.r2_score,
+          accuracy: data.accuracy,
+          mae: data.mae,
+          rmse: data.rmse,
+          mape: data.mape,
+          f1_score: data.f1_score,
+          n_samples: data.n_samples,
+        },
+        metadata: data.metadata,
+        model_comparison: data.model_comparison,
+        feature_importance: data.feature_importance,
+        cross_val_scores: data.cross_val_scores,
+        confusion_matrix: data.confusion_matrix,
+        formula: data.formula,
+      },
+      null,
+      2,
+    );
+    const blob = new Blob([payload], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `model-evaluation-${new Date().toISOString().slice(0, 10)}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   const derived = useMemo(() => {
     if (!data) return null;
 
@@ -328,6 +361,7 @@ export default function ModelEvaluasi() {
               </button>
               <button
                 type="button"
+                onClick={exportSnapshot}
                 className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-amber-500 px-4 text-sm font-semibold text-slate-950 shadow-lg shadow-amber-950/30 transition hover:bg-amber-400"
               >
                 <Download className="h-4 w-4" />

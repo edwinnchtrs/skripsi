@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import api from '../api';
+import { useTheme } from '../hooks/useTheme';
 
 const navItems = [
   { label: 'Overview', icon: LayoutDashboard, path: '/user/dashboard' },
@@ -28,11 +29,7 @@ const navItems = [
 export default function UserSidebar() {
   const location = useLocation();
   const navigate = useNavigate();
-  const [dark, setDark] = useState(() => {
-    const saved = localStorage.getItem('theme');
-    // Default is dark mode; light-mode is the opt-in
-    return saved !== 'light';
-  });
+  const { dark, setDark } = useTheme();
   const [profile, setProfile] = useState<any>(null);
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -49,17 +46,6 @@ export default function UserSidebar() {
     const interval = setInterval(poll, 3000);
     return () => clearInterval(interval);
   }, []);
-
-  // Apply theme class on mount & whenever dark changes
-  useEffect(() => {
-    if (dark) {
-      document.documentElement.classList.remove('light-mode');
-      localStorage.setItem('theme', 'dark');
-    } else {
-      document.documentElement.classList.add('light-mode');
-      localStorage.setItem('theme', 'light');
-    }
-  }, [dark]);
 
   useEffect(() => {
     api.get('/user/profile')

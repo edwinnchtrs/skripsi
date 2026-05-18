@@ -102,9 +102,9 @@ export default function DashboardPage() {
             </div>
 
             <div className="grid min-w-0 gap-5 lg:grid-cols-3">
-              <KorelasiChart />
+              <KorelasiChart data={analytics?.correlationData} loading={loading} />
               <ScatterPlot data={analytics?.scatterData} loading={loading} />
-              <ModelPerformance />
+              <ModelPerformance data={analytics} loading={loading} />
             </div>
 
             <RespondentTable data={filteredRespondents} loading={loading} />

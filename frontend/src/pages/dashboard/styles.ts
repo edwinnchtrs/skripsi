@@ -1,14 +1,14 @@
 
 // Shared style tokens
 export const card: React.CSSProperties = {
-  background: '#131722',
+  background: 'var(--theme-soft-surface)',
   borderRadius: 12,
-  border: '1px solid #1e2130',
+  border: '1px solid var(--theme-card-border)',
   padding: 16,
 };
 
 export const sectionTitle: React.CSSProperties = {
-  color: '#e2e8f0',
+  color: 'var(--theme-text-primary)',
   fontSize: 13,
   fontWeight: 600,
   marginBottom: 12,
@@ -16,7 +16,7 @@ export const sectionTitle: React.CSSProperties = {
 };
 
 export const muted: React.CSSProperties = {
-  color: '#8890a4',
+  color: 'var(--theme-text-muted)',
 };
 
 export const tooltipStyle = {

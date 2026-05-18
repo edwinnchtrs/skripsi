@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Brain, TrendingUp, RefreshCw, ShieldCheck, Users, Database, BarChart2, Percent, Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { useGoogleLogin } from '@react-oauth/google';
@@ -10,11 +10,11 @@ const features = [
   { Icon: RefreshCw, t: 'Agile Development', d: 'Iteratif, adaptif, dan kolaboratif untuk hasil yang berkualitas.' },
   { Icon: ShieldCheck, t: 'Keamanan Data', d: 'Data Anda aman bersama kami dengan enkripsi tingkat enterprise.' },
 ];
-const stats = [
-  { Icon: Users, v: '1.256+', l: 'Total Pengguna' },
-  { Icon: Database, v: '12.540+', l: 'Data Responden' },
-  { Icon: BarChart2, v: '3.847+', l: 'Prediksi Dilakukan' },
-  { Icon: Percent, v: '92.7%', l: 'Akurasi Model' },
+const defaultStats = [
+  { Icon: Users, v: '-', l: 'Total Pengguna' },
+  { Icon: Database, v: '-', l: 'Data Asesmen' },
+  { Icon: BarChart2, v: '-', l: 'Prediksi Dilakukan' },
+  { Icon: Percent, v: '-', l: 'Akurasi Model' },
 ];
 
 export default function Login() {
@@ -26,6 +26,21 @@ export default function Login() {
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
   const [userType, setUserType] = useState<'mahasiswa' | 'karyawan'>('mahasiswa');
+  const [stats, setStats] = useState(defaultStats);
+
+  useEffect(() => {
+    api.get('/public/overview')
+      .then((response) => {
+        const overview = response.data;
+        setStats([
+          { Icon: Users, v: Number(overview.total_users || 0).toLocaleString('id-ID'), l: 'Total Pengguna' },
+          { Icon: Database, v: Number(overview.total_assessments || 0).toLocaleString('id-ID'), l: 'Data Asesmen' },
+          { Icon: BarChart2, v: Number(overview.total_predictions || 0).toLocaleString('id-ID'), l: 'Prediksi Dilakukan' },
+          { Icon: Percent, v: `${((overview.model_accuracy || 0) * 100).toFixed(1)}%`, l: 'Akurasi Model' },
+        ]);
+      })
+      .catch(() => undefined);
+  }, []);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault(); setErr(''); setBusy(true);
@@ -123,7 +138,7 @@ export default function Login() {
         .divider span{font-size:11px;color:#9ca3af;white-space:nowrap}
         .divider::before,.divider::after{content:'';flex:1;height:1px;background:#e5e7eb}
 
-        .socials{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+        .socials{display:grid;grid-template-columns:1fr;gap:8px}
         .social-btn{display:flex;align-items:center;justify-content:center;gap:5px;padding:8px 4px;border:1.5px solid #e5e7eb;border-radius:10px;background:#fff;cursor:pointer;font-size:11px;font-weight:600;color:#374151;transition:background .15s;font-family:'Inter',sans-serif}
         .social-btn:hover{background:#f9fafb}
         .social-btn img,.social-btn svg{width:14px;height:14px}
@@ -240,13 +255,6 @@ export default function Login() {
             <div className="socials">
               <button type="button" className="social-btn" onClick={() => handleGoogleLogin()} disabled={busy}>
                 <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="" />Google
-              </button>
-              <button type="button" className="social-btn" disabled={busy}>
-                <img src="https://www.svgrepo.com/show/452234/microsoft.svg" alt="" />Microsoft
-              </button>
-              <button type="button" className="social-btn">
-                <svg fill="#374151" viewBox="0 0 24 24"><path d="M12 3L1 9l4 2.18v6L12 21l7-3.82v-6l2-1.09V17h2V9L12 3zm6.82 6L12 12.72 5.18 9 12 5.28 18.82 9zM17 15.99l-5 2.73-5-2.73v-3.72L12 15l5-2.73v3.72z"/></svg>
-                SSO Kampus
               </button>
             </div>
 

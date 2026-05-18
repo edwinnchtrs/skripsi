@@ -94,12 +94,18 @@ func stddev(values []float64) float64 {
 }
 
 func classifyRisk(score float64) string {
+	config := getSystemConfig()
+	return classifyRiskWithThresholds(score, config.BurnoutThresholdLow, config.BurnoutThresholdMedium)
+}
+
+func classifyRiskWithThresholds(score, lowThreshold, mediumThreshold float64) string {
+	crisisThreshold := clamp(mediumThreshold+1.5, mediumThreshold, 10)
 	switch {
-	case score > 7.5:
+	case score > crisisThreshold:
 		return "Crisis"
-	case score > 6.0:
+	case score > mediumThreshold:
 		return "High"
-	case score > 4.0:
+	case score > lowThreshold:
 		return "Medium"
 	default:
 		return "Low"
@@ -136,10 +142,11 @@ func buildClassicalFeatureVector(assessment Assessment) []float64 {
 }
 
 func psychometricBurnout(metrics QuantumMetrics, nlpStress float64) float64 {
+	config := getSystemConfig()
 	score := 0.45*metrics.FatigueScore +
 		0.30*metrics.CynicismScore +
 		0.25*metrics.EfficacyScore +
-		1.15*metrics.InterferenceScore +
+		(1.15*config.InterferenceWeight)*metrics.InterferenceScore +
 		0.70*metrics.OrderEffectScore +
 		0.60*metrics.CognitiveDissonanceScore +
 		1.40*nlpStress
@@ -147,8 +154,9 @@ func psychometricBurnout(metrics QuantumMetrics, nlpStress float64) float64 {
 }
 
 func psychometricPsychosomatic(metrics QuantumMetrics, burnoutScore float64) float64 {
+	config := getSystemConfig()
 	score := 0.65*burnoutScore +
-		1.35*metrics.InterferenceScore +
+		(1.35*config.InterferenceWeight)*metrics.InterferenceScore +
 		0.85*metrics.OrderEffectScore +
 		0.55*metrics.CognitiveDissonanceScore
 	return clamp(score, 0, 10)

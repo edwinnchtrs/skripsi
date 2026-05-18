@@ -5,9 +5,6 @@ import Home from './pages/Home'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
-import Assessment from './pages/Assessment'
-import Gosip from './pages/Gosip'
-import Terapi from './pages/Terapi'
 import UserDashboardLayout from './components/UserDashboardLayout'
 import UserDashboard from './pages/UserDashboard'
 import UserKuisioner from './pages/UserKuisioner'
@@ -26,6 +23,8 @@ import UserNetwork from './pages/userDashboard/UserNetwork'
 import UserProfilePage from './pages/userDashboard/UserProfilePage'
 import NotFound from './pages/NotFound'
 import ForgotPassword from './pages/ForgotPassword'
+import RequireRole from './components/RequireRole'
+import LegacyUserRedirect from './components/LegacyUserRedirect'
 
 function App() {
   return (
@@ -44,33 +43,37 @@ function App() {
         {/* Public pages pakai layout lama */}
         <Route element={<Layout />}>
           <Route path="/" element={<Home />} />
-          <Route path="/assessment" element={<Assessment />} />
-          <Route path="/gosip" element={<Gosip />} />
-          <Route path="/terapi" element={<Terapi />} />
+          <Route path="/assessment" element={<LegacyUserRedirect to="/user/kuisioner" />} />
+          <Route path="/gosip" element={<LegacyUserRedirect to="/user/curhat" />} />
+          <Route path="/terapi" element={<LegacyUserRedirect to="/user/curhat" />} />
         </Route>
 
         {/* Dashboard pakai layout sidebar baru */}
-        <Route element={<DashboardLayout />}>
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/responden" element={<Responden />} />
-          <Route path="/prediksi" element={<PrediksiIndividu />} />
-          <Route path="/analitik" element={<AnalitikRules />} />
-          <Route path="/quantum" element={<QuantumCognition />} />
-          <Route path="/model" element={<ModelEvaluasi />} />
-          <Route path="/users" element={<ManajemenUser />} />
-          <Route path="/settings" element={<PengaturanSistem />} />
-          <Route path="/laporan" element={<Laporan />} />
+        <Route element={<RequireRole allow={['admin']} />}>
+          <Route element={<DashboardLayout />}>
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/responden" element={<Responden />} />
+            <Route path="/prediksi" element={<PrediksiIndividu />} />
+            <Route path="/analitik" element={<AnalitikRules />} />
+            <Route path="/quantum" element={<QuantumCognition />} />
+            <Route path="/model" element={<ModelEvaluasi />} />
+            <Route path="/users" element={<ManajemenUser />} />
+            <Route path="/settings" element={<PengaturanSistem />} />
+            <Route path="/laporan" element={<Laporan />} />
+          </Route>
         </Route>
 
         {/* Dashboard khusus User */}
-        <Route element={<UserDashboardLayout />}>
-          <Route path="/user/dashboard" element={<UserDashboard />} />
-          <Route path="/user/kuisioner" element={<UserKuisioner />} />
-          <Route path="/user/asesmen" element={<UserAsesmenHistory />} />
-          <Route path="/user/curhat" element={<UserCurhat />} />
-          <Route path="/user/settings" element={<UserProfileSettings />} />
-          <Route path="/user/network" element={<UserNetwork />} />
-          <Route path="/user/profile/:username" element={<UserProfilePage />} />
+        <Route element={<RequireRole allow={['user']} />}>
+          <Route element={<UserDashboardLayout />}>
+            <Route path="/user/dashboard" element={<UserDashboard />} />
+            <Route path="/user/kuisioner" element={<UserKuisioner />} />
+            <Route path="/user/asesmen" element={<UserAsesmenHistory />} />
+            <Route path="/user/curhat" element={<UserCurhat />} />
+            <Route path="/user/settings" element={<UserProfileSettings />} />
+            <Route path="/user/network" element={<UserNetwork />} />
+            <Route path="/user/profile/:username" element={<UserProfilePage />} />
+          </Route>
         </Route>
 
         {/* 404 — Catch All */}

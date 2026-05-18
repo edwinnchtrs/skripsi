@@ -8,6 +8,11 @@ import (
 
 func CurhatSubmitHandler(c *gin.Context) {
 	user := c.MustGet("user").(User)
+	config := getSystemConfig()
+	if userActionBlockedByMaintenance(user, config) {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Sistem sedang dalam mode pemeliharaan"})
+		return
+	}
 	var input struct {
 		Text string `json:"text" binding:"required"`
 	}
@@ -25,7 +30,11 @@ func CurhatSubmitHandler(c *gin.Context) {
 	}
 
 	initialStress := analyzeStressLevel(input.Text)
-	aiResponse, finalStress := generateAIResponse(input.Text, history, initialStress)
+	aiResponse := "Respon otomatis sedang dinonaktifkan oleh admin. Pesan Anda tetap tersimpan dengan aman."
+	finalStress := initialStress
+	if config.AIResponseEnabled {
+		aiResponse, finalStress = generateAIResponse(input.Text, history, initialStress)
+	}
 
 	curhat := Curhat{
 		UserID:      user.ID,

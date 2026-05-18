@@ -52,6 +52,7 @@ func ConnectDatabase() {
 	DB = database
 
 	SeedAdmin()
+	NormalizeSystemConfig()
 	backfillLegacyQuantumMetrics()
 }
 
@@ -85,4 +86,27 @@ func getEnv(key, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+func NormalizeSystemConfig() {
+	var config SystemConfig
+	if err := DB.First(&config).Error; err != nil {
+		DB.Create(&SystemConfig{
+			BurnoutThresholdLow:    4,
+			BurnoutThresholdMedium: 6,
+			PsychoThresholdLow:     4,
+			PsychoThresholdMedium:  6,
+		})
+		return
+	}
+
+	if config.BurnoutThresholdLow > 10 || config.BurnoutThresholdMedium > 10 ||
+		config.PsychoThresholdLow > 10 || config.PsychoThresholdMedium > 10 {
+		DB.Model(&config).Updates(map[string]interface{}{
+			"burnout_threshold_low":    4,
+			"burnout_threshold_medium": 6,
+			"psycho_threshold_low":     4,
+			"psycho_threshold_medium":  6,
+		})
+	}
 }

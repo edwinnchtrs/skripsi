@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Activity,
@@ -11,12 +12,16 @@ import {
   Users,
 } from 'lucide-react';
 import heroGraphic from '../assets/hero.png';
+import api from '../api';
 
-const metrics = [
-  { value: '3', label: 'dimensi burnout dipantau' },
-  { value: '24/7', label: 'ruang curhat anonim' },
-  { value: 'ML', label: 'prediksi risiko personal' },
-];
+interface PublicOverview {
+  total_users: number;
+  total_assessments: number;
+  total_predictions: number;
+  total_curhats: number;
+  model_accuracy: number;
+  active_model: string;
+}
 
 const features = [
   {
@@ -43,6 +48,20 @@ const workflow = [
 ];
 
 export default function Home() {
+  const [overview, setOverview] = useState<PublicOverview | null>(null);
+
+  useEffect(() => {
+    api.get('/public/overview')
+      .then((response) => setOverview(response.data))
+      .catch(() => undefined);
+  }, []);
+
+  const metrics = useMemo(() => [
+    { value: overview ? overview.total_assessments.toLocaleString('id-ID') : '-', label: 'asesmen tercatat' },
+    { value: overview ? overview.total_curhats.toLocaleString('id-ID') : '-', label: 'curhat diproses' },
+    { value: overview ? `${(overview.model_accuracy * 100).toFixed(1)}%` : '-', label: 'akurasi model aktif' },
+  ], [overview]);
+
   return (
     <div className="space-y-20 md:space-y-28">
       <section className="grid min-h-[calc(100vh-13rem)] grid-cols-1 items-center gap-12 pb-6 pt-4 md:grid-cols-[1.02fr_0.98fr] md:gap-16">
@@ -110,16 +129,20 @@ export default function Home() {
                   <ShieldCheck className="h-4 w-4 text-emerald-600" aria-hidden="true" />
                   Status hari ini
                 </div>
-                <div className="mt-3 text-3xl font-semibold text-ink">72%</div>
-                <p className="mt-1 text-sm text-muted">risiko sedang, perlu jeda terarah</p>
+                <div className="mt-3 text-3xl font-semibold text-ink">
+                  {overview ? overview.total_predictions.toLocaleString('id-ID') : '-'}
+                </div>
+                <p className="mt-1 text-sm text-muted">prediksi risiko tersimpan</p>
               </div>
               <div className="rounded-lg border border-hairline bg-white/70 p-4">
                 <div className="flex items-center gap-2 text-sm font-medium text-muted">
                   <Users className="h-4 w-4 text-indigo-600" aria-hidden="true" />
                   Sentimen kolektif
                 </div>
-                <div className="mt-3 text-3xl font-semibold text-ink">+18</div>
-                <p className="mt-1 text-sm text-muted">topik tekanan akademik naik</p>
+                <div className="mt-3 text-3xl font-semibold text-ink">
+                  {overview ? overview.total_users.toLocaleString('id-ID') : '-'}
+                </div>
+                <p className="mt-1 text-sm text-muted">pengguna aktif terdaftar</p>
               </div>
             </div>
           </div>

@@ -1,7 +1,8 @@
 import { Link2 } from 'lucide-react';
-import { korelasi } from './data';
 
-export default function KorelasiChart() {
+export default function KorelasiChart({ data, loading }: { data?: { label: string; value: number; positive: boolean }[]; loading: boolean }) {
+  const correlations = data || [];
+
   return (
     <div className="h-full rounded-lg border border-white/10 bg-slate-950 p-5 shadow-xl shadow-black/10">
       <div className="flex items-center gap-2 text-sm font-semibold text-white">
@@ -11,7 +12,15 @@ export default function KorelasiChart() {
       <p className="mt-1 text-xs text-slate-500">Pearson terhadap burnout score</p>
 
       <div className="mt-5 space-y-4">
-        {korelasi.map((item) => {
+        {loading ? (
+          Array.from({ length: 5 }).map((_, index) => (
+            <div key={index} className="h-8 animate-pulse rounded-md bg-slate-800" />
+          ))
+        ) : correlations.length === 0 ? (
+          <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4 text-sm text-slate-500">
+            Korelasi akan muncul setelah data asesmen tersedia.
+          </div>
+        ) : correlations.map((item) => {
           const pct = Math.abs(item.value) * 100;
           const positive = item.positive;
           const barColor = positive ? 'bg-violet-300' : 'bg-rose-300';

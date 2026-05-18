@@ -12,6 +12,7 @@
   --theme-sidebar-border: #1e2130;
   --theme-card:         #151821;
   --theme-card-border:  #1e2130;
+  --theme-soft-surface: #131722;
   --theme-input-bg:     #0b0d14;
   --theme-input-border: #1e2130;
   --theme-text-primary: #e2e8f0;
@@ -31,6 +32,7 @@ html.light-mode {
   --theme-sidebar-border: #e2e8f0;
   --theme-card:         #ffffff;
   --theme-card-border:  #e2e8f0;
+  --theme-soft-surface: #f8fafc;
   --theme-input-bg:     #f8fafc;
   --theme-input-border: #cbd5e0;
   --theme-text-primary: #1a202c;
@@ -45,6 +47,72 @@ html.light-mode {
 /* Smooth transition for all theme-aware elements */
 *, *::before, *::after {
   transition: var(--theme-transition);
+}
+
+.dashboard-theme {
+  background: var(--theme-bg);
+  color: var(--theme-text-primary);
+}
+
+html.light-mode .dashboard-theme [class*="bg-[#090b12]"],
+html.light-mode .dashboard-theme [class*="bg-[#0b0d14]"],
+html.light-mode .dashboard-theme [class*="bg-slate-950"] {
+  background-color: var(--theme-bg) !important;
+}
+
+html.light-mode .dashboard-theme [class*="bg-white/[0.04]"],
+html.light-mode .dashboard-theme [class*="bg-white/[0.03]"],
+html.light-mode .dashboard-theme [class*="bg-slate-950/50"],
+html.light-mode .dashboard-theme [class*="bg-slate-900"],
+html.light-mode .dashboard-theme [class*="bg-slate-800"] {
+  background-color: var(--theme-card) !important;
+}
+
+html.light-mode .dashboard-theme [class*="border-white/10"] {
+  border-color: var(--theme-card-border) !important;
+}
+
+html.light-mode .dashboard-theme [class*="text-white"],
+html.light-mode .dashboard-theme [class*="text-slate-100"],
+html.light-mode .dashboard-theme [class*="text-slate-200"] {
+  color: var(--theme-text-primary) !important;
+}
+
+html.light-mode .dashboard-theme [class*="text-slate-300"],
+html.light-mode .dashboard-theme [class*="text-slate-400"],
+html.light-mode .dashboard-theme [class*="text-slate-500"] {
+  color: var(--theme-text-muted) !important;
+}
+
+html.light-mode .dashboard-theme [class*="text-cyan-100"],
+html.light-mode .dashboard-theme [class*="text-cyan-200"] {
+  color: #0f766e !important;
+}
+
+html.light-mode .dashboard-theme [class*="text-emerald-100"],
+html.light-mode .dashboard-theme [class*="text-emerald-200"] {
+  color: #047857 !important;
+}
+
+html.light-mode .dashboard-theme [class*="text-violet-100"],
+html.light-mode .dashboard-theme [class*="text-violet-200"] {
+  color: #6d28d9 !important;
+}
+
+html.light-mode .dashboard-theme [class*="text-amber-100"],
+html.light-mode .dashboard-theme [class*="text-amber-200"] {
+  color: #b45309 !important;
+}
+
+html.light-mode .dashboard-theme [class*="text-rose-100"],
+html.light-mode .dashboard-theme [class*="text-rose-200"] {
+  color: #be123c !important;
+}
+
+html.light-mode .dashboard-ambient {
+  background:
+    radial-gradient(circle at top left, rgba(20, 184, 166, 0.12), transparent 28%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.7), rgba(240, 244, 248, 0.98)) !important;
 }
 @import "tailwindcss";
 @config "../theme.config.js";

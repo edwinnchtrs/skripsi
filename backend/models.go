@@ -152,10 +152,10 @@ type PostComment struct {
 
 type SystemConfig struct {
 	gorm.Model
-	BurnoutThresholdLow    float64 `gorm:"default:34"`
-	BurnoutThresholdMedium float64 `gorm:"default:67"`
-	PsychoThresholdLow     float64 `gorm:"default:34"`
-	PsychoThresholdMedium  float64 `gorm:"default:67"`
+	BurnoutThresholdLow    float64 `gorm:"default:4"`
+	BurnoutThresholdMedium float64 `gorm:"default:6"`
+	PsychoThresholdLow     float64 `gorm:"default:4"`
+	PsychoThresholdMedium  float64 `gorm:"default:6"`
 	InterferenceWeight     float64 `gorm:"default:1.0"`
 	EarlyWarningEnabled    bool    `gorm:"default:true"`
 	EarlyWarningThreshold  float64 `gorm:"default:0.7"`

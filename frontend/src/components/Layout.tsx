@@ -3,6 +3,25 @@ import { Link, useNavigate, Outlet } from 'react-router-dom';
 export default function Layout() {
   const navigate = useNavigate();
   const isAuthenticated = !!localStorage.getItem('token');
+  let role = '';
+  try {
+    role = JSON.parse(localStorage.getItem('user') || '{}')?.role || '';
+  } catch {
+    role = '';
+  }
+  const navItems = role === 'admin'
+    ? [
+        { label: 'Dashboard', to: '/dashboard' },
+        { label: 'Responden', to: '/responden' },
+        { label: 'Model', to: '/model' },
+      ]
+    : role === 'user'
+      ? [
+          { label: 'Dashboard', to: '/user/dashboard' },
+          { label: 'Kuisioner', to: '/user/kuisioner' },
+          { label: 'Curhat', to: '/user/curhat' },
+        ]
+      : [];
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -18,12 +37,15 @@ export default function Layout() {
           <Link to="/" className="text-xl font-serif font-medium tracking-tight flex items-center">
             <span className="mr-2 text-primary">✱</span> NexusMind
           </Link>
-          <nav className="hidden md:flex items-center gap-6 text-sm font-medium">
-            <Link to="/dashboard" className="hover:text-primary transition-colors">Dashboard</Link>
-            <Link to="/assessment" className="hover:text-primary transition-colors">Asesmen</Link>
-            <Link to="/gosip" className="hover:text-primary transition-colors">Ruang Gosip</Link>
-            <Link to="/terapi" className="hover:text-primary transition-colors">Warung Terapi</Link>
-          </nav>
+          {navItems.length > 0 && (
+            <nav className="hidden items-center gap-6 text-sm font-medium md:flex">
+              {navItems.map((item) => (
+                <Link key={item.to} to={item.to} className="transition-colors hover:text-primary">
+                  {item.label}
+                </Link>
+              ))}
+            </nav>
+          )}
         </div>
         <div className="flex items-center gap-4 text-sm font-medium">
           {isAuthenticated ? (

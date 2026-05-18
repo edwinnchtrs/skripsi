@@ -100,8 +100,8 @@ function getEnergyLabel(pct: number): { text: string; tone: StatCardProps['tone'
 }
 
 function getBurnoutSub(score: number) {
-  if (score < 34) return 'Masih dalam rentang rendah';
-  if (score < 67) return 'Perlu perhatian dan pemantauan';
+  if (score <= 4) return 'Masih dalam rentang rendah';
+  if (score <= 6) return 'Perlu perhatian dan pemantauan';
   return 'Prioritaskan pemulihan hari ini';
 }
 

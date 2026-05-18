@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -24,6 +25,13 @@ func UserDashboardHandler(c *gin.Context) {
 }
 
 func AssessmentGetHandler(c *gin.Context) {
+	user := c.MustGet("user").(User)
+	config := getSystemConfig()
+	if userActionBlockedByMaintenance(user, config) {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Sistem sedang dalam mode pemeliharaan"})
+		return
+	}
+
 	profile := c.DefaultQuery("profile", "balanced")
 	variant := c.Query("variant")
 	refresh := c.Query("refresh") == "1" || c.Query("refresh") == "true" || variant != ""
@@ -40,6 +48,25 @@ func AssessmentGetHandler(c *gin.Context) {
 
 func AssessmentSubmitHandler(c *gin.Context) {
 	user := c.MustGet("user").(User)
+	config := getSystemConfig()
+	if userActionBlockedByMaintenance(user, config) {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Sistem sedang dalam mode pemeliharaan"})
+		return
+	}
+
+	now := time.Now()
+	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	var todayCount int64
+	DB.Model(&Assessment{}).
+		Where("user_id = ? AND timestamp >= ?", user.ID, startOfDay).
+		Count(&todayCount)
+	if todayCount >= int64(config.MaxAssessmentPerDay) {
+		c.JSON(http.StatusTooManyRequests, gin.H{
+			"error": "Batas asesmen harian sudah tercapai",
+			"limit": config.MaxAssessmentPerDay,
+		})
+		return
+	}
 
 	var input struct {
 		OrderType string     `json:"order_type"`
@@ -130,6 +157,8 @@ func AssessmentSubmitHandler(c *gin.Context) {
 
 func NotificationsUnreadHandler(c *gin.Context) {
 	user := c.MustGet("user").(User)
+	config := getSystemConfig()
+	pruneExpiredNotifications(config)
 	var notifications []Notification
 	DB.Where("user_id = ? AND is_read = ?", user.ID, false).Order("created_at desc").Find(&notifications)
 	c.JSON(http.StatusOK, gin.H{"notifications": notifications})
@@ -153,8 +182,12 @@ func NotificationsReadHandler(c *gin.Context) {
 
 func UserNotificationsHandler(c *gin.Context) {
 	user := c.MustGet("user").(User)
+	config := getSystemConfig()
 	var recommendations []TherapyRecommendation
-	DB.Where("user_id = ?", user.ID).Order("created_at desc").Limit(30).Find(&recommendations)
+	DB.Where("user_id = ? AND created_at >= ?", user.ID, retentionCutoff(config.DataRetentionDays)).
+		Order("created_at desc").
+		Limit(30).
+		Find(&recommendations)
 	if recommendations == nil {
 		recommendations = []TherapyRecommendation{}
 	}

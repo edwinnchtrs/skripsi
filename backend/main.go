@@ -1,6 +1,9 @@
 package main
 
 import (
+	"os"
+	"strings"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -11,11 +14,22 @@ func main() {
 
 	// CORS
 	r.Use(func(c *gin.Context) {
+		c.Writer.Header().Set("X-Content-Type-Options", "nosniff")
+		c.Writer.Header().Set("X-Frame-Options", "DENY")
+		c.Writer.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+
 		origin := c.Request.Header.Get("Origin")
-		if origin != "" {
+		allowedOrigins := strings.Split(getEnv("CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:5175"), ",")
+		originAllowed := origin == ""
+		for _, allowedOrigin := range allowedOrigins {
+			if strings.TrimSpace(allowedOrigin) == origin {
+				originAllowed = true
+				break
+			}
+		}
+
+		if origin != "" && originAllowed {
 			c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
-		} else {
-			c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
 		}
 		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
 		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
@@ -30,6 +44,9 @@ func main() {
 
 	api := r.Group("/api")
 	{
+		api.GET("/health", HealthHandler)
+		api.GET("/public/overview", PublicOverviewHandler)
+
 		// Auth Routes
 		api.POST("/register", RegisterHandler)
 		api.POST("/login", LoginHandler)
@@ -102,5 +119,11 @@ func main() {
 		}
 	}
 
-	r.Run(":8080")
+	port := getEnv("PORT", "8080")
+	if !strings.HasPrefix(port, ":") {
+		port = ":" + port
+	}
+	if err := r.Run(port); err != nil {
+		_, _ = os.Stderr.WriteString(err.Error())
+	}
 }

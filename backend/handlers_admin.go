@@ -22,6 +22,10 @@ func AdminGuard(c *gin.Context) bool {
 }
 
 func RespondenGetHandler(c *gin.Context) {
+	if !AdminGuard(c) {
+		return
+	}
+
 	var users []User
 	if err := DB.Preload("Predictions", func(db *gorm.DB) *gorm.DB {
 		return db.Order("timestamp DESC")
@@ -69,6 +73,10 @@ func RespondenGetHandler(c *gin.Context) {
 }
 
 func RespondenHistoryHandler(c *gin.Context) {
+	if !AdminGuard(c) {
+		return
+	}
+
 	id := c.Param("id")
 	var predictions []Prediction
 	if err := DB.Where("user_id = ?", id).Order("timestamp DESC").Find(&predictions).Error; err != nil {
@@ -458,6 +466,7 @@ func AdminAnalyticsHandler(c *gin.Context) {
 	if !AdminGuard(c) {
 		return
 	}
+	config := getSystemConfig()
 
 	var users []User
 	if err := DB.Preload("Predictions", func(db *gorm.DB) *gorm.DB {
@@ -468,6 +477,7 @@ func AdminAnalyticsHandler(c *gin.Context) {
 	}
 
 	totalRespondents := 0
+	totalRespondentsWithPrediction := 0
 	var sumBurnout float64
 	highRiskCount := 0
 
@@ -487,22 +497,23 @@ func AdminAnalyticsHandler(c *gin.Context) {
 		totalRespondents++
 		if len(u.Predictions) > 0 {
 			latest := u.Predictions[0]
+			totalRespondentsWithPrediction++
 			sumBurnout += latest.BurnoutScore
-			if latest.RiskLevel == "High" {
+			if latest.RiskLevel == "High" || latest.RiskLevel == "Crisis" {
 				highRiskCount++
 			}
 
-			if latest.BurnoutScore < 34 {
+			if latest.BurnoutScore <= config.BurnoutThresholdLow {
 				burnoutCounts["Rendah"]++
-			} else if latest.BurnoutScore < 67 {
+			} else if latest.BurnoutScore <= config.BurnoutThresholdMedium {
 				burnoutCounts["Sedang"]++
 			} else {
 				burnoutCounts["Tinggi"]++
 			}
 
-			if latest.PsychosomaticScore < 34 {
+			if latest.PsychosomaticScore <= config.PsychoThresholdLow {
 				psychoCounts["Rendah"]++
-			} else if latest.PsychosomaticScore < 67 {
+			} else if latest.PsychosomaticScore <= config.PsychoThresholdMedium {
 				psychoCounts["Sedang"]++
 			} else {
 				psychoCounts["Tinggi"]++
@@ -516,25 +527,67 @@ func AdminAnalyticsHandler(c *gin.Context) {
 	}
 
 	var avgBurnout float64
-	if totalRespondents > 0 {
-		avgBurnout = sumBurnout / float64(totalRespondents)
+	if totalRespondentsWithPrediction > 0 {
+		avgBurnout = sumBurnout / float64(totalRespondentsWithPrediction)
 	}
 
 	var totalPredictions int64
 	DB.Model(&Prediction{}).Count(&totalPredictions)
 
-	// Trend calculation
-	var allPreds []Prediction
-	DB.Order("timestamp ASC").Find(&allPreds)
+	now := time.Now()
+	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	var assessmentsToday int64
+	var pendingTreatments int64
+	var unseenReplies int64
+	var unreadNotifications int64
+	DB.Model(&Assessment{}).Where("timestamp >= ?", startOfDay).Count(&assessmentsToday)
+	DB.Model(&TherapyRecommendation{}).Where("status = ?", "pending").Count(&pendingTreatments)
+	DB.Model(&TreatmentReply{}).Where("admin_seen = ?", false).Count(&unseenReplies)
+	DB.Model(&Notification{}).Where("is_read = ?", false).Count(&unreadNotifications)
 
-	dateGroups := make(map[string][]float64)
-	var orderedDates []string
-	for _, p := range allPreds {
-		dateStr := p.Timestamp.Format("02 Jan")
-		if len(dateGroups[dateStr]) == 0 {
-			orderedDates = append(orderedDates, dateStr)
+	earlyWarningCount := 0
+	if config.EarlyWarningEnabled {
+		warningScore := config.EarlyWarningThreshold * 10
+		for _, user := range users {
+			if user.Role == "admin" || len(user.Predictions) == 0 {
+				continue
+			}
+			if user.Predictions[0].BurnoutScore >= warningScore {
+				earlyWarningCount++
+			}
 		}
-		dateGroups[dateStr] = append(dateGroups[dateStr], p.BurnoutScore)
+	}
+
+	// Trend calculation
+	type GroupedScores struct {
+		All       []float64
+		Mahasiswa []float64
+		Karyawan  []float64
+	}
+	dateGroups := make(map[string]*GroupedScores)
+	var orderedDates []string
+	var predictionUsers []struct {
+		Prediction
+		UserType string
+	}
+	DB.Table("predictions").
+		Select("predictions.*, users.user_type").
+		Joins("JOIN users ON users.id = predictions.user_id").
+		Order("predictions.timestamp ASC").
+		Scan(&predictionUsers)
+	for _, p := range predictionUsers {
+		dateStr := p.Timestamp.Format("02 Jan")
+		if dateGroups[dateStr] == nil {
+			orderedDates = append(orderedDates, dateStr)
+			dateGroups[dateStr] = &GroupedScores{}
+		}
+		group := dateGroups[dateStr]
+		group.All = append(group.All, p.BurnoutScore)
+		if normalizeUserType(p.UserType) == "karyawan" {
+			group.Karyawan = append(group.Karyawan, p.BurnoutScore)
+		} else {
+			group.Mahasiswa = append(group.Mahasiswa, p.BurnoutScore)
+		}
 	}
 
 	type TrendDay struct {
@@ -547,22 +600,75 @@ func AdminAnalyticsHandler(c *gin.Context) {
 
 	for _, d := range orderedDates {
 		scores := dateGroups[d]
-		sum := 0.0
-		for _, s := range scores {
-			sum += s
-		}
-		avg := sum / float64(len(scores))
 
 		trendData = append(trendData, TrendDay{
 			Date:      d,
-			Semua:     avg,
-			Mahasiswa: avg + 5.0,
-			Karyawan:  avg - 3.0,
+			Semua:     mean(scores.All),
+			Mahasiswa: mean(scores.Mahasiswa),
+			Karyawan:  mean(scores.Karyawan),
 		})
 	}
 
 	if len(trendData) > 10 {
 		trendData = trendData[len(trendData)-10:]
+	}
+
+	samples := loadTrainingSamples()
+	correlationSeries := map[string][]float64{
+		"Fatigue":      {},
+		"Cynicism":     {},
+		"Efficacy":     {},
+		"Interference": {},
+		"Order Effect": {},
+		"Dissonance":   {},
+		"NLP Stress":   {},
+		"Burnout":      {},
+	}
+	for _, sample := range samples {
+		correlationSeries["Fatigue"] = append(correlationSeries["Fatigue"], sample.Features[1])
+		correlationSeries["Cynicism"] = append(correlationSeries["Cynicism"], sample.Features[2])
+		correlationSeries["Efficacy"] = append(correlationSeries["Efficacy"], sample.Features[3])
+		correlationSeries["Interference"] = append(correlationSeries["Interference"], sample.Features[4])
+		correlationSeries["Order Effect"] = append(correlationSeries["Order Effect"], sample.Features[5])
+		correlationSeries["Dissonance"] = append(correlationSeries["Dissonance"], sample.Features[6])
+		correlationSeries["NLP Stress"] = append(correlationSeries["NLP Stress"], sample.Features[7])
+		correlationSeries["Burnout"] = append(correlationSeries["Burnout"], sample.BurnoutTarget)
+	}
+	type CorrelationDTO struct {
+		Label    string  `json:"label"`
+		Value    float64 `json:"value"`
+		Positive bool    `json:"positive"`
+	}
+	var correlationData []CorrelationDTO
+	for _, label := range []string{"Fatigue", "Cynicism", "Efficacy", "Interference", "Order Effect", "Dissonance", "NLP Stress"} {
+		value := pearsonCorrelation(correlationSeries[label], correlationSeries["Burnout"])
+		correlationData = append(correlationData, CorrelationDTO{
+			Label:    label,
+			Value:    value,
+			Positive: value >= 0,
+		})
+	}
+
+	modelSummary := gin.H{
+		"active_model":  "Psychometric fallback",
+		"trained":       false,
+		"accuracy":      0,
+		"r2_score":      0,
+		"sample_count":  len(samples),
+		"feature_count": 7,
+	}
+	if model, ok := trainRidgeModel(samples); ok {
+		metrics := evaluatePredictions(samples, func(sample TrainingSample) float64 {
+			return predictLinear(model.BurnoutCoefficients, sample.Features)
+		})
+		modelSummary = gin.H{
+			"active_model":  "Quantum ridge regression",
+			"trained":       true,
+			"accuracy":      metrics.Accuracy,
+			"r2_score":      metrics.R2,
+			"sample_count":  len(samples),
+			"feature_count": 7,
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -574,6 +680,25 @@ func AdminAnalyticsHandler(c *gin.Context) {
 		"psychoDist":       psychoCounts,
 		"scatterData":      scatterData,
 		"trendData":        trendData,
+		"correlationData":  correlationData,
+		"modelSummary":     modelSummary,
+		"operations": gin.H{
+			"assessmentsToday":       assessmentsToday,
+			"pendingTreatments":      pendingTreatments,
+			"unseenReplies":          unseenReplies,
+			"unreadNotifications":    unreadNotifications,
+			"usersWithoutPrediction": totalRespondents - totalRespondentsWithPrediction,
+			"earlyWarningCount":      earlyWarningCount,
+			"maintenanceMode":        config.MaintenanceMode,
+			"aiResponseEnabled":      config.AIResponseEnabled,
+			"maxAssessmentPerDay":    config.MaxAssessmentPerDay,
+		},
+		"thresholds": gin.H{
+			"burnoutLow":    config.BurnoutThresholdLow,
+			"burnoutMedium": config.BurnoutThresholdMedium,
+			"psychoLow":     config.PsychoThresholdLow,
+			"psychoMedium":  config.PsychoThresholdMedium,
+		},
 	})
 }
 
@@ -581,11 +706,7 @@ func AdminConfigGetHandler(c *gin.Context) {
 	if !AdminGuard(c) {
 		return
 	}
-	var config SystemConfig
-	if err := DB.First(&config).Error; err != nil {
-		config = SystemConfig{}
-		DB.Create(&config)
-	}
+	config := getSystemConfig()
 	c.JSON(http.StatusOK, config)
 }
 
@@ -593,18 +714,70 @@ func AdminConfigPutHandler(c *gin.Context) {
 	if !AdminGuard(c) {
 		return
 	}
-	var config SystemConfig
-	if err := DB.First(&config).Error; err != nil {
-		config = SystemConfig{}
-		DB.Create(&config)
+	config := getSystemConfig()
+	var input struct {
+		BurnoutThresholdLow    float64 `json:"BurnoutThresholdLow"`
+		BurnoutThresholdMedium float64 `json:"BurnoutThresholdMedium"`
+		PsychoThresholdLow     float64 `json:"PsychoThresholdLow"`
+		PsychoThresholdMedium  float64 `json:"PsychoThresholdMedium"`
+		InterferenceWeight     float64 `json:"InterferenceWeight"`
+		EarlyWarningEnabled    bool    `json:"EarlyWarningEnabled"`
+		EarlyWarningThreshold  float64 `json:"EarlyWarningThreshold"`
+		MaintenanceMode        bool    `json:"MaintenanceMode"`
+		MaxAssessmentPerDay    int     `json:"MaxAssessmentPerDay"`
+		AIResponseEnabled      bool    `json:"AIResponseEnabled"`
+		NotificationRetention  int     `json:"NotificationRetention"`
+		DataRetentionDays      int     `json:"DataRetentionDays"`
+		ModelVersion           string  `json:"ModelVersion"`
+		AppName                string  `json:"AppName"`
 	}
-	var input map[string]interface{}
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	DB.Model(&config).Updates(input)
-	c.JSON(http.StatusOK, gin.H{"status": "success", "message": "Configuration updated"})
+	next := normalizeSystemConfig(SystemConfig{
+		BurnoutThresholdLow:    input.BurnoutThresholdLow,
+		BurnoutThresholdMedium: input.BurnoutThresholdMedium,
+		PsychoThresholdLow:     input.PsychoThresholdLow,
+		PsychoThresholdMedium:  input.PsychoThresholdMedium,
+		InterferenceWeight:     input.InterferenceWeight,
+		EarlyWarningEnabled:    input.EarlyWarningEnabled,
+		EarlyWarningThreshold:  input.EarlyWarningThreshold,
+		MaintenanceMode:        input.MaintenanceMode,
+		MaxAssessmentPerDay:    input.MaxAssessmentPerDay,
+		AIResponseEnabled:      input.AIResponseEnabled,
+		NotificationRetention:  input.NotificationRetention,
+		DataRetentionDays:      input.DataRetentionDays,
+		ModelVersion:           strings.TrimSpace(input.ModelVersion),
+		AppName:                strings.TrimSpace(input.AppName),
+	})
+	if next.BurnoutThresholdLow >= next.BurnoutThresholdMedium || next.PsychoThresholdLow >= next.PsychoThresholdMedium {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Threshold rendah harus lebih kecil dari threshold sedang"})
+		return
+	}
+	if next.AppName == "" {
+		next.AppName = config.AppName
+	}
+	if next.ModelVersion == "" {
+		next.ModelVersion = config.ModelVersion
+	}
+	DB.Model(&config).Updates(map[string]interface{}{
+		"burnout_threshold_low":    next.BurnoutThresholdLow,
+		"burnout_threshold_medium": next.BurnoutThresholdMedium,
+		"psycho_threshold_low":     next.PsychoThresholdLow,
+		"psycho_threshold_medium":  next.PsychoThresholdMedium,
+		"interference_weight":      next.InterferenceWeight,
+		"early_warning_enabled":    next.EarlyWarningEnabled,
+		"early_warning_threshold":  next.EarlyWarningThreshold,
+		"maintenance_mode":         next.MaintenanceMode,
+		"max_assessment_per_day":   next.MaxAssessmentPerDay,
+		"ai_response_enabled":      next.AIResponseEnabled,
+		"notification_retention":   next.NotificationRetention,
+		"data_retention_days":      next.DataRetentionDays,
+		"model_version":            next.ModelVersion,
+		"app_name":                 next.AppName,
+	})
+	c.JSON(http.StatusOK, gin.H{"status": "success", "message": "Configuration updated", "config": next})
 }
 
 func AdminQuantumHandler(c *gin.Context) {

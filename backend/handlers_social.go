@@ -9,15 +9,17 @@ import (
 
 func UserHistoryHandler(c *gin.Context) {
 	user := c.MustGet("user").(User)
+	config := getSystemConfig()
+	cutoff := retentionCutoff(config.DataRetentionDays)
 
 	var predictions []Prediction
-	if err := DB.Where("user_id = ?", user.ID).Order("timestamp DESC").Find(&predictions).Error; err != nil {
+	if err := DB.Where("user_id = ? AND timestamp >= ?", user.ID, cutoff).Order("timestamp DESC").Find(&predictions).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch predictions"})
 		return
 	}
 
 	var assessments []Assessment
-	if err := DB.Where("user_id = ?", user.ID).Order("timestamp DESC").Find(&assessments).Error; err != nil {
+	if err := DB.Where("user_id = ? AND timestamp >= ?", user.ID, cutoff).Order("timestamp DESC").Find(&assessments).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch assessments"})
 		return
 	}
@@ -399,7 +401,9 @@ func NetworkUserProfileHandler(c *gin.Context) {
 			ID: m.ID, Nama: m.Nama, Username: m.Username, ProfilePic: m.ProfilePic,
 		})
 	}
-	if mfDTO == nil { mfDTO = []MutualFriendDTO{} }
+	if mfDTO == nil {
+		mfDTO = []MutualFriendDTO{}
+	}
 
 	var postCount int64
 	DB.Model(&Post{}).Where("user_id = ?", target.ID).Count(&postCount)
@@ -428,7 +432,9 @@ func NetworkUserProfileHandler(c *gin.Context) {
 			Reactions: int(likeCount),
 		})
 	}
-	if postsDTO == nil { postsDTO = []PostDTO{} }
+	if postsDTO == nil {
+		postsDTO = []PostDTO{}
+	}
 
 	var activityItems []gin.H
 	var recentPredictions []Prediction
@@ -441,7 +447,9 @@ func NetworkUserProfileHandler(c *gin.Context) {
 			"score":     pred.BurnoutScore,
 		})
 	}
-	if activityItems == nil { activityItems = []gin.H{} }
+	if activityItems == nil {
+		activityItems = []gin.H{}
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"id":               target.ID,
@@ -461,5 +469,3 @@ func NetworkUserProfileHandler(c *gin.Context) {
 		"activity":         activityItems,
 	})
 }
-
-

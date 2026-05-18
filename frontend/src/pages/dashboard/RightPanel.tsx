@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, Bell, Brain, FileText, FileUp, Settings, User, Users } from 'lucide-react';
+import { AlertTriangle, Bell, Brain, ClipboardCheck, FileText, FileUp, MessageSquareMore, Settings, ShieldAlert, User, Users } from 'lucide-react';
 
 const actions = [
   { title: 'Prediksi Individu', desc: 'Buka analisis responden', color: 'text-violet-200', bg: 'bg-violet-400/10', icon: User, path: '/prediksi' },
@@ -14,6 +14,8 @@ export default function RightPanel({ data, loading }: { data: any; loading: bool
   const highPsycho = data?.psychoDist?.Tinggi ?? 0;
   const total = data?.totalRespondents ?? 0;
   const highTotal = highBurnout + highPsycho;
+  const model = data?.modelSummary;
+  const operations = data?.operations;
 
   const earlyWarnings = [
     { label: 'Risiko Burnout Tinggi', count: `${highBurnout} orang`, desc: 'Prioritas intervensi', color: 'rose' },
@@ -68,6 +70,57 @@ export default function RightPanel({ data, loading }: { data: any; loading: bool
 
       <section className="rounded-lg border border-white/10 bg-slate-950 p-5 shadow-xl shadow-black/10">
         <div className="flex items-center gap-2 text-sm font-semibold text-white">
+          <ClipboardCheck className="h-4 w-4 text-emerald-200" />
+          Operasional Hari Ini
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          {[
+            ['Asesmen masuk', operations?.assessmentsToday ?? 0, 'emerald'],
+            ['Terapi pending', operations?.pendingTreatments ?? 0, 'amber'],
+            ['Balasan baru', operations?.unseenReplies ?? 0, 'cyan'],
+            ['Belum diprediksi', operations?.usersWithoutPrediction ?? 0, 'violet'],
+          ].map(([label, value, tone]) => (
+            <div key={String(label)} className="rounded-md border border-white/10 bg-white/[0.03] px-3 py-3">
+              <p className="text-[10px] uppercase tracking-[0.14em] text-slate-500">{label}</p>
+              <p className={`mt-2 text-xl font-semibold ${
+                tone === 'emerald'
+                  ? 'text-emerald-200'
+                  : tone === 'amber'
+                    ? 'text-amber-200'
+                    : tone === 'cyan'
+                      ? 'text-cyan-200'
+                      : 'text-violet-200'
+              }`}>
+                {loading ? '-' : value}
+              </p>
+            </div>
+          ))}
+        </div>
+        <div className="mt-3 space-y-2">
+          <div className="flex items-center justify-between rounded-md border border-white/10 bg-white/[0.03] px-3 py-2 text-xs">
+            <span className="flex items-center gap-2 text-slate-400">
+              <ShieldAlert className="h-3.5 w-3.5" />
+              Mode maintenance
+            </span>
+            <span className={operations?.maintenanceMode ? 'font-semibold text-rose-200' : 'font-semibold text-emerald-200'}>
+              {operations?.maintenanceMode ? 'Aktif' : 'Normal'}
+            </span>
+          </div>
+          <button
+            onClick={() => navigate('/responden')}
+            className="flex w-full items-center justify-between rounded-md border border-white/10 bg-white/[0.03] px-3 py-2 text-xs transition hover:border-cyan-300/30 hover:bg-white/[0.07]"
+          >
+            <span className="flex items-center gap-2 text-slate-400">
+              <MessageSquareMore className="h-3.5 w-3.5" />
+              Balasan terapi belum dibaca
+            </span>
+            <span className="font-semibold text-cyan-200">{loading ? '-' : operations?.unseenReplies ?? 0}</span>
+          </button>
+        </div>
+      </section>
+
+      <section className="rounded-lg border border-white/10 bg-slate-950 p-5 shadow-xl shadow-black/10">
+        <div className="flex items-center gap-2 text-sm font-semibold text-white">
           <FileUp className="h-4 w-4 text-violet-200" />
           Quick Actions
         </div>
@@ -115,11 +168,11 @@ export default function RightPanel({ data, loading }: { data: any; loading: bool
         </div>
         <div className="mt-4 space-y-3">
           {[
-            ['Algoritma Utama', 'Regresi Linier'],
-            ['Pendekatan', 'Quantum Cognition + Regresi'],
-            ['Terakhir Dilatih', 'Otomatis update'],
-            ['Dataset', `${loading ? '-' : total} sampel`],
-            ['Fitur Digunakan', '12 variabel'],
+            ['Algoritma Aktif', model?.active_model || '-'],
+            ['Status', model?.trained ? 'Terlatih' : 'Fallback'],
+            ['Akurasi', model ? `${((model.accuracy || 0) * 100).toFixed(1)}%` : '-'],
+            ['Dataset', `${model?.sample_count ?? 0} sampel`],
+            ['Fitur Digunakan', `${model?.feature_count ?? 0} fitur`],
           ].map(([label, value]) => (
             <div key={label} className="rounded-md border border-white/10 bg-white/[0.03] px-3 py-2">
               <p className="text-[10px] uppercase tracking-[0.14em] text-slate-500">{label}</p>

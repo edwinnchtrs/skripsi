@@ -12,7 +12,8 @@ import {
   Sun,
   Moon,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo } from 'react';
+import { useTheme } from '../hooks/useTheme';
 
 const navItems = [
   { label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
@@ -29,7 +30,14 @@ const navItems = [
 export default function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
-  const [dark, setDark] = useState(false);
+  const { dark, setDark } = useTheme();
+  const admin = useMemo(() => {
+    try {
+      return JSON.parse(localStorage.getItem('user') || '{}');
+    } catch {
+      return {};
+    }
+  }, []);
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -42,7 +50,7 @@ export default function Sidebar() {
       style={{
         width: 220,
         minWidth: 220,
-        background: '#0f1117',
+        background: 'var(--theme-sidebar)',
         display: 'flex',
         flexDirection: 'column',
         height: '100vh',
@@ -50,11 +58,11 @@ export default function Sidebar() {
         left: 0,
         top: 0,
         zIndex: 100,
-        borderRight: '1px solid #1e2130',
+        borderRight: '1px solid var(--theme-sidebar-border)',
       }}
     >
       {/* Brand */}
-      <div style={{ padding: '20px 20px 12px', borderBottom: '1px solid #1e2130' }}>
+      <div style={{ padding: '20px 20px 12px', borderBottom: '1px solid var(--theme-sidebar-border)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div
             style={{
@@ -70,10 +78,10 @@ export default function Sidebar() {
             <Brain size={20} color="#fff" />
           </div>
           <div>
-            <div style={{ color: '#fff', fontWeight: 700, fontSize: 14, lineHeight: 1.2 }}>
+            <div style={{ color: 'var(--theme-text-primary)', fontWeight: 700, fontSize: 14, lineHeight: 1.2 }}>
               QC Analytics
             </div>
-            <div style={{ color: '#8890a4', fontSize: 10 }}>Quantum Cognition</div>
+            <div style={{ color: 'var(--theme-text-muted)', fontSize: 10 }}>Quantum Cognition</div>
           </div>
         </div>
       </div>
@@ -95,7 +103,7 @@ export default function Sidebar() {
                 borderRadius: 8,
                 marginBottom: 2,
                 background: active ? 'rgba(108,99,255,0.18)' : 'transparent',
-                color: active ? '#a89cff' : '#8890a4',
+                color: active ? '#a89cff' : 'var(--theme-text-muted)',
                 fontSize: 13,
                 fontWeight: active ? 600 : 400,
                 textDecoration: 'none',
@@ -110,7 +118,7 @@ export default function Sidebar() {
       </nav>
 
       {/* User & theme */}
-      <div style={{ padding: '12px 16px', borderTop: '1px solid #1e2130' }}>
+      <div style={{ padding: '12px 16px', borderTop: '1px solid var(--theme-sidebar-border)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
           <div
             style={{
@@ -126,16 +134,16 @@ export default function Sidebar() {
             <User size={16} color="#fff" />
           </div>
           <div style={{ flex: 1, overflow: 'hidden' }}>
-            <div style={{ color: '#e2e8f0', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              Admin QC
+            <div style={{ color: 'var(--theme-text-primary)', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {admin.nama || admin.username || 'Admin QC'}
             </div>
-            <div style={{ color: '#8890a4', fontSize: 11 }}>Administrator</div>
+            <div style={{ color: 'var(--theme-text-muted)', fontSize: 11 }}>Administrator</div>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span style={{ color: '#8890a4', fontSize: 11 }}>Tema</span>
+          <span style={{ color: 'var(--theme-text-muted)', fontSize: 11 }}>Tema</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Sun size={13} color="#8890a4" />
+            <Sun size={13} color="var(--theme-text-muted)" />
             <button
               onClick={() => setDark(!dark)}
               style={{
@@ -162,7 +170,7 @@ export default function Sidebar() {
                 }}
               />
             </button>
-            <Moon size={13} color="#8890a4" />
+            <Moon size={13} color="var(--theme-text-muted)" />
           </div>
         </div>
         <button
@@ -176,8 +184,8 @@ export default function Sidebar() {
             padding: '7px 10px',
             borderRadius: 7,
             background: 'transparent',
-            border: '1px solid #2a2e42',
-            color: '#8890a4',
+            border: '1px solid var(--theme-btn-secondary-border)',
+            color: 'var(--theme-text-muted)',
             fontSize: 12,
             cursor: 'pointer',
           }}
@@ -185,7 +193,7 @@ export default function Sidebar() {
           <LogOut size={14} />
           Sign Out
         </button>
-        <div style={{ color: '#4a5068', fontSize: 10, textAlign: 'center', marginTop: 10 }}>
+        <div style={{ color: 'var(--theme-text-muted)', fontSize: 10, textAlign: 'center', marginTop: 10 }}>
           Sistem Analitik Prediktif Burnout & Risiko Psikosomatis
           <br />2024 QC Analytics
         </div>

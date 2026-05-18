@@ -29,10 +29,10 @@ interface SystemConfig {
 const defaultConfig: SystemConfig = {
   app_name: 'QC Analytics',
   model_version: '1.0.0',
-  burnout_threshold_low: 34,
-  burnout_threshold_medium: 67,
-  psycho_threshold_low: 34,
-  psycho_threshold_medium: 67,
+  burnout_threshold_low: 4,
+  burnout_threshold_medium: 6,
+  psycho_threshold_low: 4,
+  psycho_threshold_medium: 6,
   interference_weight: 1.0,
   early_warning_enabled: true,
   early_warning_threshold: 0.7,
@@ -53,24 +53,24 @@ const tabs = [
 
 const pageStyle: React.CSSProperties = {
   padding: '22px 24px',
-  background: '#0b0d14',
+  background: 'var(--theme-bg)',
   minHeight: '100vh',
-  color: '#e2e8f0',
+  color: 'var(--theme-text-primary)',
   fontFamily: 'Inter, sans-serif',
 };
 
-const labelStyle: React.CSSProperties = { display: 'block', fontSize: 12, color: '#8890a4', marginBottom: 5, fontWeight: 500 };
-const helperStyle: React.CSSProperties = { fontSize: 10, color: '#4a5068', marginTop: 3 };
+const labelStyle: React.CSSProperties = { display: 'block', fontSize: 12, color: 'var(--theme-text-muted)', marginBottom: 5, fontWeight: 500 };
+const helperStyle: React.CSSProperties = { fontSize: 10, color: 'var(--theme-text-muted)', marginTop: 3 };
 const inputStyle: React.CSSProperties = {
-  width: '100%', padding: '9px 12px', background: '#0f1117', border: '1px solid #1e2130',
-  borderRadius: 7, color: '#e2e8f0', fontSize: 13, outline: 'none', boxSizing: 'border-box',
+  width: '100%', padding: '9px 12px', background: 'var(--theme-input-bg)', border: '1px solid var(--theme-input-border)',
+  borderRadius: 7, color: 'var(--theme-text-primary)', fontSize: 13, outline: 'none', boxSizing: 'border-box',
   transition: 'border-color 0.2s',
 };
 
 function ThresholdBar({ low, medium, color }: { low: number; medium: number; color: string }) {
-  const greenPct = (low / 100) * 100;
-  const amberPct = ((medium - low) / 100) * 100;
-  const redPct = ((100 - medium) / 100) * 100;
+  const greenPct = (low / 10) * 100;
+  const amberPct = ((medium - low) / 10) * 100;
+  const redPct = ((10 - medium) / 10) * 100;
   return (
     <div style={{ marginBottom: 14 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
@@ -104,12 +104,11 @@ function ThresholdBar({ low, medium, color }: { low: number; medium: number; col
         <div style={{ position: 'absolute', left: `${greenPct + amberPct}%`, top: -2, width: 2, height: 12, background: '#fff', borderRadius: 1, zIndex: 2 }} />
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 5 }}>
-        <motion.span
-          animate={{ color: color }}
-          style={{ fontSize: 10, fontWeight: 600 }}
-        >0 — {low}</motion.span>
-        <span style={{ fontSize: 10, color: '#4a5068' }}>{low + 1} — {medium}</span>
-        <span style={{ fontSize: 10, color: '#4a5068' }}>{medium + 1} — 100</span>
+        <motion.span animate={{ color }} style={{ fontSize: 10, fontWeight: 600 }}>
+          0 - {low.toFixed(1)}
+        </motion.span>
+        <span style={{ fontSize: 10, color: 'var(--theme-text-muted)' }}>{low.toFixed(1)} - {medium.toFixed(1)}</span>
+        <span style={{ fontSize: 10, color: 'var(--theme-text-muted)' }}>{medium.toFixed(1)} - 10</span>
       </div>
     </div>
   );
@@ -220,6 +219,16 @@ export default function PengaturanSistem() {
   };
 
   const update = (key: keyof SystemConfig, value: any) => setConfig({ ...config, [key]: value });
+  const updateLowThreshold = (
+    lowKey: 'burnout_threshold_low' | 'psycho_threshold_low',
+    mediumKey: 'burnout_threshold_medium' | 'psycho_threshold_medium',
+    value: number,
+  ) => update(lowKey, Math.min(value, Number((config[mediumKey] - 0.1).toFixed(1))));
+  const updateMediumThreshold = (
+    lowKey: 'burnout_threshold_low' | 'psycho_threshold_low',
+    mediumKey: 'burnout_threshold_medium' | 'psycho_threshold_medium',
+    value: number,
+  ) => update(mediumKey, Math.max(value, Number((config[lowKey] + 0.1).toFixed(1))));
 
   if (loading) {
     return (
@@ -259,7 +268,7 @@ export default function PengaturanSistem() {
             >
               <Settings size={20} color="#fff" />
             </motion.div>
-            <h1 style={{ fontSize: 22, fontWeight: 700, color: '#e2e8f0', margin: 0 }}>Pengaturan Sistem</h1>
+            <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--theme-text-primary)', margin: 0 }}>Pengaturan Sistem</h1>
             <span style={{ background: 'rgba(108,99,255,0.12)', color: '#a89cff', padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, border: '1px solid rgba(108,99,255,0.2)' }}>
               v{config.model_version}
             </span>
@@ -269,7 +278,7 @@ export default function PengaturanSistem() {
               </span>
             )}
           </div>
-          <p style={{ color: '#8890a4', fontSize: 13, margin: '2px 0 0' }}>
+          <p style={{ color: 'var(--theme-text-muted)', fontSize: 13, margin: '2px 0 0' }}>
             Konfigurasi parameter sistem, threshold prediksi, dan pengaturan global aplikasi
           </p>
         </div>
@@ -322,7 +331,7 @@ export default function PengaturanSistem() {
         )}
       </AnimatePresence>
 
-      <div style={{ display: 'flex', gap: 4, marginBottom: 16, background: '#131722', borderRadius: 10, padding: 4, width: 'fit-content', border: '1px solid #1e2130' }}>
+      <div style={{ display: 'flex', gap: 4, marginBottom: 16, background: 'var(--theme-soft-surface)', borderRadius: 10, padding: 4, width: 'fit-content', border: '1px solid var(--theme-card-border)' }}>
         {tabs.map(({ key, label, icon: Icon, color }) => (
           <button key={key} onClick={() => setActiveTab(key)}
             style={{
@@ -367,11 +376,11 @@ export default function PengaturanSistem() {
                         <label style={{ ...labelStyle, margin: 0 }}>Ambang Rendah → Sedang</label>
                         <span style={{ fontSize: 11, color: '#4ade80', fontWeight: 600, background: 'rgba(34,197,94,0.1)', padding: '2px 8px', borderRadius: 4 }}>{config.burnout_threshold_low}</span>
                       </div>
-                      <input type="range" min={10} max={50} step={1} value={config.burnout_threshold_low}
-                        onChange={e => update('burnout_threshold_low', Number(e.target.value))}
+                      <input type="range" min={0} max={9.9} step={0.1} value={config.burnout_threshold_low}
+                        onChange={e => updateLowThreshold('burnout_threshold_low', 'burnout_threshold_medium', Number(e.target.value))}
                         style={{ width: '100%', accentColor: '#6c63ff' }} />
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ fontSize: 10, color: '#4a5068' }}>10</span><span style={{ fontSize: 10, color: '#4a5068' }}>50</span>
+                        <span style={{ fontSize: 10, color: 'var(--theme-text-muted)' }}>0</span><span style={{ fontSize: 10, color: 'var(--theme-text-muted)' }}>9.9</span>
                       </div>
                     </div>
                     <div>
@@ -379,11 +388,11 @@ export default function PengaturanSistem() {
                         <label style={{ ...labelStyle, margin: 0 }}>Ambang Sedang → Tinggi</label>
                         <span style={{ fontSize: 11, color: '#ef4444', fontWeight: 600, background: 'rgba(239,68,68,0.1)', padding: '2px 8px', borderRadius: 4 }}>{config.burnout_threshold_medium}</span>
                       </div>
-                      <input type="range" min={30} max={85} step={1} value={config.burnout_threshold_medium}
-                        onChange={e => update('burnout_threshold_medium', Number(e.target.value))}
+                      <input type="range" min={0.1} max={10} step={0.1} value={config.burnout_threshold_medium}
+                        onChange={e => updateMediumThreshold('burnout_threshold_low', 'burnout_threshold_medium', Number(e.target.value))}
                         style={{ width: '100%', accentColor: '#6c63ff' }} />
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ fontSize: 10, color: '#4a5068' }}>30</span><span style={{ fontSize: 10, color: '#4a5068' }}>85</span>
+                        <span style={{ fontSize: 10, color: 'var(--theme-text-muted)' }}>0.1</span><span style={{ fontSize: 10, color: 'var(--theme-text-muted)' }}>10</span>
                       </div>
                     </div>
                   </div>
@@ -403,11 +412,11 @@ export default function PengaturanSistem() {
                         <label style={{ ...labelStyle, margin: 0 }}>Ambang Rendah → Sedang</label>
                         <span style={{ fontSize: 11, color: '#4ade80', fontWeight: 600, background: 'rgba(34,197,94,0.1)', padding: '2px 8px', borderRadius: 4 }}>{config.psycho_threshold_low}</span>
                       </div>
-                      <input type="range" min={10} max={50} step={1} value={config.psycho_threshold_low}
-                        onChange={e => update('psycho_threshold_low', Number(e.target.value))}
+                      <input type="range" min={0} max={9.9} step={0.1} value={config.psycho_threshold_low}
+                        onChange={e => updateLowThreshold('psycho_threshold_low', 'psycho_threshold_medium', Number(e.target.value))}
                         style={{ width: '100%', accentColor: '#3ecfcf' }} />
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ fontSize: 10, color: '#4a5068' }}>10</span><span style={{ fontSize: 10, color: '#4a5068' }}>50</span>
+                        <span style={{ fontSize: 10, color: 'var(--theme-text-muted)' }}>0</span><span style={{ fontSize: 10, color: 'var(--theme-text-muted)' }}>9.9</span>
                       </div>
                     </div>
                     <div>
@@ -415,11 +424,11 @@ export default function PengaturanSistem() {
                         <label style={{ ...labelStyle, margin: 0 }}>Ambang Sedang → Tinggi</label>
                         <span style={{ fontSize: 11, color: '#ef4444', fontWeight: 600, background: 'rgba(239,68,68,0.1)', padding: '2px 8px', borderRadius: 4 }}>{config.psycho_threshold_medium}</span>
                       </div>
-                      <input type="range" min={30} max={85} step={1} value={config.psycho_threshold_medium}
-                        onChange={e => update('psycho_threshold_medium', Number(e.target.value))}
+                      <input type="range" min={0.1} max={10} step={0.1} value={config.psycho_threshold_medium}
+                        onChange={e => updateMediumThreshold('psycho_threshold_low', 'psycho_threshold_medium', Number(e.target.value))}
                         style={{ width: '100%', accentColor: '#3ecfcf' }} />
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ fontSize: 10, color: '#4a5068' }}>30</span><span style={{ fontSize: 10, color: '#4a5068' }}>85</span>
+                        <span style={{ fontSize: 10, color: 'var(--theme-text-muted)' }}>0.1</span><span style={{ fontSize: 10, color: 'var(--theme-text-muted)' }}>10</span>
                       </div>
                     </div>
                   </div>
