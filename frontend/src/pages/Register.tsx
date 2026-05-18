@@ -83,7 +83,6 @@ export default function Register() {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
         .reg-root{display:flex;min-height:100vh;font-family:'Inter',sans-serif;margin:0}
         .reg-root *{box-sizing:border-box}
         .reg-root h1,.reg-root h2,.reg-root h3,.reg-root h4,.reg-root p,.reg-root label{font-family:'Inter',sans-serif !important;letter-spacing:normal}

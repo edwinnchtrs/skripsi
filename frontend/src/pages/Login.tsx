@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Brain, TrendingUp, RefreshCw, ShieldCheck, Users, Database, BarChart2, Percent, Mail, Lock, Eye, EyeOff } from 'lucide-react';
-import { useGoogleLogin } from '@react-oauth/google';
+import { GoogleOAuthProvider, useGoogleLogin } from '@react-oauth/google';
 import api from '../api';
+import { useOnlineStatus } from '../hooks/useOnlineStatus';
+
+const GOOGLE_CLIENT_ID = '97194511276-qil720ig60sim9bd5i2lmsihoglpsb13.apps.googleusercontent.com';
 
 const features = [
   { Icon: Brain, t: 'Quantum Cognition', d: 'Memodelkan ketidakpastian dan pengambilan keputusan manusia secara probabilistik.' },
@@ -17,6 +20,59 @@ const defaultStats = [
   { Icon: Percent, v: '-', l: 'Akurasi Model' },
 ];
 
+function GoogleMark() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path fill="#4285F4" d="M21.82 12.2c0-.72-.06-1.25-.2-1.8H12v3.4h5.65a4.84 4.84 0 0 1-2.1 3.18l-.02.12 3.04 2.36.21.02c1.95-1.8 3.04-4.45 3.04-7.28Z" />
+      <path fill="#34A853" d="M12 22c2.76 0 5.08-.91 6.77-2.48l-3.23-2.5c-.87.61-2.04 1.04-3.54 1.04-2.7 0-4.99-1.8-5.8-4.3l-.11.01-3.16 2.44-.04.1C4.57 19.7 8 22 12 22Z" />
+      <path fill="#FBBC05" d="M6.2 13.76A6.08 6.08 0 0 1 5.86 12c0-.61.12-1.2.32-1.76l-.01-.12-3.2-2.48-.1.05A10 10 0 0 0 2 12c0 1.56.37 3.03 1.03 4.31l3.17-2.55Z" />
+      <path fill="#EA4335" d="M12 5.94c1.93 0 3.24.83 3.98 1.52l2.9-2.83C17.08 2.97 14.76 2 12 2 8 2 4.57 4.3 2.87 7.69l3.3 2.55c.82-2.5 3.11-4.3 5.83-4.3Z" />
+    </svg>
+  );
+}
+
+interface GoogleLoginButtonProps {
+  busy: boolean;
+  userType: 'mahasiswa' | 'karyawan';
+  onBusyChange: (busy: boolean) => void;
+  onError: (message: string) => void;
+  onAuthenticated: (token: string, user: unknown) => void;
+}
+
+function GoogleLoginButton({
+  busy,
+  userType,
+  onBusyChange,
+  onError,
+  onAuthenticated,
+}: GoogleLoginButtonProps) {
+  const handleGoogleLogin = useGoogleLogin({
+    onSuccess: async (tokenResponse) => {
+      onError('');
+      onBusyChange(true);
+      try {
+        const response = await api.post('/google-login', {
+          access_token: tokenResponse.access_token,
+          user_type: userType,
+        });
+        onAuthenticated(response.data.token, response.data.user);
+      } catch (error: any) {
+        onError(error.response?.data?.error || 'Gagal login dengan Google');
+      } finally {
+        onBusyChange(false);
+      }
+    },
+    onError: () => onError('Google Login dibatalkan atau gagal'),
+  });
+
+  return (
+    <button type="button" className="social-btn" onClick={() => handleGoogleLogin()} disabled={busy}>
+      <GoogleMark />
+      Google
+    </button>
+  );
+}
+
 export default function Login() {
   const nav = useNavigate();
   const [u, setU] = useState('');
@@ -27,6 +83,7 @@ export default function Login() {
   const [busy, setBusy] = useState(false);
   const [userType, setUserType] = useState<'mahasiswa' | 'karyawan'>('mahasiswa');
   const [stats, setStats] = useState(defaultStats);
+  const online = useOnlineStatus();
 
   useEffect(() => {
     api.get('/public/overview')
@@ -53,31 +110,9 @@ export default function Login() {
     finally { setBusy(false); }
   };
 
-  const handleGoogleLogin = useGoogleLogin({
-    onSuccess: async (tokenResponse) => {
-      setErr(''); setBusy(true);
-      try {
-        const r = await api.post('/google-login', { 
-          access_token: tokenResponse.access_token,
-          user_type: userType,
-        });
-        localStorage.setItem('token', r.data.token);
-        localStorage.setItem('user', JSON.stringify(r.data.user));
-        nav(r.data.user.role === 'admin' ? '/dashboard' : '/user/dashboard');
-      } catch (x: any) { 
-        setErr(x.response?.data?.error || 'Gagal login dengan Google'); 
-      }
-      finally { setBusy(false); }
-    },
-    onError: () => {
-      setErr('Google Login dibatalkan atau gagal');
-    }
-  });
-
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
         .login-root{display:flex;min-height:100vh;font-family:'Inter',sans-serif;margin:0}
         .login-root *{box-sizing:border-box}
         .login-root h1,.login-root h2,.login-root h3,.login-root h4,.login-root p,.login-root label{font-family:'Inter',sans-serif !important;letter-spacing:normal}
@@ -253,9 +288,26 @@ export default function Login() {
             </div>
 
             <div className="socials">
-              <button type="button" className="social-btn" onClick={() => handleGoogleLogin()} disabled={busy}>
-                <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="" />Google
-              </button>
+              {online ? (
+                <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+                  <GoogleLoginButton
+                    busy={busy}
+                    userType={userType}
+                    onBusyChange={setBusy}
+                    onError={setErr}
+                    onAuthenticated={(token, user: any) => {
+                      localStorage.setItem('token', token);
+                      localStorage.setItem('user', JSON.stringify(user));
+                      nav(user.role === 'admin' ? '/dashboard' : '/user/dashboard');
+                    }}
+                  />
+                </GoogleOAuthProvider>
+              ) : (
+                <button type="button" className="social-btn" disabled>
+                  <GoogleMark />
+                  Google tidak tersedia offline
+                </button>
+              )}
             </div>
 
             <div className="signup">Belum punya akun? <Link to="/register">Daftar di sini</Link></div>

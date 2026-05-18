@@ -40,6 +40,9 @@ interface Responden {
   latest_risk: string;
   latest_psychosomatic: number;
   last_activity: string;
+  latest_mbti_type?: string;
+  latest_mbti_title?: string;
+  latest_mbti_summary?: string;
 }
 
 interface TreatmentReply {
@@ -471,6 +474,11 @@ export default function Responden() {
                         <div className="min-w-0 flex-1">
                           <h2 className="truncate text-base font-semibold tracking-normal text-white">{responden.nama}</h2>
                           <p className="truncate text-xs text-slate-500">@{responden.username} · ID {responden.id}</p>
+                          {responden.latest_mbti_type && (
+                            <p className="mt-1 inline-flex rounded-full border border-violet-400/25 bg-violet-500/10 px-2.5 py-1 text-[11px] font-semibold text-violet-200">
+                              MBTI {responden.latest_mbti_type}
+                            </p>
+                          )}
                         </div>
                         {inboxCount > 0 && (
                           <button
@@ -711,7 +719,7 @@ export default function Responden() {
                 </button>
               </div>
 
-              <div className="mb-5 grid gap-3 md:grid-cols-3">
+              <div className="mb-5 grid gap-3 md:grid-cols-4">
                 <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-4">
                   <p className="text-xs text-slate-500">Burnout</p>
                   <p className="mt-1 text-2xl font-semibold text-white">{hasData(selected) ? selected.latest_burnout.toFixed(1) : '-'}</p>
@@ -724,7 +732,22 @@ export default function Responden() {
                   <p className="text-xs text-slate-500">Balasan user</p>
                   <p className="mt-1 text-2xl font-semibold text-white">{selectedReplies.length}</p>
                 </div>
+                <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-4">
+                  <p className="text-xs text-slate-500">MBTI terbaru</p>
+                  <p className="mt-1 text-2xl font-semibold text-white">{selected.latest_mbti_type || '-'}</p>
+                </div>
               </div>
+
+              {selected.latest_mbti_type && (
+                <div className="mb-5 rounded-xl border border-violet-400/20 bg-violet-500/10 p-4">
+                  <p className="text-xs font-semibold uppercase text-violet-200">
+                    {selected.latest_mbti_type} {selected.latest_mbti_title ? `- ${selected.latest_mbti_title}` : ''}
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-slate-300">
+                    {selected.latest_mbti_summary || 'Belum ada ringkasan MBTI.'}
+                  </p>
+                </div>
+              )}
 
               <div className="mb-5 flex flex-wrap gap-2 border-b border-slate-800 pb-4">
                 {[

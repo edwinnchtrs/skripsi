@@ -5,6 +5,7 @@ import {
   ArrowRight,
   BarChart3,
   Brain,
+  BriefcaseBusiness,
   CheckCircle2,
   ChevronLeft,
   ClipboardList,
@@ -21,6 +22,8 @@ import {
   TimerReset,
   TrendingDown,
   TrendingUp,
+  UsersRound,
+  X,
   Zap,
 } from 'lucide-react';
 import api from '../api';
@@ -45,6 +48,42 @@ interface ResponseItem {
   reaction_time_ms: number;
 }
 
+interface MBTIQuestion {
+  id: string;
+  text: string;
+  dimension: string;
+  high_pole: string;
+  low_pole: string;
+  theme?: string;
+}
+
+interface MBTIResponseItem {
+  id: string;
+  value: number;
+  reaction_time_ms: number;
+}
+
+interface MBTIDimension {
+  dimension: string;
+  left_pole: string;
+  right_pole: string;
+  left_score: number;
+  right_score: number;
+  selected: string;
+}
+
+interface MBTIResult {
+  id?: number;
+  type: string;
+  title: string;
+  summary: string;
+  strengths: string[];
+  watchouts: string[];
+  dimensions: MBTIDimension[];
+  source: string;
+  timestamp?: string;
+}
+
 interface PreviousPrediction {
   burnout: number;
   psycho: number;
@@ -52,6 +91,13 @@ interface PreviousPrediction {
 }
 
 type QuestionProfile = 'balanced' | 'academic' | 'work' | 'recovery';
+type MBTISessionMode = 'quick' | 'balanced' | 'deep';
+type MBTIFocus = 'general' | 'academic' | 'work' | 'social';
+
+interface MBTIBlueprint {
+  dimensions: Record<string, number>;
+  themes: Record<string, number>;
+}
 
 const questionProfiles: Array<{
   key: QuestionProfile;
@@ -64,6 +110,37 @@ const questionProfiles: Array<{
   { key: 'work', label: 'Kerja', desc: 'Beban kerja dan relasi', icon: Gauge },
   { key: 'recovery', label: 'Pemulihan', desc: 'Energi dan istirahat', icon: HeartPulse },
 ];
+
+const mbtiSessionModes: Array<{
+  key: MBTISessionMode;
+  label: string;
+  desc: string;
+  questionCount: number;
+  duration: string;
+}> = [
+  { key: 'quick', label: 'Ringkas', desc: 'Cek cepat preferensi utama.', questionCount: 12, duration: '4 menit' },
+  { key: 'balanced', label: 'Seimbang', desc: 'Kombinasi paling stabil.', questionCount: 16, duration: '6 menit' },
+  { key: 'deep', label: 'Mendalam', desc: 'Lebih banyak konteks.', questionCount: 20, duration: '8 menit' },
+];
+
+const mbtiFocusOptions: Array<{
+  key: MBTIFocus;
+  label: string;
+  desc: string;
+  icon: typeof Brain;
+}> = [
+  { key: 'general', label: 'Umum', desc: 'Kebiasaan harian', icon: Brain },
+  { key: 'academic', label: 'Akademik', desc: 'Belajar dan tugas', icon: ClipboardList },
+  { key: 'work', label: 'Kerja', desc: 'Tim dan target', icon: BriefcaseBusiness },
+  { key: 'social', label: 'Relasi', desc: 'Interaksi sosial', icon: UsersRound },
+];
+
+const mbtiThemeLabels: Record<string, string> = {
+  general: 'Umum',
+  academic: 'Akademik',
+  work: 'Kerja',
+  social: 'Relasi',
+};
 
 const answerOptions = [
   { value: 1, label: 'Sangat Tidak Setuju', short: 'STS', tone: 'rose' },
@@ -156,6 +233,37 @@ const formatDateKey = (value: string) => {
   return [date, profile].filter(Boolean).join(' / ');
 };
 
+const buildLocalMBTIBlueprint = (items: MBTIQuestion[]): MBTIBlueprint =>
+  items.reduce<MBTIBlueprint>(
+    (acc, item) => {
+      acc.dimensions[item.dimension] = (acc.dimensions[item.dimension] || 0) + 1;
+      const theme = item.theme || 'general';
+      acc.themes[theme] = (acc.themes[theme] || 0) + 1;
+      return acc;
+    },
+    { dimensions: {}, themes: {} },
+  );
+
+const getMBTIClarity = (dimensions: MBTIDimension[]) => {
+  if (dimensions.length === 0) return 0;
+  const averageGap =
+    dimensions.reduce((total, dimension) => {
+      const totalScore = Math.max(dimension.left_score + dimension.right_score, 1);
+      return total + Math.abs(dimension.left_score - dimension.right_score) / totalScore;
+    }, 0) / dimensions.length;
+  return Math.round(averageGap * 100);
+};
+
+const getStrongestMBTIDimension = (dimensions: MBTIDimension[]) => {
+  if (dimensions.length === 0) return '-';
+  const strongest = [...dimensions].sort((left, right) => {
+    const leftGap = Math.abs(left.left_score - left.right_score);
+    const rightGap = Math.abs(right.left_score - right.right_score);
+    return rightGap - leftGap;
+  })[0];
+  return `${strongest.dimension} / ${strongest.selected}`;
+};
+
 export default function UserKuisioner() {
   const nav = useNavigate();
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -173,10 +281,34 @@ export default function UserKuisioner() {
   const [questionDateKey, setQuestionDateKey] = useState('');
   const [refreshingQuestions, setRefreshingQuestions] = useState(false);
   const [questionError, setQuestionError] = useState('');
+  const [mbtiQuestions, setMbtiQuestions] = useState<MBTIQuestion[]>([]);
+  const [mbtiQuestionSet, setMbtiQuestionSet] = useState('');
+  const [mbtiFingerprint, setMbtiFingerprint] = useState('');
+  const [mbtiSource, setMbtiSource] = useState('');
+  const [mbtiMode, setMbtiMode] = useState<MBTISessionMode>('balanced');
+  const [mbtiModeLabel, setMbtiModeLabel] = useState('Seimbang');
+  const [mbtiFocus, setMbtiFocus] = useState<MBTIFocus>('general');
+  const [mbtiFocusLabel, setMbtiFocusLabel] = useState('Umum');
+  const [mbtiEstimatedMinutes, setMbtiEstimatedMinutes] = useState(6);
+  const [mbtiBlueprint, setMbtiBlueprint] = useState<MBTIBlueprint>({ dimensions: {}, themes: {} });
+  const [mbtiCurrentIdx, setMbtiCurrentIdx] = useState(0);
+  const [mbtiResponses, setMbtiResponses] = useState<MBTIResponseItem[]>([]);
+  const [mbtiSelectedVal, setMbtiSelectedVal] = useState<number | null>(null);
+  const [mbtiLoading, setMbtiLoading] = useState(true);
+  const [mbtiRefreshing, setMbtiRefreshing] = useState(false);
+  const [mbtiSubmitting, setMbtiSubmitting] = useState(false);
+  const [mbtiAnimating, setMbtiAnimating] = useState(false);
+  const [mbtiError, setMbtiError] = useState('');
+  const [mbtiResult, setMbtiResult] = useState<MBTIResult | null>(null);
+  const [latestMbti, setLatestMbti] = useState<MBTIResult | null>(null);
+  const [mbtiModalOpen, setMbtiModalOpen] = useState(false);
   const startRef = useRef(Date.now());
+  const mbtiStartRef = useRef(Date.now());
 
   useEffect(() => {
     fetchQuestions({ profile: 'balanced' });
+    fetchMBTIQuestions();
+    fetchLatestMBTI();
   }, []);
 
   const resetSession = (clearResult = true) => {
@@ -222,6 +354,65 @@ export default function UserKuisioner() {
     }
   };
 
+  const resetMBTISession = () => {
+    setMbtiCurrentIdx(0);
+    setMbtiResponses([]);
+    setMbtiSelectedVal(null);
+    setMbtiAnimating(false);
+    mbtiStartRef.current = Date.now();
+  };
+
+  const fetchMBTIQuestions = async (
+    refresh = false,
+    options?: { mode?: MBTISessionMode; focus?: MBTIFocus },
+  ) => {
+    const nextMode = options?.mode ?? mbtiMode;
+    const nextFocus = options?.focus ?? mbtiFocus;
+    if (mbtiQuestions.length === 0) setMbtiLoading(true);
+    else setMbtiRefreshing(true);
+    setMbtiError('');
+
+    try {
+      const response = await api.get('/mbti/questions', {
+        params: {
+          mode: nextMode,
+          focus: nextFocus,
+          refresh: refresh ? '1' : undefined,
+          variant: refresh ? `${Date.now()}` : undefined,
+        },
+      });
+      const nextQuestions = response.data.questions || [];
+      const fallbackMode = mbtiSessionModes.find((item) => item.key === nextMode);
+      const fallbackFocus = mbtiFocusOptions.find((item) => item.key === nextFocus);
+      setMbtiQuestions(nextQuestions);
+      setMbtiQuestionSet(response.data.question_set || '');
+      setMbtiFingerprint((response.data.fingerprint || '').slice(0, 10).toUpperCase());
+      setMbtiSource(response.data.source || 'api');
+      setMbtiMode((response.data.mode || nextMode) as MBTISessionMode);
+      setMbtiModeLabel(response.data.mode_label || fallbackMode?.label || 'Seimbang');
+      setMbtiFocus((response.data.focus || nextFocus) as MBTIFocus);
+      setMbtiFocusLabel(response.data.focus_label || fallbackFocus?.label || 'Umum');
+      setMbtiEstimatedMinutes(response.data.estimated_minutes || (nextMode === 'quick' ? 4 : nextMode === 'deep' ? 8 : 6));
+      setMbtiBlueprint(response.data.blueprint || buildLocalMBTIBlueprint(nextQuestions));
+      resetMBTISession();
+    } catch (error) {
+      console.error(error);
+      setMbtiError('Gagal mengambil pertanyaan MBTI dari API.');
+    } finally {
+      setMbtiLoading(false);
+      setMbtiRefreshing(false);
+    }
+  };
+
+  const fetchLatestMBTI = async () => {
+    try {
+      const response = await api.get('/user/mbti/latest');
+      setLatestMbti(response.data?.result || null);
+    } catch {
+      setLatestMbti(null);
+    }
+  };
+
   const submitAssessment = async (finalResponses: ResponseItem[]) => {
     setSubmitting(true);
 
@@ -259,6 +450,27 @@ export default function UserKuisioner() {
     }
   };
 
+  const submitMBTI = async (finalResponses: MBTIResponseItem[]) => {
+    setMbtiSubmitting(true);
+    setMbtiError('');
+
+    try {
+      const response = await api.post('/mbti/submit', {
+        question_set: mbtiQuestionSet,
+        responses: finalResponses,
+      });
+      setMbtiResult(response.data);
+      setLatestMbti(response.data);
+      setMbtiModalOpen(true);
+    } catch (error: any) {
+      console.error(error);
+      setMbtiError(error.response?.data?.error || 'Gagal mengirim hasil MBTI. Silakan coba lagi.');
+      setMbtiAnimating(false);
+    } finally {
+      setMbtiSubmitting(false);
+    }
+  };
+
   const handleAnswer = (value: number) => {
     if (animating || questions.length === 0) return;
 
@@ -291,6 +503,36 @@ export default function UserKuisioner() {
     }, 340);
   };
 
+  const handleMBTIAnswer = (value: number) => {
+    if (mbtiAnimating || mbtiQuestions.length === 0) return;
+
+    setMbtiSelectedVal(value);
+    setMbtiAnimating(true);
+
+    const reactionTime = Date.now() - mbtiStartRef.current;
+    const question = mbtiQuestions[mbtiCurrentIdx];
+    const nextResponses = [
+      ...mbtiResponses,
+      {
+        id: question.id,
+        value,
+        reaction_time_ms: reactionTime,
+      },
+    ];
+    setMbtiResponses(nextResponses);
+
+    setTimeout(() => {
+      if (mbtiCurrentIdx < mbtiQuestions.length - 1) {
+        setMbtiCurrentIdx((index) => index + 1);
+        setMbtiSelectedVal(null);
+        setMbtiAnimating(false);
+        mbtiStartRef.current = Date.now();
+      } else {
+        submitMBTI(nextResponses);
+      }
+    }, 280);
+  };
+
   const goBack = () => {
     if (currentIdx === 0 || animating) return;
 
@@ -298,6 +540,14 @@ export default function UserKuisioner() {
     setCurrentIdx((index) => index - 1);
     setSelectedVal(null);
     startRef.current = Date.now();
+  };
+
+  const goBackMBTI = () => {
+    if (mbtiCurrentIdx === 0 || mbtiAnimating || mbtiSubmitting) return;
+    setMbtiResponses((items) => items.slice(0, -1));
+    setMbtiCurrentIdx((index) => index - 1);
+    setMbtiSelectedVal(null);
+    mbtiStartRef.current = Date.now();
   };
 
   const resetQuestionnaire = () => {
@@ -313,6 +563,35 @@ export default function UserKuisioner() {
     questionProfiles.find((item) => item.key === questionProfile) ?? questionProfiles[0];
   const questionFingerprint = orderType ? orderType.slice(0, 10).toUpperCase() : '-';
   const canChangeQuestions = !refreshingQuestions && !submitting && !animating;
+  const currentMBTIQuestion = mbtiQuestions[mbtiCurrentIdx];
+  const mbtiDisplayProgress = mbtiQuestions.length > 0 ? ((mbtiCurrentIdx + 1) / mbtiQuestions.length) * 100 : 0;
+  const canChangeMBTIQuestions = !mbtiRefreshing && !mbtiSubmitting && !mbtiAnimating;
+
+  const mbtiResponseStats = useMemo(() => {
+    const totalMs = mbtiResponses.reduce((total, item) => total + item.reaction_time_ms, 0);
+    const averageMs = mbtiResponses.length > 0 ? totalMs / mbtiResponses.length : 0;
+    const averageValue =
+      mbtiResponses.length > 0
+        ? mbtiResponses.reduce((total, item) => total + item.value, 0) / mbtiResponses.length
+        : 0;
+    const answeredByDimension = mbtiResponses.reduce<Record<string, number>>((acc, item) => {
+      const question = mbtiQuestions.find((entry) => entry.id === item.id);
+      if (question) acc[question.dimension] = (acc[question.dimension] || 0) + 1;
+      return acc;
+    }, {});
+
+    return { averageMs, averageValue, answeredByDimension };
+  }, [mbtiQuestions, mbtiResponses]);
+
+  const mbtiQuestionMix = useMemo(() => {
+    const blueprint =
+      Object.keys(mbtiBlueprint.dimensions).length > 0 ? mbtiBlueprint : buildLocalMBTIBlueprint(mbtiQuestions);
+    const themeEntries = Object.entries(blueprint.themes).sort(([, left], [, right]) => right - left);
+    return {
+      dimensions: blueprint.dimensions,
+      themes: themeEntries,
+    };
+  }, [mbtiBlueprint, mbtiQuestions]);
 
   const responseStats = useMemo(() => {
     const totalMs = responses.reduce((total, item) => total + item.reaction_time_ms, 0);
@@ -589,6 +868,16 @@ export default function UserKuisioner() {
                   Set pertanyaan baru
                 </button>
                 <button
+                  onClick={() => {
+                    setResult(null);
+                    setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 0);
+                  }}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-violet-400/30 bg-violet-500/10 px-4 text-sm font-semibold text-violet-100 transition hover:border-violet-300/50 hover:bg-violet-500/15"
+                >
+                  <Brain className="h-4 w-4" aria-hidden="true" />
+                  Buka tes MBTI
+                </button>
+                <button
                   onClick={resetQuestionnaire}
                   className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-950 px-4 text-sm font-semibold text-slate-300 transition hover:border-slate-500 hover:text-white"
                 >
@@ -682,6 +971,308 @@ export default function UserKuisioner() {
             {questionError}
           </div>
         )}
+
+        <section className="grid gap-5 xl:grid-cols-[minmax(0,1.3fr)_360px]">
+          <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-5 shadow-2xl shadow-black/20 md:p-6">
+            <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <div className="inline-flex items-center gap-2 rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1.5 text-xs font-semibold text-violet-200">
+                  <Brain className="h-3.5 w-3.5" aria-hidden="true" />
+                  Tes MBTI adaptif
+                </div>
+                <h2 className="mt-3 text-lg font-semibold tracking-normal text-white">
+                  Pemetaan gaya kepribadian
+                </h2>
+                <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-400">
+                  Pertanyaan diambil dari API dengan kombinasi berbeda. AI menilai pola jawaban,
+                  lalu hasilnya disimpan agar admin dapat melihat ringkasan terbaru.
+                </p>
+              </div>
+
+              <button
+                onClick={() => fetchMBTIQuestions(true)}
+                disabled={!canChangeMBTIQuestions}
+                className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-lg border border-violet-400/25 bg-violet-500/10 px-4 text-sm font-semibold text-violet-100 transition hover:border-violet-300/50 hover:bg-violet-500/15 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {mbtiRefreshing ? (
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                ) : (
+                  <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                )}
+                Ganti pertanyaan MBTI
+              </button>
+            </div>
+
+            <div className="mb-5 grid gap-4 rounded-xl border border-slate-800 bg-slate-950/60 p-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+              <div>
+                <p className="text-xs font-semibold uppercase text-slate-500">Kedalaman tes</p>
+                <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                  {mbtiSessionModes.map((mode) => {
+                    const active = mode.key === mbtiMode;
+                    return (
+                      <button
+                        key={mode.key}
+                        onClick={() => fetchMBTIQuestions(true, { mode: mode.key })}
+                        disabled={!canChangeMBTIQuestions || active}
+                        className={`rounded-lg border p-3 text-left transition ${
+                          active
+                            ? 'border-violet-300/40 bg-violet-500/10 text-violet-100'
+                            : 'border-slate-800 bg-slate-900/80 text-slate-300 hover:border-violet-400/25 hover:bg-slate-900'
+                        } disabled:cursor-not-allowed disabled:opacity-80`}
+                      >
+                        <div className="text-sm font-semibold">{mode.label}</div>
+                        <div className="mt-1 text-[11px] leading-4 text-slate-500">
+                          {mode.questionCount} soal / {mode.duration}
+                        </div>
+                        <div className="mt-2 text-xs leading-5 text-slate-400">{mode.desc}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs font-semibold uppercase text-slate-500">Fokus konteks</p>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {mbtiFocusOptions.map((focus) => {
+                    const Icon = focus.icon;
+                    const active = focus.key === mbtiFocus;
+                    return (
+                      <button
+                        key={focus.key}
+                        onClick={() => fetchMBTIQuestions(true, { focus: focus.key })}
+                        disabled={!canChangeMBTIQuestions || active}
+                        className={`flex min-h-[72px] items-start gap-3 rounded-lg border p-3 text-left transition ${
+                          active
+                            ? 'border-cyan-300/40 bg-cyan-500/10 text-cyan-100'
+                            : 'border-slate-800 bg-slate-900/80 text-slate-300 hover:border-cyan-400/25 hover:bg-slate-900'
+                        } disabled:cursor-not-allowed disabled:opacity-80`}
+                      >
+                        <span className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border ${
+                          active ? 'border-cyan-300/25 bg-cyan-500/10' : 'border-slate-700 bg-slate-950'
+                        }`}>
+                          <Icon className={`h-4 w-4 ${active ? 'text-cyan-200' : 'text-slate-400'}`} aria-hidden="true" />
+                        </span>
+                        <span>
+                          <span className="block text-sm font-semibold">{focus.label}</span>
+                          <span className="mt-1 block text-xs leading-5 text-slate-500">{focus.desc}</span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {mbtiError && (
+              <div className="mb-4 rounded-lg border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+                {mbtiError}
+              </div>
+            )}
+
+            {mbtiLoading ? (
+              <div className="flex min-h-[280px] items-center justify-center rounded-xl border border-slate-800 bg-slate-950/70">
+                <Loader2 className="h-7 w-7 animate-spin text-violet-300" aria-hidden="true" />
+              </div>
+            ) : mbtiQuestions.length === 0 ? (
+              <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-8 text-center">
+                <Brain className="mx-auto h-8 w-8 text-slate-600" aria-hidden="true" />
+                <p className="mt-3 text-sm font-semibold text-white">Pertanyaan MBTI belum tersedia</p>
+                <p className="mt-1 text-sm text-slate-500">Ambil ulang set pertanyaan untuk memulai tes.</p>
+              </div>
+            ) : (
+              <>
+                <div className="mb-5 grid gap-3 md:grid-cols-4">
+                  {[
+                    { label: 'Pertanyaan', value: mbtiQuestions.length, icon: ClipboardList, color: 'text-violet-300' },
+                    { label: 'Terjawab', value: mbtiResponses.length, icon: CheckCircle2, color: 'text-emerald-300' },
+                    { label: 'Mode', value: mbtiModeLabel, icon: Shield, color: 'text-cyan-300' },
+                    { label: 'Estimasi', value: `${mbtiEstimatedMinutes} menit`, icon: Clock, color: 'text-amber-300' },
+                  ].map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <div key={item.label} className="rounded-lg border border-slate-800 bg-slate-950/70 p-3">
+                        <Icon className={`mb-3 h-4 w-4 ${item.color}`} aria-hidden="true" />
+                        <div className="truncate text-base font-semibold text-white">{item.value}</div>
+                        <div className="mt-1 text-[11px] leading-4 text-slate-500">{item.label}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="mb-5 grid gap-3 lg:grid-cols-[minmax(0,1fr)_280px]">
+                  <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <p className="text-xs font-semibold uppercase text-slate-500">Peta dimensi sesi</p>
+                      <span className="text-xs text-slate-500">Fokus: {mbtiFocusLabel}</span>
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-4">
+                      {['EI', 'SN', 'TF', 'JP'].map((dimension) => {
+                        const total = mbtiQuestionMix.dimensions[dimension] || 0;
+                        const answered = mbtiResponseStats.answeredByDimension[dimension] || 0;
+                        const width = total > 0 ? `${(answered / total) * 100}%` : '0%';
+
+                        return (
+                          <div key={dimension} className="rounded-lg border border-slate-800 bg-slate-900/80 p-3">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="font-semibold text-white">{dimension}</span>
+                              <span className="text-slate-500">{answered}/{total}</span>
+                            </div>
+                            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-800">
+                              <div className="h-full rounded-full bg-cyan-400 transition-all" style={{ width }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+                    <p className="text-xs font-semibold uppercase text-slate-500">Komposisi konteks</p>
+                    <div className="mt-3 space-y-3">
+                      {mbtiQuestionMix.themes.map(([theme, count]) => (
+                        <div key={theme} className="flex items-center justify-between gap-3">
+                          <span className="text-sm text-slate-300">{mbtiThemeLabels[theme] || theme}</span>
+                          <span className="rounded-full border border-slate-700 bg-slate-900 px-2.5 py-1 text-xs font-semibold text-white">
+                            {count}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-4 border-t border-slate-800 pt-4 text-xs leading-5 text-slate-500">
+                      Sumber: {mbtiSource || 'api'} / Hash: {mbtiFingerprint || '-'}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-5">
+                  <div className="mb-5">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-semibold uppercase text-slate-500">
+                          Pertanyaan MBTI {mbtiCurrentIdx + 1} dari {mbtiQuestions.length}
+                        </p>
+                        <p className="mt-1 text-sm text-slate-400">{Math.round(mbtiDisplayProgress)}% menuju hasil</p>
+                      </div>
+                      <span className="rounded-full border border-violet-400/25 bg-violet-500/10 px-3 py-1.5 text-xs font-semibold text-violet-200">
+                        Dimensi {currentMBTIQuestion?.dimension || '-'}
+                      </span>
+                    </div>
+                    <div className="h-2 overflow-hidden rounded-full bg-slate-800">
+                      <div className="h-full rounded-full bg-violet-400 transition-all" style={{ width: `${mbtiDisplayProgress}%` }} />
+                    </div>
+                  </div>
+
+                  <h3 className="min-h-[74px] text-lg font-semibold leading-8 tracking-normal text-white">
+                    {currentMBTIQuestion?.text || 'Pertanyaan belum tersedia.'}
+                  </h3>
+
+                  <div className="mt-5 grid gap-3 md:grid-cols-5">
+                    {answerOptions.map((option) => (
+                      <button
+                        key={`mbti-${option.value}`}
+                        onClick={() => handleMBTIAnswer(option.value)}
+                        disabled={mbtiAnimating || mbtiSubmitting}
+                        className={`min-h-[92px] rounded-xl border px-3 py-4 text-center transition ${
+                          mbtiSelectedVal === option.value
+                            ? 'border-violet-300/50 bg-violet-500/15 text-violet-100'
+                            : 'border-slate-800 bg-slate-900 text-slate-300 hover:border-violet-400/35 hover:bg-slate-900/80'
+                        } disabled:cursor-not-allowed disabled:opacity-70`}
+                      >
+                        <span className="block text-lg font-semibold">{option.value}</span>
+                        <span className="mt-2 block text-[11px] leading-4 text-slate-500">{option.label}</span>
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <button
+                      onClick={goBackMBTI}
+                      disabled={mbtiCurrentIdx === 0 || mbtiAnimating || mbtiSubmitting}
+                      className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-4 text-sm font-semibold text-slate-300 transition hover:border-slate-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+                      Kembali
+                    </button>
+                    <div className="text-xs text-slate-500">
+                      Skala 1-5: pilih yang paling menggambarkan kebiasaanmu, bukan jawaban ideal.
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
+          <aside className="rounded-xl border border-slate-800 bg-slate-900/70 p-5">
+            <div className="mb-4 flex items-center gap-2">
+              <Lightbulb className="h-5 w-5 text-amber-300" aria-hidden="true" />
+              <h2 className="text-base font-semibold tracking-normal text-white">Pengertian hasil MBTI</h2>
+            </div>
+
+            <p className="text-sm leading-6 text-slate-400">
+              MBTI merangkum kecenderungan pada empat pasangan: E/I, S/N, T/F, dan J/P.
+              Hasilnya membantu membaca gaya interaksi, pengambilan keputusan, dan pola kerja;
+              bukan diagnosis klinis atau batas tetap kepribadian.
+            </p>
+
+            <div className="mt-5 space-y-3">
+              {[
+                ['E / I', 'Sumber energi: interaksi atau refleksi pribadi.'],
+                ['S / N', 'Cara menangkap informasi: fakta konkret atau pola besar.'],
+                ['T / F', 'Dasar keputusan: logika atau pertimbangan nilai dan empati.'],
+                ['J / P', 'Gaya mengatur hidup: terstruktur atau fleksibel.'],
+              ].map(([title, body]) => (
+                <div key={title} className="rounded-lg border border-slate-800 bg-slate-950/70 p-3">
+                  <div className="text-sm font-semibold text-white">{title}</div>
+                  <div className="mt-1 text-xs leading-5 text-slate-500">{body}</div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-5 rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+              <p className="text-xs font-semibold uppercase text-slate-500">Kualitas sesi berjalan</p>
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <div className="rounded-lg border border-slate-800 bg-slate-900/80 p-3">
+                  <div className="text-[11px] text-slate-500">Rata-rata pilihan</div>
+                  <div className="mt-1 text-lg font-semibold text-white">
+                    {mbtiResponses.length > 0 ? mbtiResponseStats.averageValue.toFixed(1) : '-'}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-slate-800 bg-slate-900/80 p-3">
+                  <div className="text-[11px] text-slate-500">Waktu respons</div>
+                  <div className="mt-1 text-lg font-semibold text-white">
+                    {mbtiResponses.length > 0 ? formatReactionTime(mbtiResponseStats.averageMs) : '-'}
+                  </div>
+                </div>
+              </div>
+              <p className="mt-4 text-xs leading-5 text-slate-500">
+                Ganti mode atau fokus kapan saja sebelum selesai untuk memperoleh set pertanyaan baru yang berbeda.
+              </p>
+            </div>
+
+            {latestMbti ? (
+              <div className="mt-5 rounded-xl border border-violet-400/25 bg-violet-500/10 p-4">
+                <p className="text-xs font-semibold uppercase text-violet-200">Hasil terbaru</p>
+                <div className="mt-2 text-2xl font-semibold text-white">{latestMbti.type}</div>
+                <p className="mt-1 text-sm font-medium text-violet-100">{latestMbti.title}</p>
+                <p className="mt-3 text-xs leading-5 text-slate-400">{latestMbti.summary}</p>
+                <button
+                  onClick={() => {
+                    setMbtiResult(latestMbti);
+                    setMbtiModalOpen(true);
+                  }}
+                  className="mt-4 inline-flex h-9 items-center justify-center rounded-lg border border-violet-300/25 px-3 text-xs font-semibold text-violet-100 transition hover:border-violet-200/45"
+                >
+                  Lihat detail hasil
+                </button>
+              </div>
+            ) : (
+              <div className="mt-5 rounded-xl border border-slate-800 bg-slate-950/70 p-4 text-sm text-slate-500">
+                Belum ada hasil MBTI tersimpan.
+              </div>
+            )}
+          </aside>
+        </section>
 
         <section className="rounded-xl border border-slate-800 bg-slate-900/70 p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -950,6 +1541,125 @@ export default function UserKuisioner() {
             </div>
           </aside>
         </section>
+
+        {mbtiResult && mbtiModalOpen && (
+          <div
+            className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm"
+            onClick={() => setMbtiModalOpen(false)}
+          >
+            <div
+              className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-xl border border-violet-300/20 bg-slate-950 p-5 shadow-2xl shadow-black/60 md:p-6"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="mb-5 flex items-start justify-between gap-4">
+                <div>
+                  <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-violet-400/25 bg-violet-500/10 px-3 py-1.5 text-xs font-semibold text-violet-200">
+                    <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
+                    Hasil MBTI tersimpan
+                  </div>
+                  <div className="flex flex-wrap items-end gap-3">
+                    <h2 className="text-3xl font-semibold tracking-normal text-white">{mbtiResult.type}</h2>
+                    <p className="pb-1 text-sm font-medium text-violet-200">{mbtiResult.title}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setMbtiModalOpen(false)}
+                  className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-900 hover:text-white"
+                >
+                  <X className="h-5 w-5" aria-hidden="true" />
+                </button>
+              </div>
+
+              <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_290px]">
+                <div className="space-y-5">
+                  <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-5">
+                    <h3 className="text-sm font-semibold tracking-normal text-white">Makna hasil</h3>
+                    <p className="mt-3 text-sm leading-7 text-slate-300">{mbtiResult.summary}</p>
+                    <p className="mt-3 text-xs leading-5 text-slate-500">
+                      MBTI adalah alat refleksi gaya preferensi, bukan diagnosis klinis dan bukan batas permanen kemampuan seseorang.
+                    </p>
+                    <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                      {[
+                        { label: 'Tipe utama', value: mbtiResult.type },
+                        { label: 'Dimensi paling jelas', value: getStrongestMBTIDimension(mbtiResult.dimensions) },
+                        { label: 'Kejelasan profil', value: `${getMBTIClarity(mbtiResult.dimensions)}%` },
+                      ].map((item) => (
+                        <div key={item.label} className="rounded-lg border border-slate-800 bg-slate-950/70 p-3">
+                          <p className="text-[11px] uppercase text-slate-500">{item.label}</p>
+                          <p className="mt-1 text-sm font-semibold text-white">{item.value}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-5">
+                    <div className="mb-4 flex items-center gap-2">
+                      <BarChart3 className="h-4 w-4 text-cyan-300" aria-hidden="true" />
+                      <h3 className="text-sm font-semibold tracking-normal text-white">Profil empat dimensi</h3>
+                    </div>
+                    <div className="space-y-4">
+                      {mbtiResult.dimensions.map((dimension) => {
+                        const total = Math.max(dimension.left_score + dimension.right_score, 1);
+                        const leftWidth = `${(dimension.left_score / total) * 100}%`;
+                        const rightWidth = `${(dimension.right_score / total) * 100}%`;
+
+                        return (
+                          <div key={dimension.dimension}>
+                            <div className="mb-2 flex items-center justify-between text-xs">
+                              <span className="font-semibold text-slate-300">{dimension.left_pole}</span>
+                              <span className="rounded-full border border-violet-400/25 bg-violet-500/10 px-2.5 py-1 font-semibold text-violet-200">
+                                {dimension.dimension}: {dimension.selected}
+                              </span>
+                              <span className="font-semibold text-slate-300">{dimension.right_pole}</span>
+                            </div>
+                            <div className="flex h-2 overflow-hidden rounded-full bg-slate-800">
+                              <div className="h-full bg-cyan-400" style={{ width: leftWidth }} />
+                              <div className="h-full bg-violet-400" style={{ width: rightWidth }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                <aside className="space-y-4">
+                  <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
+                    <p className="text-xs font-semibold uppercase text-slate-500">Kekuatan dominan</p>
+                    <div className="mt-3 space-y-2">
+                      {mbtiResult.strengths.map((item) => (
+                        <div key={item} className="rounded-lg border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-100">
+                          {item}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
+                    <p className="text-xs font-semibold uppercase text-slate-500">Perlu diperhatikan</p>
+                    <div className="mt-3 space-y-2">
+                      {mbtiResult.watchouts.map((item) => (
+                        <div key={item} className="rounded-lg border border-amber-400/20 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
+                          {item}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
+                    <p className="text-xs font-semibold uppercase text-slate-500">Sumber analisis</p>
+                    <p className="mt-2 text-sm font-semibold text-white">
+                      {mbtiResult.source === 'ai' ? 'AI evaluator' : 'Local fallback evaluator'}
+                    </p>
+                    <p className="mt-2 text-xs leading-5 text-slate-500">
+                      Hasil otomatis tersimpan dan dapat dibaca admin dari panel responden.
+                    </p>
+                  </div>
+                </aside>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

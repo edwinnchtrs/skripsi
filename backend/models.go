@@ -16,6 +16,7 @@ type User struct {
 	Bio                    string
 	ProfilePic             string
 	Assessments            []Assessment
+	MBTIResults            []MBTIResult
 	Curhats                []Curhat
 	Predictions            []Prediction
 	TherapyRecommendations []TherapyRecommendation
@@ -47,6 +48,21 @@ type Assessment struct {
 	EfficacyScore            float64
 	NLPStressScore           float64
 	Timestamp                time.Time `gorm:"autoCreateTime"`
+}
+
+type MBTIResult struct {
+	gorm.Model
+	UserID          uint   `gorm:"index"`
+	QuestionSet     string `gorm:"size:191"`
+	ResponsesJSON   string
+	PersonalityType string `gorm:"size:8;index"`
+	Title           string
+	Summary         string
+	StrengthsJSON   string
+	WatchoutsJSON   string
+	DimensionsJSON  string
+	Source          string    `gorm:"size:32"`
+	Timestamp       time.Time `gorm:"autoCreateTime"`
 }
 
 type Curhat struct {

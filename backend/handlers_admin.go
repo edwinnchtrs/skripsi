@@ -29,6 +29,8 @@ func RespondenGetHandler(c *gin.Context) {
 	var users []User
 	if err := DB.Preload("Predictions", func(db *gorm.DB) *gorm.DB {
 		return db.Order("timestamp DESC")
+	}).Preload("MBTIResults", func(db *gorm.DB) *gorm.DB {
+		return db.Order("timestamp DESC")
 	}).Find(&users).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch respondents"})
 		return
@@ -43,6 +45,10 @@ func RespondenGetHandler(c *gin.Context) {
 		LatestPsychosomatic float64   `json:"latest_psychosomatic"`
 		LastActivity        time.Time `json:"last_activity"`
 		UserType            string    `json:"user_type"`
+		LatestMBTIType      string    `json:"latest_mbti_type"`
+		LatestMBTITitle     string    `json:"latest_mbti_title"`
+		LatestMBTISummary   string    `json:"latest_mbti_summary"`
+		LatestMBTITimestamp time.Time `json:"latest_mbti_timestamp"`
 	}
 
 	var result []RespondenDTO
@@ -64,6 +70,14 @@ func RespondenGetHandler(c *gin.Context) {
 			dto.LatestRisk = latest.RiskLevel
 			dto.LatestPsychosomatic = latest.PsychosomaticScore
 			dto.LastActivity = latest.Timestamp
+		}
+
+		if len(u.MBTIResults) > 0 {
+			latest := u.MBTIResults[0]
+			dto.LatestMBTIType = latest.PersonalityType
+			dto.LatestMBTITitle = latest.Title
+			dto.LatestMBTISummary = latest.Summary
+			dto.LatestMBTITimestamp = latest.Timestamp
 		}
 
 		result = append(result, dto)
@@ -90,9 +104,16 @@ func RespondenHistoryHandler(c *gin.Context) {
 		return
 	}
 
+	var mbtiResults []MBTIResult
+	if err := DB.Where("user_id = ?", id).Order("timestamp DESC").Find(&mbtiResults).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch MBTI results"})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"predictions": predictions,
-		"assessments": assessments,
+		"predictions":  predictions,
+		"assessments":  assessments,
+		"mbti_results": mbtiResults,
 	})
 }
 

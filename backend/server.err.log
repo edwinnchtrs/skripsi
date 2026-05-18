@@ -1,2 +1,2 @@
-2026/05/15 12:02:59 Connected to MySQL database: nexusmind
-2026/05/15 12:03:00 Admin user updated to ensure login works (username: admin, password: admin123).
+2026/05/18 14:40:58 Failed to connect to MySQL database!Error 1045 (28000): Access denied for user 'root'@'localhost' (using password: NO)
+exit status 1

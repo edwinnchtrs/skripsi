@@ -11,6 +11,7 @@ import {
   LogOut,
   Sun,
   Moon,
+  Bot,
 } from 'lucide-react';
 import { useMemo } from 'react';
 import { useTheme } from '../hooks/useTheme';
@@ -27,7 +28,7 @@ const navItems = [
   { label: 'Pengaturan Sistem', icon: Settings, path: '/settings' },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ onOpenAssistant }: { onOpenAssistant: () => void }) {
   const location = useLocation();
   const navigate = useNavigate();
   const { dark, setDark } = useTheme();
@@ -115,6 +116,27 @@ export default function Sidebar() {
             </Link>
           );
         })}
+        <button
+          onClick={onOpenAssistant}
+          style={{
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            padding: '9px 12px',
+            borderRadius: 8,
+            marginTop: 8,
+            border: '1px solid rgba(34,211,238,0.18)',
+            background: 'rgba(34,211,238,0.08)',
+            color: '#a5f3fc',
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: 'pointer',
+          }}
+        >
+          <Bot size={16} />
+          Nexus AI
+        </button>
       </nav>
 
       {/* User & theme */}

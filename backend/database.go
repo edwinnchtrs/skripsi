@@ -30,6 +30,7 @@ func ConnectDatabase() {
 	err = database.AutoMigrate(
 		&User{},
 		&Assessment{},
+		&MBTIResult{},
 		&Curhat{},
 		&CurhatReply{},
 		&Notification{},

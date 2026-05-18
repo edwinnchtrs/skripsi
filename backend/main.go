@@ -60,6 +60,12 @@ func main() {
 			protected.GET("/dashboard", UserDashboardHandler)
 			protected.GET("/assessment", AssessmentGetHandler)
 			protected.POST("/assessment/submit", AssessmentSubmitHandler)
+			protected.GET("/mbti/questions", MBTIQuestionsHandler)
+			protected.POST("/mbti/submit", MBTISubmitHandler)
+			protected.GET("/user/mbti/latest", UserLatestMBTIHandler)
+			protected.GET("/assistant/context", AssistantContextHandler)
+			protected.POST("/assistant/chat", AssistantChatHandler)
+			protected.POST("/assistant/schedule/optimize", AssistantScheduleOptimizeHandler)
 
 			// Social & Profile
 			protected.GET("/user/history", UserHistoryHandler)

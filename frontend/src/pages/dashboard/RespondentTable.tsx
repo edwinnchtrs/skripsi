@@ -134,13 +134,14 @@ export default function RespondentTable({ data, loading }: { data: any[]; loadin
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-[1220px] table-fixed border-collapse text-sm">
+            <table className="min-w-[1320px] table-fixed border-collapse text-sm">
               <colgroup>
                 <col className="w-16" />
                 <col className="w-64" />
                 <col className="w-36" />
                 <col className="w-36" />
                 <col className="w-36" />
+                <col className="w-28" />
                 <col className="w-32" />
                 <col className="w-48" />
                 <col className="w-44" />
@@ -153,6 +154,7 @@ export default function RespondentTable({ data, loading }: { data: any[]; loadin
                   <th className="px-4 py-3">Kelompok</th>
                   <th className="px-4 py-3">Burnout</th>
                   <th className="px-4 py-3">Psikosomatis</th>
+                  <th className="px-4 py-3">MBTI</th>
                   <th className="px-4 py-3">Stres</th>
                   <th className="px-4 py-3">Prediksi Terakhir</th>
                   <th className="px-4 py-3">Status</th>
@@ -204,6 +206,15 @@ export default function RespondentTable({ data, loading }: { data: any[]; loadin
                         <span className={`text-base font-semibold ${getScoreTone(psycho)}`}>
                           {psycho ? psycho.toFixed(1) : '-'}
                         </span>
+                      </td>
+                      <td className="px-4 py-4 align-middle">
+                        {row.latest_mbti_type ? (
+                          <span className="inline-flex rounded-md border border-violet-300/25 bg-violet-500/10 px-2.5 py-1 text-xs font-semibold text-violet-100">
+                            {row.latest_mbti_type}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-slate-600">-</span>
+                        )}
                       </td>
                       <td className="px-4 py-4 align-middle">
                         <span className={`text-base font-semibold ${getScoreTone(stress)}`}>

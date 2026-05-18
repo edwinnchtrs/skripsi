@@ -88,7 +88,6 @@ export default function ForgotPassword() {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
         .fp-root{display:flex;min-height:100vh;font-family:'Inter',sans-serif;margin:0}
         .fp-root *{box-sizing:border-box}
         .fp-root h1,.fp-root h2,.fp-root h3,.fp-root h4,.fp-root p,.fp-root label{font-family:'Inter',sans-serif !important;letter-spacing:normal}
