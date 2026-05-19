@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import type { Variants } from 'framer-motion';
 import {
-  Settings, Save, RotateCcw, CheckCircle2, AlertTriangle, Loader2,
+  Settings, Save, RotateCcw, CheckCircle2, AlertTriangle,
   SlidersHorizontal, Bell, Brain, Database, Info, Shield,
   HardDrive, Activity, Clock, Cpu, Globe, Server, Layers,
   Zap, EyeOff
@@ -138,7 +139,7 @@ function ToggleSwitch({ value, onChange }: { value: boolean; onChange: (v: boole
   );
 }
 
-const tabVariants = {
+const tabVariants: Variants = {
   hidden: { opacity: 0, y: 12 },
   visible: { opacity: 1, y: 0, transition: { duration: 0.3, ease: 'easeOut' } },
   exit: { opacity: 0, y: -8, transition: { duration: 0.15 } },

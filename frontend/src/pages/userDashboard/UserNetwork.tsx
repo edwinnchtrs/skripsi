@@ -21,13 +21,10 @@ import {
   Send,
   Shuffle,
   Sparkles,
-  TrendingUp,
   Trash2,
   UploadCloud,
-  User,
   Users,
   Volume2,
-  X,
 } from 'lucide-react';
 import api from '../../api';
 import PhotoViewerModal from './PhotoViewerModal';

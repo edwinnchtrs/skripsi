@@ -1,4 +1,5 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { FormEvent } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Activity,
@@ -20,7 +21,6 @@ import {
   MessageCircleReply,
   MessageSquareHeart,
   Send,
-  Shield,
   Smile,
   Sparkles,
   Target,

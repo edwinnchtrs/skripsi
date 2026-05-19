@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import {
-  Brain, Atom, Gauge, Orbit, Split, ArrowLeftRight, Dna,
-  Sparkles, Loader2, TrendingUp, Zap, Info
+  Atom, Orbit, Split, ArrowLeftRight, Dna,
+  Loader2, Info
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Legend,
-  AreaChart, Area, LineChart, Line
+  AreaChart, Area
 } from 'recharts';
 import ChartShell from '../components/ChartShell';
 import api from '../api';

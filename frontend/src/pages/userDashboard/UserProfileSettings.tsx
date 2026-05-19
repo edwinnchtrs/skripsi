@@ -2,9 +2,9 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  User, MessageCircle, MapPin, Calendar, Heart, HeartHandshake, Smile, Sparkles, ArrowLeft, Grid3X3,
-  Activity, Info, MoreHorizontal, Users, ChevronRight, Clock, TrendingUp, Shield, Zap, CheckCircle2,
-  Loader2, Send, ExternalLink, Brain, Target, Flame, Plus, Camera, Image, X, Settings, LogOut, AtSign, Lock
+  User, MessageCircle, Calendar, Heart, Sparkles, ArrowLeft, Grid3X3,
+  Activity, CheckCircle2,
+  Loader2, Send, Brain, Plus, Camera, X, Settings, LogOut, AtSign, Lock
 } from 'lucide-react';
 import api from '../../api';
 import PhotoViewerModal from './PhotoViewerModal';

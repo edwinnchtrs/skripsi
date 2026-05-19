@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Activity,
   AlertTriangle,
-  BarChart3,
   Calendar,
   CheckCircle2,
   ClipboardList,
