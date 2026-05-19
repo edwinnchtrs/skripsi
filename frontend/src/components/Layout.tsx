@@ -1,8 +1,11 @@
+import { useState } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Menu, X } from 'lucide-react';
 
 export default function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [mobileOpen, setMobileOpen] = useState(false);
   const isAuthenticated = !!localStorage.getItem('token');
   const isLanding = location.pathname === '/';
   let role = '';
@@ -33,6 +36,103 @@ export default function Layout() {
     localStorage.removeItem('user');
     navigate('/login');
   };
+
+  if (isLanding) {
+    const landingNav = [
+      { label: 'Fitur', to: '#fitur' },
+      { label: 'Platform', to: '#platform' },
+      { label: 'Untuk Siapa', to: '#untuk-siapa' },
+      { label: 'Tentang', to: '#tentang' },
+      { label: 'Dokumentasi', to: '#dokumentasi' },
+    ];
+
+    return (
+      <div className="min-h-screen bg-[#050816] text-slate-100">
+        <header className="fixed inset-x-0 top-0 z-50 border-b border-slate-800/70 bg-[#050816]/92">
+          <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+            <Link to="/" className="flex items-center gap-3" aria-label="NexusMind home">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500 text-xl font-black text-slate-50 shadow-[0_12px_34px_rgba(124,92,255,0.35)]">
+                N
+              </span>
+              <span className="text-2xl font-black text-slate-50">NexusMind</span>
+            </Link>
+
+            <nav className="hidden items-center gap-10 text-sm font-semibold text-slate-200 lg:flex">
+              {landingNav.map((item) => (
+                <a key={item.to} href={item.to} className="transition hover:text-violet-300">
+                  {item.label}
+                </a>
+              ))}
+            </nav>
+
+            <div className="hidden items-center gap-4 lg:flex">
+              {isAuthenticated ? (
+                <button onClick={handleLogout} className="text-sm font-semibold text-slate-200 transition hover:text-violet-300">
+                  Keluar
+                </button>
+              ) : (
+                <Link to="/login" className="text-sm font-semibold text-slate-200 transition hover:text-violet-300">
+                  Masuk
+                </Link>
+              )}
+              <Link
+                to={isAuthenticated ? (role === 'admin' ? '/dashboard' : '/user/kuisioner') : '/register'}
+                className="inline-flex h-12 items-center justify-center rounded-xl bg-violet-500 px-6 text-sm font-bold text-slate-50 shadow-[0_18px_48px_rgba(124,92,255,0.32)] transition hover:bg-violet-400"
+              >
+                {isAuthenticated ? 'Buka Sistem' : 'Daftar Gratis'}
+              </Link>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setMobileOpen((value) => !value)}
+              className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-700 text-slate-100 lg:hidden"
+              aria-label="Buka menu"
+            >
+              {mobileOpen ? <X className="h-5 w-5" aria-hidden="true" /> : <Menu className="h-5 w-5" aria-hidden="true" />}
+            </button>
+          </div>
+
+          {mobileOpen && (
+            <div className="border-t border-slate-800 bg-[#070b19] px-4 py-4 lg:hidden">
+              <nav className="mx-auto flex max-w-7xl flex-col gap-2 text-sm font-semibold text-slate-200">
+                {landingNav.map((item) => (
+                  <a
+                    key={item.to}
+                    href={item.to}
+                    onClick={() => setMobileOpen(false)}
+                    className="rounded-xl px-3 py-3 transition hover:bg-slate-100/[0.06] hover:text-violet-300"
+                  >
+                    {item.label}
+                  </a>
+                ))}
+                <div className="mt-3 grid gap-3 border-t border-slate-800 pt-4">
+                  <Link
+                    to="/login"
+                    onClick={() => setMobileOpen(false)}
+                    className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-700 text-slate-100"
+                  >
+                    Masuk
+                  </Link>
+                  <Link
+                    to={isAuthenticated ? (role === 'admin' ? '/dashboard' : '/user/kuisioner') : '/register'}
+                    onClick={() => setMobileOpen(false)}
+                    className="inline-flex h-11 items-center justify-center rounded-xl bg-violet-500 font-bold text-slate-50"
+                  >
+                    {isAuthenticated ? 'Buka Sistem' : 'Daftar Gratis'}
+                  </Link>
+                </div>
+              </nav>
+            </div>
+          )}
+        </header>
+
+        <main className="w-full">
+          <Outlet />
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen flex-col bg-canvas font-sans text-ink">
@@ -71,7 +171,7 @@ export default function Layout() {
         </div>
       </header>
 
-      <main className={isLanding ? 'w-full flex-1' : 'mx-auto w-full max-w-[1200px] flex-1 p-8 md:p-12 lg:py-24'}>
+      <main className="mx-auto w-full max-w-[1200px] flex-1 p-8 md:p-12 lg:py-24">
         <Outlet />
       </main>
 

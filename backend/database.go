@@ -48,6 +48,7 @@ func ConnectDatabase() {
 		&UserFilm{},
 		&FilmWatchEvent{},
 		&FilmRecommendation{},
+		&ActivityLog{},
 	)
 	if err != nil {
 		log.Fatal("Failed to auto migrate database!", err)

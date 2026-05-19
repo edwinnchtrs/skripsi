@@ -27,6 +27,30 @@ interface SystemConfig {
   data_retention_days: number;
 }
 
+interface ActivityLogRow {
+  ID: number;
+  CreatedAt: string;
+  Username: string;
+  Role: string;
+  Action: string;
+  Method: string;
+  Path: string;
+  StatusCode: number;
+  IPAddress: string;
+}
+
+interface SystemHealth {
+  status: string;
+  database: string;
+  ai_configured: boolean;
+  openrouter_available: boolean;
+  users: number;
+  assessments: number;
+  predictions: number;
+  activity_24h: number;
+  generated_at: string;
+}
+
 const defaultConfig: SystemConfig = {
   app_name: 'QC Analytics',
   model_version: '1.0.0',
@@ -49,6 +73,7 @@ const tabs = [
   { key: 'earlywarning', label: 'Early Warning', icon: Bell, color: '#f59e0b' },
   { key: 'assessment', label: 'Kuesioner & AI', icon: Brain, color: '#a855f7' },
   { key: 'system', label: 'Sistem & Data', icon: Database, color: '#22c55e' },
+  { key: 'audit', label: 'Audit & Health', icon: Shield, color: '#ef4444' },
   { key: 'info', label: 'Info Versi', icon: Info, color: '#3ecfcf' },
 ];
 
@@ -152,10 +177,16 @@ export default function PengaturanSistem() {
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState('prediction');
   const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [activityLogs, setActivityLogs] = useState<ActivityLogRow[]>([]);
+  const [systemHealth, setSystemHealth] = useState<SystemHealth | null>(null);
+  const [auditLoading, setAuditLoading] = useState(false);
 
   const isDirty = JSON.stringify(config) !== JSON.stringify(originalConfig);
 
   useEffect(() => { loadConfig(); }, []);
+  useEffect(() => {
+    if (activeTab === 'audit') loadAuditData();
+  }, [activeTab]);
   useEffect(() => {
     if (msg) { const t = setTimeout(() => setMsg(null), 3000); return () => clearTimeout(t); }
   }, [msg]);
@@ -217,6 +248,22 @@ export default function PengaturanSistem() {
   const resetDefaults = () => {
     setConfig(defaultConfig);
     setMsg({ type: 'success', text: 'Dikembalikan ke default. Klik Simpan untuk menerapkan.' });
+  };
+
+  const loadAuditData = async () => {
+    setAuditLoading(true);
+    try {
+      const [healthRes, logsRes] = await Promise.all([
+        api.get('/admin/system-health'),
+        api.get('/admin/activity-logs?limit=25'),
+      ]);
+      setSystemHealth(healthRes.data);
+      setActivityLogs(logsRes.data.logs || []);
+    } catch {
+      setMsg({ type: 'error', text: 'Gagal memuat audit sistem' });
+    } finally {
+      setAuditLoading(false);
+    }
   };
 
   const update = (key: keyof SystemConfig, value: any) => setConfig({ ...config, [key]: value });
@@ -695,6 +742,86 @@ export default function PengaturanSistem() {
                     </div>
                     <p style={helperStyle}>Data prediksi & asesmen lebih lama diarsipkan</p>
                   </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {activeTab === 'audit' && (
+            <motion.div key="audit" variants={tabVariants} initial="hidden" animate="visible" exit="exit">
+              <div style={{ ...card, padding: 20 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 18 }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
+                    <div style={{ width: 36, height: 36, borderRadius: 9, background: 'rgba(239,68,68,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <Shield size={18} color="#ef4444" />
+                    </div>
+                    <div>
+                      <h3 style={{ ...sectionTitle, margin: 0, fontSize: 14, marginBottom: 4 }}>Audit, Role, dan Kesehatan Sistem</h3>
+                      <p style={{ fontSize: 11, color: '#8890a4', margin: 0 }}>Pantau aktivitas penting, status database, AI, dan volume data operasional.</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={loadAuditData}
+                    disabled={auditLoading}
+                    style={{ background: '#131722', border: '1px solid #1e2130', color: '#c0c9e0', padding: '8px 12px', borderRadius: 8, fontSize: 12, cursor: auditLoading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+                  >
+                    <RotateCcw size={14} /> {auditLoading ? 'Memuat...' : 'Refresh'}
+                  </button>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 10, marginBottom: 18 }}>
+                  {[
+                    { label: 'Status API', value: systemHealth?.status || '-', color: systemHealth?.status === 'ok' ? '#22c55e' : '#f59e0b', icon: Server },
+                    { label: 'Database', value: systemHealth?.database || '-', color: systemHealth?.database === 'ok' ? '#22c55e' : '#ef4444', icon: Database },
+                    { label: 'AI API Key', value: systemHealth?.openrouter_available ? 'Tersedia' : 'Belum ada', color: systemHealth?.openrouter_available ? '#22c55e' : '#f59e0b', icon: Brain },
+                    { label: 'Log 24 Jam', value: String(systemHealth?.activity_24h ?? '-'), color: '#6c63ff', icon: Activity },
+                  ].map(({ label, value, color, icon: Icon }) => (
+                    <div key={label} style={{ background: '#0f1117', border: '1px solid #1e2130', borderRadius: 10, padding: 14 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                        <span style={{ fontSize: 10, color: '#8890a4', fontWeight: 600 }}>{label}</span>
+                        <Icon size={15} color={color} />
+                      </div>
+                      <div style={{ fontSize: 20, fontWeight: 700, color }}>{value}</div>
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10, marginBottom: 18 }}>
+                  {[
+                    ['Total User', systemHealth?.users ?? '-'],
+                    ['Total Asesmen', systemHealth?.assessments ?? '-'],
+                    ['Total Prediksi', systemHealth?.predictions ?? '-'],
+                  ].map(([label, value]) => (
+                    <div key={label} style={{ background: 'rgba(108,99,255,0.08)', border: '1px solid rgba(108,99,255,0.18)', borderRadius: 10, padding: 14 }}>
+                      <div style={{ fontSize: 10, color: '#8890a4', marginBottom: 4 }}>{label}</div>
+                      <div style={{ fontSize: 22, fontWeight: 700, color: '#a89cff' }}>{value}</div>
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ border: '1px solid #1e2130', borderRadius: 10, overflow: 'hidden' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '150px 130px 90px 1fr 70px', gap: 10, background: '#0f1117', padding: '10px 12px', fontSize: 10, fontWeight: 700, color: '#8890a4', textTransform: 'uppercase' }}>
+                    <span>Waktu</span>
+                    <span>User</span>
+                    <span>Method</span>
+                    <span>Aktivitas</span>
+                    <span>Status</span>
+                  </div>
+                  {activityLogs.length === 0 ? (
+                    <div style={{ padding: 18, fontSize: 12, color: '#8890a4', textAlign: 'center' }}>
+                      Belum ada activity log yang tercatat.
+                    </div>
+                  ) : (
+                    activityLogs.map((log) => (
+                      <div key={log.ID} style={{ display: 'grid', gridTemplateColumns: '150px 130px 90px 1fr 70px', gap: 10, padding: '10px 12px', borderTop: '1px solid #1e2130', alignItems: 'center', fontSize: 11 }}>
+                        <span style={{ color: '#8890a4' }}>{new Date(log.CreatedAt).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' })}</span>
+                        <span style={{ color: '#c0c9e0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{log.Username || 'system'}</span>
+                        <span style={{ color: '#a89cff', fontWeight: 700 }}>{log.Method}</span>
+                        <span style={{ color: '#c0c9e0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{log.Action} · {log.Path}</span>
+                        <span style={{ color: log.StatusCode >= 400 ? '#f87171' : '#4ade80', fontWeight: 700 }}>{log.StatusCode}</span>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             </motion.div>

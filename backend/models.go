@@ -206,6 +206,22 @@ type FilmRecommendation struct {
 	ItemsJSON string `gorm:"type:longtext"`
 }
 
+type ActivityLog struct {
+	gorm.Model
+	UserID     uint   `gorm:"index"`
+	Username   string `gorm:"size:191;index"`
+	Role       string `gorm:"size:32;index"`
+	Action     string `gorm:"size:96;index"`
+	Method     string `gorm:"size:12"`
+	Path       string `gorm:"size:512;index"`
+	StatusCode int
+	IPAddress  string `gorm:"size:64"`
+	UserAgent  string `gorm:"size:512"`
+	TargetType string `gorm:"size:96"`
+	TargetID   string `gorm:"size:96"`
+	Metadata   string `gorm:"type:longtext"`
+}
+
 type SystemConfig struct {
 	gorm.Model
 	BurnoutThresholdLow    float64 `gorm:"default:4"`

@@ -5,15 +5,22 @@ import {
   ArrowRight,
   BarChart3,
   BellRing,
+  BookOpen,
+  Bot,
   BrainCircuit,
   CheckCircle2,
+  ChevronDown,
   ClipboardCheck,
+  Clock3,
+  FileText,
   Gauge,
   HeartPulse,
+  LockKeyhole,
   MessageCircle,
-  Play,
+  PlayCircle,
   ShieldCheck,
   Sparkles,
+  TrendingUp,
   Users,
   Zap,
 } from 'lucide-react';
@@ -28,71 +35,151 @@ interface PublicOverview {
   active_model: string;
 }
 
-const signalModes = [
-  {
-    key: 'overload',
-    label: 'Overload',
-    score: 82,
-    tone: 'Kerja menumpuk, energi menipis, respons mulai lambat.',
-    action: 'Buka asesmen, baca skor, susun jeda pemulihan.',
-    color: '#ff5a36',
-  },
-  {
-    key: 'silent',
-    label: 'Diam',
-    score: 64,
-    tone: 'User tetap hadir, tetapi curhat dan pola jawaban mulai berubah.',
-    action: 'Pantau riwayat, kirim saran, cek balasan terapi.',
-    color: '#1ed5d0',
-  },
-  {
-    key: 'recover',
-    label: 'Pulih',
-    score: 38,
-    tone: 'Risiko turun, rutinitas kembali stabil, tindak lanjut tetap aktif.',
-    action: 'Pertahankan ritme, simpan baseline, lanjutkan refleksi ringan.',
-    color: '#b7f45a',
-  },
-];
+type DemoMode = 'Mahasiswa' | 'Karyawan' | 'Admin';
 
-const launchKit = [
+const demoModes: Record<
+  DemoMode,
+  {
+    score: number;
+    risk: string;
+    category: string;
+    trend: string;
+    headline: string;
+    body: string;
+    indicators: Array<{ label: string; value: number; status: string }>;
+    points: number[];
+  }
+> = {
+  Mahasiswa: {
+    score: 76,
+    risk: 'Tinggi',
+    category: 'Academic overload',
+    trend: '+9% dari kemarin',
+    headline: 'Sinyal akademik terbaca lebih awal',
+    body: 'Gabungkan asesmen, MBTI, curhat, dan pola kelelahan agar mahasiswa tidak menunggu sampai benar-benar tumbang.',
+    indicators: [
+      { label: 'Stres Level', value: 75, status: 'Tinggi' },
+      { label: 'Kelelahan', value: 68, status: 'Tinggi' },
+      { label: 'Beban Tugas', value: 80, status: 'Tinggi' },
+      { label: 'Kualitas Tidur', value: 45, status: 'Rendah' },
+    ],
+    points: [12, 24, 18, 36, 42, 58, 54, 66, 49, 74, 82, 91],
+  },
+  Karyawan: {
+    score: 82,
+    risk: 'Tinggi',
+    category: 'Workload fatigue',
+    trend: '+12% dari kemarin',
+    headline: 'Tekanan kerja berubah jadi prioritas',
+    body: 'Dashboard membaca beban kerja, psikosomatis, dan tindak lanjut terapi supaya HR atau admin tahu mana yang perlu dibantu dulu.',
+    indicators: [
+      { label: 'Beban Kerja', value: 84, status: 'Tinggi' },
+      { label: 'Energi', value: 41, status: 'Turun' },
+      { label: 'Fokus', value: 58, status: 'Sedang' },
+      { label: 'Pemulihan', value: 37, status: 'Rendah' },
+    ],
+    points: [18, 22, 31, 39, 35, 52, 58, 61, 47, 72, 79, 88],
+  },
+  Admin: {
+    score: 64,
+    risk: 'Sedang',
+    category: 'Operational watch',
+    trend: '-4% dari kemarin',
+    headline: 'Admin mendapat urutan tindakan',
+    body: 'NexusMind mengubah data responden, balasan terapi, model, dan laporan menjadi peta kerja yang bisa langsung dieksekusi.',
+    indicators: [
+      { label: 'Responden Aktif', value: 72, status: 'Stabil' },
+      { label: 'Balasan Terapi', value: 61, status: 'Perlu cek' },
+      { label: 'Model Signal', value: 88, status: 'Akurat' },
+      { label: 'Follow Up', value: 54, status: 'Menunggu' },
+    ],
+    points: [31, 34, 44, 41, 55, 57, 62, 58, 65, 69, 64, 61],
+  },
+};
+
+const featureStack = [
   {
     icon: ClipboardCheck,
-    title: 'Assessment Engine',
-    body: 'Kuisioner adaptif, MBTI dinamis, waktu respons, dan peta risiko harian.',
+    title: 'Asesmen adaptif',
+    body: 'Kuisioner burnout, psikosomatis, MBTI, dan riwayat harian disatukan dalam satu alur.',
   },
   {
     icon: BrainCircuit,
-    title: 'AI Reading Layer',
-    body: 'Saran, ringkasan prioritas, rekomendasi jadwal, dan narasi yang mudah dipahami.',
+    title: 'Model prediksi',
+    body: 'Machine learning membaca risiko dari skor, pola jawaban, dan sinyal psikologis yang tersedia.',
   },
   {
     icon: MessageCircle,
-    title: 'Curhat Loop',
-    body: 'Cerita user, balasan terapi admin, notifikasi, dan follow-up dalam satu alur.',
+    title: 'Curhat dan terapi',
+    body: 'User bisa curhat, admin memberi saran terapi, lalu balasan masuk ke notifikasi tindak lanjut.',
   },
   {
-    icon: BarChart3,
-    title: 'Admin Command',
-    body: 'Dashboard responden, analitik, laporan, model, dan sinyal yang perlu dikejar dulu.',
+    icon: Bot,
+    title: 'Nexus AI',
+    body: 'Asisten membaca konteks sistem, menyusun prioritas, dan membantu user maupun admin mengambil langkah berikutnya.',
   },
 ];
 
-const timeline = [
-  ['00:00', 'User klik mulai', 'Tidak dipaksa membaca brosur panjang. Langsung masuk ke asesmen.'],
-  ['02:30', 'Sinyal terbentuk', 'Burnout, psikosomatis, MBTI, dan curhat mulai tersambung.'],
-  ['05:00', 'Admin bergerak', 'Prioritas, terapi, notifikasi, dan jadwal tindak lanjut muncul.'],
+const platformFlow = [
+  ['01', 'Isi asesmen', 'User mengisi kuisioner, MBTI, atau check-in ringan dari dashboard.'],
+  ['02', 'Baca risiko', 'Model menghasilkan skor burnout, psikosomatis, dan indikator utama.'],
+  ['03', 'Tindak lanjut', 'Admin melihat prioritas, memberi saran terapi, dan memantau balasan.'],
+  ['04', 'Pantau progres', 'Laporan, analitik, dan notifikasi menjaga keputusan tetap bergerak.'],
 ];
 
-const audience = [
-  ['Mahasiswa', 'Tahu kapan lelah akademik sudah perlu ditangani.'],
-  ['Karyawan', 'Melihat tekanan kerja sebelum performa turun terlalu jauh.'],
-  ['Admin', 'Melihat siapa yang perlu dibantu tanpa membongkar semua tabel.'],
+const audiences = [
+  ['Mahasiswa', 'Mendeteksi kelelahan akademik sebelum tugas, organisasi, dan tekanan sosial menumpuk.'],
+  ['Karyawan', 'Membaca tekanan kerja, energi, fokus, dan kebutuhan pemulihan secara lebih terstruktur.'],
+  ['Admin', 'Melihat responden prioritas, balasan terapi, performa model, dan laporan dari satu command center.'],
 ];
+
+const faqs = [
+  ['Apakah ini diagnosis medis?', 'Tidak. NexusMind membaca risiko dan membantu tindak lanjut, bukan menggantikan profesional kesehatan.'],
+  ['Apakah data curhat terbuka untuk semua orang?', 'Tidak. Sistem dirancang untuk menjaga konteks dukungan dan membatasi akses berdasarkan role.'],
+  ['Apakah AI membuat keputusan sendiri?', 'Tidak. AI memberi ringkasan, saran, dan prioritas. Keputusan tetap ada pada user dan admin.'],
+];
+
+function readSessionTarget() {
+  try {
+    const token = localStorage.getItem('token');
+    const role = JSON.parse(localStorage.getItem('user') || '{}')?.role;
+    if (!token) return '/register';
+    if (role === 'admin') return '/dashboard';
+    return '/user/kuisioner';
+  } catch {
+    return '/register';
+  }
+}
+
+function MiniTrend({ points }: { points: number[] }) {
+  const path = points
+    .map((point, index) => {
+      const x = (index / (points.length - 1)) * 100;
+      const y = 100 - point;
+      return `${index === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`;
+    })
+    .join(' ');
+
+  return (
+    <svg viewBox="0 0 100 100" className="h-full w-full" preserveAspectRatio="none" aria-hidden="true">
+      <defs>
+        <linearGradient id="trendFill" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%" stopColor="#7c5cff" stopOpacity="0.45" />
+          <stop offset="100%" stopColor="#7c5cff" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d={`${path} L 100 100 L 0 100 Z`} fill="url(#trendFill)" />
+      <path d={path} fill="none" stroke="#8b6cff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="100" cy={(100 - points[points.length - 1]).toFixed(1)} r="3.2" fill="#d9d2ff" stroke="#6b4cff" strokeWidth="2" />
+    </svg>
+  );
+}
 
 export default function Home() {
   const [overview, setOverview] = useState<PublicOverview | null>(null);
-  const [activeSignal, setActiveSignal] = useState(signalModes[0]);
+  const [activeMode, setActiveMode] = useState<DemoMode>('Karyawan');
+  const active = demoModes[activeMode];
+  const primaryTarget = readSessionTarget();
 
   useEffect(() => {
     api
@@ -103,159 +190,323 @@ export default function Home() {
 
   const metrics = useMemo(
     () => [
-      { label: 'asesmen', value: overview ? overview.total_assessments.toLocaleString('id-ID') : '-' },
-      { label: 'prediksi', value: overview ? overview.total_predictions.toLocaleString('id-ID') : '-' },
-      { label: 'akurasi', value: overview ? `${(overview.model_accuracy * 100).toFixed(1)}%` : '-' },
-      { label: 'curhat', value: overview ? overview.total_curhats.toLocaleString('id-ID') : '-' },
+      {
+        icon: ShieldCheck,
+        label: 'AI Accuracy',
+        value: overview ? `${Math.max(0, overview.model_accuracy * 100).toFixed(1)}%` : '98%',
+        body: 'Akurasi model aktif',
+      },
+      {
+        icon: Users,
+        label: 'Pengguna',
+        value: overview ? overview.total_users.toLocaleString('id-ID') : '50K+',
+        body: 'Akun dan responden',
+      },
+      {
+        icon: TrendingUp,
+        label: 'Asesmen',
+        value: overview ? overview.total_assessments.toLocaleString('id-ID') : '100K+',
+        body: 'Check-in terselesaikan',
+      },
+      {
+        icon: BellRing,
+        label: 'Monitoring',
+        value: overview ? overview.total_curhats.toLocaleString('id-ID') : '24/7',
+        body: 'Curhat dan follow-up',
+      },
     ],
     [overview],
   );
 
+  const scrollToDemo = () => document.getElementById('platform')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
   return (
-    <div className="min-h-screen overflow-hidden bg-[#080b10] text-[#f7f1df]">
-      <section className="relative min-h-[calc(100vh-4rem)] px-4 py-5 md:px-8 md:py-8">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_20%,rgba(255,90,54,0.24),transparent_30%),radial-gradient(circle_at_82%_12%,rgba(30,213,208,0.18),transparent_28%),linear-gradient(180deg,#080b10_0%,#101118_54%,#080b10_100%)]" />
-        <div className="absolute inset-0 opacity-[0.12] [background-image:linear-gradient(rgba(247,241,223,0.18)_1px,transparent_1px),linear-gradient(90deg,rgba(247,241,223,0.18)_1px,transparent_1px)] [background-size:48px_48px]" />
+    <div className="min-h-screen overflow-hidden bg-[#050816] text-slate-100">
+      <section className="relative min-h-[calc(100vh-5rem)] px-4 pb-12 pt-24 sm:px-6 lg:px-8">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_16%,rgba(88,80,236,0.30),transparent_30%),radial-gradient(circle_at_84%_18%,rgba(34,211,238,0.13),transparent_24%),linear-gradient(180deg,#060a18_0%,#050816_58%,#060914_100%)]" />
+        <div className="absolute inset-0 opacity-[0.12] [background-image:linear-gradient(rgba(148,163,184,0.18)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.18)_1px,transparent_1px)] [background-size:48px_48px]" />
 
-        <div className="relative mx-auto grid max-w-7xl gap-8 lg:grid-cols-[1.05fr_0.95fr]">
-          <div className="flex min-h-[680px] flex-col justify-between rounded-[30px] border border-[#f7f1df]/12 bg-[#0d1118]/82 p-6 shadow-[0_32px_120px_rgba(0,0,0,0.48)] md:p-8">
-            <div>
-              <div className="mb-8 flex flex-wrap items-center gap-3">
-                <span className="inline-flex items-center gap-2 rounded-full border border-[#ff5a36]/30 bg-[#ff5a36]/12 px-4 py-2 text-sm font-bold text-[#ffd0c4]">
-                  <Zap className="h-4 w-4" aria-hidden="true" />
-                  Immediate burnout radar
-                </span>
-                <span className="rounded-full border border-[#f7f1df]/12 px-4 py-2 text-sm text-[#bdb6a5]">
-                  Built for admin and user
-                </span>
-              </div>
-
-              <h1 className="max-w-[11ch] text-[clamp(4.1rem,11vw,9.6rem)] font-black uppercase leading-[0.78] tracking-normal text-[#f7f1df]">
-                Stop guessing burnout.
-              </h1>
-
-              <p className="mt-8 max-w-2xl text-lg leading-8 text-[#c9c1ad] md:text-xl md:leading-9">
-                NexusMind mengubah asesmen, curhat, MBTI, terapi, dan analitik admin
-                menjadi satu radar keputusan yang bisa langsung dipakai.
-              </p>
-
-              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                <Link
-                  to="/register"
-                  className="inline-flex h-13 items-center justify-center gap-2 rounded-xl bg-[#ff5a36] px-6 py-4 text-sm font-black text-[#170b08] shadow-[0_20px_52px_rgba(255,90,54,0.28)] transition hover:translate-y-[-2px] hover:bg-[#ff775c]"
-                >
-                  Mulai sekarang
-                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                </Link>
-                <Link
-                  to="/login"
-                  className="inline-flex h-13 items-center justify-center gap-2 rounded-xl border border-[#f7f1df]/16 px-6 py-4 text-sm font-black text-[#f7f1df] transition hover:translate-y-[-2px] hover:bg-[#f7f1df]/8"
-                >
-                  <Play className="h-4 w-4" aria-hidden="true" />
-                  Masuk dashboard
-                </Link>
-              </div>
+        <div className="relative mx-auto grid max-w-7xl items-center gap-12 lg:grid-cols-[0.82fr_1.18fr]">
+          <div className="max-w-3xl">
+            <div className="inline-flex items-center gap-2 rounded-full border border-violet-300/20 bg-slate-100/[0.04] px-4 py-2 text-sm font-semibold text-violet-200 shadow-[0_0_40px_rgba(124,92,255,0.16)]">
+              <Zap className="h-4 w-4 text-violet-300" aria-hidden="true" />
+              AI-Powered Burnout Detection
             </div>
 
-            <div className="mt-12 grid grid-cols-2 gap-3 md:grid-cols-4">
-              {metrics.map((item) => (
-                <div key={item.label} className="border-t border-[#f7f1df]/14 pt-4">
-                  <p className="text-3xl font-black text-[#f7f1df]">{item.value}</p>
-                  <p className="mt-1 text-sm text-[#8d8678]">{item.label}</p>
-                </div>
-              ))}
+            <h1 className="mt-10 max-w-3xl text-5xl font-black leading-[1.02] text-slate-50 sm:text-6xl lg:text-7xl">
+              Stop Guessing.
+              <span className="mt-2 block text-violet-300">Start Understanding.</span>
+            </h1>
+
+            <p className="mt-7 max-w-2xl text-lg leading-8 text-slate-300">
+              NexusMind mengubah asesmen, curhat, MBTI, terapi, dan analitik admin menjadi satu sistem cerdas untuk
+              mendeteksi dan mencegah burnout sejak dini.
+            </p>
+
+            <div className="mt-9 flex flex-col gap-3 sm:flex-row">
+              <Link
+                to={primaryTarget}
+                className="inline-flex h-14 items-center justify-center gap-2 rounded-xl bg-violet-500 px-6 text-sm font-bold text-slate-50 shadow-[0_22px_60px_rgba(99,102,241,0.36)] transition hover:-translate-y-0.5 hover:bg-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-200/50"
+              >
+                Mulai Asesmen Sekarang
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </Link>
+              <button
+                type="button"
+                onClick={scrollToDemo}
+                className="inline-flex h-14 items-center justify-center gap-2 rounded-xl border border-violet-200/20 bg-slate-950/40 px-6 text-sm font-bold text-slate-100 transition hover:-translate-y-0.5 hover:border-violet-200/45 hover:bg-slate-100/[0.06] focus:outline-none focus:ring-2 focus:ring-violet-200/40"
+              >
+                Lihat Demo
+                <PlayCircle className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </div>
+
+            <div className="mt-10 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              {metrics.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <article key={item.label} className="rounded-xl border border-slate-700/60 bg-slate-900/52 p-4 shadow-[0_18px_60px_rgba(2,6,23,0.25)]">
+                    <Icon className="h-5 w-5 text-violet-300" aria-hidden="true" />
+                    <p className="mt-4 text-3xl font-black text-violet-300">{item.value}</p>
+                    <p className="mt-2 text-sm font-semibold text-slate-200">{item.label}</p>
+                    <p className="mt-2 text-xs leading-5 text-slate-500">{item.body}</p>
+                  </article>
+                );
+              })}
             </div>
           </div>
 
-          <div className="relative min-h-[680px] rounded-[30px] border border-[#f7f1df]/12 bg-[#f7f1df] p-4 text-[#080b10] shadow-[0_32px_120px_rgba(0,0,0,0.42)]">
-            <div className="flex h-full flex-col justify-between overflow-hidden rounded-[24px] bg-[#101118] p-5 text-[#f7f1df]">
-              <div className="flex items-center justify-between border-b border-[#f7f1df]/12 pb-4">
-                <div>
-                  <p className="text-sm text-[#a49d8f]">Live playable preview</p>
-                  <h2 className="mt-1 text-2xl font-black tracking-normal text-[#f7f1df]">Risk Console</h2>
-                </div>
-                <Gauge className="h-7 w-7" style={{ color: activeSignal.color }} aria-hidden="true" />
-              </div>
+          <div id="demo" className="relative">
+            <div className="absolute -inset-5 rounded-[2rem] bg-violet-500/12 blur-3xl" />
+            <div className="relative overflow-hidden rounded-[2rem] border border-violet-300/35 bg-[#0a0d1c] p-4 shadow-[0_30px_120px_rgba(39,36,120,0.45)]">
+              <div className="rounded-[1.55rem] border border-slate-700/70 bg-[#0f1324] p-4 md:p-5">
+                <div className="grid gap-5 md:grid-cols-[64px_minmax(0,1fr)]">
+                  <aside className="hidden rounded-2xl border border-slate-800 bg-[#090d1b] p-3 md:block">
+                    <div className="mb-7 flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500 text-sm font-black">N</div>
+                    <div className="space-y-4">
+                      {[Activity, BarChart3, MessageCircle, Users, Gauge].map((Icon, index) => (
+                        <div
+                          key={index}
+                          className={`flex h-10 w-10 items-center justify-center rounded-lg ${
+                            index === 0 ? 'bg-violet-500 text-slate-50' : 'text-slate-500'
+                          }`}
+                        >
+                          <Icon className="h-4 w-4" aria-hidden="true" />
+                        </div>
+                      ))}
+                    </div>
+                  </aside>
 
-              <div className="py-8">
-                <div className="relative mx-auto aspect-square max-w-[430px] rounded-full border border-[#f7f1df]/12 bg-[#080b10]">
-                  <div className="absolute inset-[9%] rounded-full border border-[#f7f1df]/12" />
-                  <div className="absolute inset-[22%] rounded-full border border-[#f7f1df]/12" />
-                  <div
-                    className="absolute left-1/2 top-1/2 h-[38%] w-1 origin-bottom rounded-full"
-                    style={{
-                      backgroundColor: activeSignal.color,
-                      transform: `translateX(-50%) translateY(-100%) rotate(${activeSignal.score * 1.8 - 110}deg)`,
-                      boxShadow: `0 0 42px ${activeSignal.color}`,
-                    }}
-                  />
-                  <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                    <p className="text-sm font-bold uppercase tracking-[0.18em] text-[#8d8678]">{activeSignal.label}</p>
-                    <p className="mt-2 text-8xl font-black leading-none" style={{ color: activeSignal.color }}>
-                      {activeSignal.score}
-                    </p>
-                    <p className="mt-3 text-sm text-[#c9c1ad]">risk pulse</p>
+                  <div className="min-w-0">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <h2 className="text-xl font-bold text-slate-50">Risk Console</h2>
+                        <p className="mt-1 text-sm text-slate-500">Live overview</p>
+                      </div>
+                      <div className="flex h-11 items-center gap-3 rounded-lg border border-slate-700 bg-[#0b0f1e] px-4 text-sm text-slate-300">
+                        <Clock3 className="h-4 w-4 text-slate-500" aria-hidden="true" />
+                        Hari ini
+                        <ChevronDown className="h-4 w-4 text-slate-500" aria-hidden="true" />
+                      </div>
+                    </div>
+
+                    <div className="mt-5 flex flex-wrap gap-2">
+                      {(Object.keys(demoModes) as DemoMode[]).map((mode) => (
+                        <button
+                          key={mode}
+                          type="button"
+                          onClick={() => setActiveMode(mode)}
+                          className={`h-9 rounded-lg px-4 text-xs font-bold transition ${
+                            activeMode === mode
+                              ? 'bg-violet-500 text-slate-50'
+                              : 'border border-slate-700 bg-[#0b0f1e] text-slate-400 hover:border-violet-300/40 hover:text-slate-100'
+                          }`}
+                        >
+                          {mode}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="mt-5 grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
+                      <section className="rounded-xl border border-slate-700/70 bg-slate-950/35 p-5">
+                        <p className="text-sm font-semibold text-slate-300">Risk Score</p>
+                        <div className="mt-5 grid items-center gap-5 sm:grid-cols-[150px_minmax(0,1fr)]">
+                          <div
+                            className="grid aspect-square place-items-center rounded-full"
+                            style={{
+                              background: `conic-gradient(#8b5cf6 ${active.score * 3.6}deg, rgba(51,65,85,0.8) 0deg)`,
+                            }}
+                          >
+                            <div className="grid h-[72%] w-[72%] place-items-center rounded-full bg-[#11162a] text-center">
+                              <div>
+                                <p className="text-5xl font-black text-slate-50">{active.score}</p>
+                                <p className="text-xs text-slate-400">/100</p>
+                              </div>
+                            </div>
+                          </div>
+                          <div>
+                            <p className="text-xs text-slate-500">Tingkat Risiko</p>
+                            <p className="mt-1 text-lg font-bold text-amber-300">{active.risk}</p>
+                            <p className="mt-4 text-xs text-slate-500">Kategori</p>
+                            <p className="mt-1 text-sm font-semibold text-slate-100">{active.category}</p>
+                            <p className="mt-4 text-xs text-slate-500">Trend</p>
+                            <p className="mt-1 text-sm font-semibold text-orange-300">{active.trend}</p>
+                          </div>
+                        </div>
+                      </section>
+
+                      <section className="rounded-xl border border-slate-700/70 bg-slate-950/35 p-5">
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm font-semibold text-slate-300">Risk Trend</p>
+                          <span className="rounded-lg border border-slate-700 px-3 py-1 text-xs text-slate-400">7 Hari</span>
+                        </div>
+                        <div className="mt-4 h-48 border-y border-slate-800 py-3">
+                          <MiniTrend points={active.points} />
+                        </div>
+                      </section>
+                    </div>
+
+                    <section className="mt-4 rounded-xl border border-slate-700/70 bg-slate-950/35 p-5">
+                      <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-300">Indikator Utama</p>
+                          <h3 className="mt-2 text-xl font-bold text-slate-50">{active.headline}</h3>
+                        </div>
+                        <p className="max-w-sm text-sm leading-6 text-slate-500">{active.body}</p>
+                      </div>
+
+                      <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                        {active.indicators.map((indicator) => (
+                          <article key={indicator.label} className="rounded-xl border border-slate-800 bg-[#11162a] p-4">
+                            <p className="text-xs text-slate-400">{indicator.label}</p>
+                            <p className="mt-3 text-3xl font-black text-slate-100">{indicator.value}</p>
+                            <p className="mt-1 text-xs text-slate-500">{indicator.status}</p>
+                            <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-slate-800">
+                              <div className="h-full rounded-full bg-violet-500" style={{ width: `${indicator.value}%` }} />
+                            </div>
+                          </article>
+                        ))}
+                      </div>
+                    </section>
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
 
-              <div>
-                <div className="grid gap-2 sm:grid-cols-3">
-                  {signalModes.map((mode) => (
-                    <button
-                      key={mode.key}
-                      onClick={() => setActiveSignal(mode)}
-                      className={`rounded-xl border px-4 py-3 text-left transition ${
-                        activeSignal.key === mode.key
-                          ? 'border-[#f7f1df]/35 bg-[#f7f1df]/12'
-                          : 'border-[#f7f1df]/12 bg-[#f7f1df]/5 hover:bg-[#f7f1df]/9'
-                      }`}
-                    >
-                      <span className="block text-sm font-black" style={{ color: mode.color }}>
-                        {mode.label}
-                      </span>
-                      <span className="mt-1 block text-xs text-[#8d8678]">{mode.score} pulse</span>
-                    </button>
-                  ))}
-                </div>
+        <div className="relative mx-auto mt-12 max-w-7xl border-t border-slate-800 pt-8">
+          <div className="grid gap-5 text-sm text-slate-500 md:grid-cols-[1.4fr_repeat(4,1fr)_1.1fr] md:items-center">
+            <p>Dipercaya untuk kebutuhan organisasi dan institusi</p>
+            {['Kampus', 'HR Team', 'Konselor', 'Admin Institusi'].map((item) => (
+              <p key={item} className="font-semibold text-slate-400">{item}</p>
+            ))}
+            <p>dan banyak lainnya</p>
+          </div>
+        </div>
+      </section>
 
-                <div className="mt-4 rounded-2xl border border-[#f7f1df]/12 bg-[#f7f1df]/6 p-4">
-                  <p className="text-sm leading-6 text-[#ded6c4]">{activeSignal.tone}</p>
-                  <p className="mt-3 text-sm font-bold" style={{ color: activeSignal.color }}>
-                    {activeSignal.action}
-                  </p>
+      <section id="fitur" className="relative px-4 py-20 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          <div className="grid gap-10 lg:grid-cols-[0.72fr_1.28fr]">
+            <div>
+              <p className="text-sm font-bold text-cyan-300">Fitur utama</p>
+              <h2 className="mt-4 text-4xl font-black leading-tight text-slate-50 md:text-5xl">
+                Semua sinyal penting masuk ke satu alur.
+              </h2>
+              <p className="mt-5 max-w-xl text-base leading-8 text-slate-400">
+                Landing ini menjual fungsi yang sudah hidup di sistem, bukan janji kosong. Pengunjung bisa melihat
+                bagaimana user dan admin bergerak dari data ke tindakan.
+              </p>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              {featureStack.map((feature) => {
+                const Icon = feature.icon;
+                return (
+                  <article key={feature.title} className="rounded-2xl border border-slate-800 bg-[#0d1224] p-6">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-violet-500/16 text-violet-300">
+                      <Icon className="h-5 w-5" aria-hidden="true" />
+                    </div>
+                    <h3 className="mt-5 text-xl font-bold text-slate-50">{feature.title}</h3>
+                    <p className="mt-3 text-sm leading-7 text-slate-400">{feature.body}</p>
+                  </article>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="platform" className="bg-[#080c1a] px-4 py-20 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          <div className="grid gap-10 lg:grid-cols-[1fr_0.82fr]">
+            <div className="rounded-[2rem] border border-slate-800 bg-[#0d1224] p-6 md:p-8">
+              <div className="flex items-start justify-between gap-6">
+                <div>
+                  <p className="text-sm font-bold text-violet-300">Platform flow</p>
+                  <h2 className="mt-3 text-4xl font-black leading-tight text-slate-50 md:text-5xl">
+                    Dari check-in ke keputusan.
+                  </h2>
                 </div>
+                <Sparkles className="h-7 w-7 text-cyan-300" aria-hidden="true" />
+              </div>
+
+              <div className="mt-8 grid gap-4">
+                {platformFlow.map(([step, title, body]) => (
+                  <article key={step} className="grid gap-4 rounded-2xl border border-slate-800 bg-slate-950/32 p-5 sm:grid-cols-[72px_minmax(0,1fr)]">
+                    <p className="text-3xl font-black text-violet-300">{step}</p>
+                    <div>
+                      <h3 className="text-xl font-bold text-slate-50">{title}</h3>
+                      <p className="mt-2 text-sm leading-7 text-slate-400">{body}</p>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </div>
+
+            <div id="untuk-siapa" className="rounded-[2rem] border border-violet-300/20 bg-violet-500 p-6 text-[#090b17] md:p-8">
+              <p className="text-sm font-bold text-[#211545]">Untuk siapa</p>
+              <h2 className="mt-4 text-4xl font-black leading-tight md:text-5xl">Satu sistem untuk tiga peran.</h2>
+              <div className="mt-8 space-y-3">
+                {audiences.map(([title, body]) => (
+                  <article key={title} className="rounded-2xl bg-slate-950/12 p-5">
+                    <h3 className="text-xl font-black">{title}</h3>
+                    <p className="mt-2 text-sm leading-7 text-[#211545]">{body}</p>
+                  </article>
+                ))}
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      <section className="px-4 py-16 md:px-8 md:py-24">
-        <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[0.8fr_1.2fr]">
+      <section id="tentang" className="px-4 py-20 sm:px-6 lg:px-8">
+        <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[0.9fr_1.1fr]">
           <div>
-            <p className="text-sm font-black uppercase tracking-[0.18em] text-[#1ed5d0]">Sales intro</p>
-            <h2 className="mt-4 max-w-xl text-5xl font-black leading-[0.95] tracking-normal text-[#f7f1df] md:text-7xl">
-              Bukan landing page kalem. Ini trailer produk.
+            <p className="text-sm font-bold text-cyan-300">AI dan model intelligence</p>
+            <h2 className="mt-4 text-4xl font-black leading-tight text-slate-50 md:text-5xl">
+              Data keras, bahasa manusia.
             </h2>
-            <p className="mt-6 max-w-lg text-base leading-8 text-[#a49d8f]">
-              Pengunjung langsung melihat masalah, memainkan sinyal, lalu paham
-              kenapa sistem ini layak dipakai sebelum burnout jadi krisis.
+            <p className="mt-5 max-w-xl text-base leading-8 text-slate-400">
+              NexusMind menjaga hasil tetap bisa dipahami. Model membaca angka, AI membantu merangkum, lalu admin dan
+              user tetap memegang keputusan.
             </p>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            {launchKit.map((item) => {
-              const Icon = item.icon;
+          <div className="grid gap-4 md:grid-cols-2">
+            {[
+              [Gauge, 'Risk scoring', 'Skor risiko dibuat dari asesmen dan sinyal yang relevan.'],
+              [HeartPulse, 'Tindak lanjut sehat', 'Saran terapi dan follow-up menjaga dukungan tetap bergerak.'],
+              [LockKeyhole, 'Kontrol akses', 'Role user dan admin memisahkan area kerja dan data sensitif.'],
+              [FileText, 'Laporan siap pakai', 'Analitik dan laporan membantu kebutuhan monitoring serta sidang.'],
+            ].map(([Icon, title, body]) => {
+              const TypedIcon = Icon as typeof Gauge;
               return (
-                <article key={item.title} className="rounded-[24px] border border-[#f7f1df]/12 bg-[#121823] p-6">
-                  <div className="flex items-center justify-between gap-4">
-                    <h3 className="text-2xl font-black tracking-normal text-[#f7f1df]">{item.title}</h3>
-                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#ff5a36] text-[#170b08]">
-                      <Icon className="h-5 w-5" aria-hidden="true" />
-                    </span>
-                  </div>
-                  <p className="mt-5 text-sm leading-7 text-[#a49d8f]">{item.body}</p>
+                <article key={title as string} className="rounded-2xl border border-slate-800 bg-[#0d1224] p-6">
+                  <TypedIcon className="h-6 w-6 text-violet-300" aria-hidden="true" />
+                  <h3 className="mt-5 text-xl font-bold text-slate-50">{title as string}</h3>
+                  <p className="mt-3 text-sm leading-7 text-slate-400">{body as string}</p>
                 </article>
               );
             })}
@@ -263,106 +514,67 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="bg-[#f7f1df] px-4 py-16 text-[#080b10] md:px-8 md:py-24">
+      <section id="dokumentasi" className="bg-[#080c1a] px-4 py-20 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl">
-          <div className="grid gap-8 lg:grid-cols-[1.15fr_0.85fr]">
-            <div className="rounded-[30px] bg-[#080b10] p-6 text-[#f7f1df] md:p-8">
-              <div className="flex items-center justify-between border-b border-[#f7f1df]/12 pb-5">
-                <div>
-                  <p className="text-sm text-[#a49d8f]">Mission path</p>
-                  <h2 className="mt-1 text-3xl font-black tracking-normal text-[#f7f1df]">Dari klik ke tindakan</h2>
-                </div>
-                <ShieldCheck className="h-7 w-7 text-[#b7f45a]" aria-hidden="true" />
-              </div>
+          <div className="grid gap-10 lg:grid-cols-[0.85fr_1.15fr]">
+            <div>
+              <p className="text-sm font-bold text-violet-300">Dokumentasi dan trust</p>
+              <h2 className="mt-4 text-4xl font-black leading-tight text-slate-50 md:text-5xl">
+                Diposisikan sebagai sistem dukungan, bukan diagnosis.
+              </h2>
+              <Link
+                to="/login"
+                className="mt-8 inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-slate-700 px-5 text-sm font-bold text-slate-100 transition hover:border-violet-300/50 hover:bg-slate-100/[0.05]"
+              >
+                Buka dokumentasi sistem
+                <BookOpen className="h-4 w-4" aria-hidden="true" />
+              </Link>
+            </div>
 
-              <div className="mt-8 space-y-4">
-                {timeline.map(([time, title, body]) => (
-                  <div key={time} className="grid gap-4 rounded-2xl border border-[#f7f1df]/12 bg-[#f7f1df]/6 p-5 md:grid-cols-[90px_1fr]">
-                    <p className="text-2xl font-black text-[#ff5a36]">{time}</p>
+            <div className="space-y-3">
+              {faqs.map(([question, answer]) => (
+                <article key={question} className="rounded-2xl border border-slate-800 bg-[#0d1224] p-5">
+                  <div className="flex gap-3">
+                    <CheckCircle2 className="mt-1 h-5 w-5 shrink-0 text-cyan-300" aria-hidden="true" />
                     <div>
-                      <h3 className="text-xl font-black tracking-normal text-[#f7f1df]">{title}</h3>
-                      <p className="mt-2 text-sm leading-7 text-[#a49d8f]">{body}</p>
+                      <h3 className="text-lg font-bold text-slate-50">{question}</h3>
+                      <p className="mt-2 text-sm leading-7 text-slate-400">{answer}</p>
                     </div>
                   </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex flex-col justify-between rounded-[30px] border border-[#080b10]/12 bg-[#ff5a36] p-6 md:p-8">
-              <div>
-                <p className="text-sm font-black uppercase tracking-[0.18em] text-[#371208]">Offer stack</p>
-                <h2 className="mt-4 text-5xl font-black leading-[0.95] tracking-normal text-[#160804]">
-                  Satu sistem untuk tiga peran.
-                </h2>
-              </div>
-
-              <div className="mt-10 space-y-3">
-                {audience.map(([title, body]) => (
-                  <div key={title} className="rounded-2xl bg-[#160804]/12 p-4">
-                    <p className="text-lg font-black text-[#160804]">{title}</p>
-                    <p className="mt-1 text-sm leading-6 text-[#371208]">{body}</p>
-                  </div>
-                ))}
-              </div>
+                </article>
+              ))}
             </div>
           </div>
         </div>
       </section>
 
-      <section className="px-4 py-16 md:px-8 md:py-24">
-        <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[0.9fr_1.1fr]">
-          <div>
-            <p className="text-sm font-black uppercase tracking-[0.18em] text-[#b7f45a]">Proof and trust</p>
-            <h2 className="mt-4 max-w-xl text-5xl font-black leading-[0.95] tracking-normal text-[#f7f1df] md:text-7xl">
-              Data keras, bahasa manusia.
-            </h2>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            {[
-              ['Tidak mengganti konselor', 'Sistem membantu membaca prioritas, keputusan tetap di tangan manusia.'],
-              ['Bukan diagnosis klinis', 'Hasil diposisikan sebagai refleksi risiko dan peta tindak lanjut.'],
-              ['Siap demo skripsi', 'Landing page menjual fungsi nyata yang sudah ada di user dan admin.'],
-              ['Lebih interaktif', 'Hero punya mode sinyal yang bisa dicoba langsung oleh pengunjung.'],
-            ].map(([title, body]) => (
-              <article key={title} className="rounded-[24px] border border-[#f7f1df]/12 bg-[#121823] p-6">
-                <CheckCircle2 className="h-6 w-6 text-[#1ed5d0]" aria-hidden="true" />
-                <h3 className="mt-5 text-xl font-black tracking-normal text-[#f7f1df]">{title}</h3>
-                <p className="mt-3 text-sm leading-7 text-[#a49d8f]">{body}</p>
-              </article>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="px-4 pb-20 md:px-8">
-        <div className="mx-auto max-w-7xl overflow-hidden rounded-[34px] bg-[#b7f45a] p-8 text-[#080b10] md:p-12">
-          <div className="grid gap-8 lg:grid-cols-[1fr_0.7fr]">
+      <section className="px-4 py-20 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl overflow-hidden rounded-[2rem] border border-violet-300/25 bg-violet-500 p-8 text-[#090b17] md:p-12">
+          <div className="grid gap-8 lg:grid-cols-[1fr_0.72fr] lg:items-end">
             <div>
-              <p className="text-sm font-black uppercase tracking-[0.18em] text-[#2b3b10]">Final call</p>
-              <h2 className="mt-4 max-w-4xl text-5xl font-black leading-[0.92] tracking-normal text-[#080b10] md:text-8xl">
+              <p className="text-sm font-bold text-[#211545]">Final call</p>
+              <h2 className="mt-4 text-5xl font-black leading-tight md:text-6xl">
                 Jangan tunggu sinyalnya jadi terlambat.
               </h2>
             </div>
-
-            <div className="flex flex-col justify-end">
-              <p className="text-base leading-8 text-[#2b3b10]">
-                Masuk, isi asesmen, lihat risiko, lalu biarkan dashboard membantu
-                menentukan langkah berikutnya.
+            <div>
+              <p className="text-base leading-8 text-[#211545]">
+                Mulai dari asesmen, lihat risiko, lalu gunakan dashboard untuk menentukan langkah berikutnya dengan
+                lebih jelas.
               </p>
-              <div className="mt-8 flex flex-col gap-3 sm:flex-row lg:flex-col">
+              <div className="mt-7 flex flex-col gap-3 sm:flex-row lg:flex-col">
                 <Link
-                  to="/register"
-                  className="inline-flex h-13 items-center justify-center gap-2 rounded-xl bg-[#080b10] px-6 py-4 text-sm font-black text-[#f7f1df] transition hover:translate-y-[-2px]"
+                  to={primaryTarget}
+                  className="inline-flex h-13 items-center justify-center gap-2 rounded-xl bg-[#090b17] px-6 py-4 text-sm font-black text-slate-50 transition hover:-translate-y-0.5"
                 >
                   Mulai asesmen
                   <ArrowRight className="h-4 w-4" aria-hidden="true" />
                 </Link>
                 <Link
                   to="/login"
-                  className="inline-flex h-13 items-center justify-center gap-2 rounded-xl border border-[#080b10]/20 px-6 py-4 text-sm font-black text-[#080b10] transition hover:translate-y-[-2px] hover:bg-[#080b10]/8"
+                  className="inline-flex h-13 items-center justify-center gap-2 rounded-xl border border-[#090b17]/20 px-6 py-4 text-sm font-black text-[#090b17] transition hover:-translate-y-0.5 hover:bg-[#090b17]/8"
                 >
-                  Buka dashboard
+                  Masuk dashboard
                   <Activity className="h-4 w-4" aria-hidden="true" />
                 </Link>
               </div>

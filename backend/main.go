@@ -55,6 +55,7 @@ func main() {
 
 		protected := api.Group("/")
 		protected.Use(AuthMiddleware())
+		protected.Use(ActivityLogMiddleware())
 		{
 			// User Dashboard & Assessment
 			protected.GET("/dashboard", UserDashboardHandler)
@@ -111,24 +112,28 @@ func main() {
 			protected.GET("/terapi", UserDashboardHandler) // Same output logic as dashboard for prediction
 
 			// Admin Routes
-			protected.GET("/responden", RespondenGetHandler)
-			protected.GET("/responden/:id/history", RespondenHistoryHandler)
+			admin := protected.Group("/")
+			admin.Use(RequireRole("admin"))
+			admin.GET("/responden", RespondenGetHandler)
+			admin.GET("/responden/:id/history", RespondenHistoryHandler)
 
-			protected.GET("/admin/users", AdminUsersGetHandler)
-			protected.POST("/admin/users", AdminUsersCreateHandler)
-			protected.GET("/admin/users/:id", AdminUsersGetByIDHandler)
-			protected.PUT("/admin/users/:id", AdminUsersPutHandler)
-			protected.DELETE("/admin/users/:id", AdminUsersDeleteHandler)
-			protected.POST("/admin/users/:id/treatment", AdminUsersTreatmentHandler)
-			protected.GET("/admin/users/:id/treatments", AdminUserTreatmentsHandler)
-			protected.GET("/admin/treatment-replies", AdminTreatmentRepliesHandler)
-			protected.PATCH("/admin/treatment-replies/:id/read", AdminTreatmentReplyReadHandler)
+			admin.GET("/admin/users", AdminUsersGetHandler)
+			admin.POST("/admin/users", AdminUsersCreateHandler)
+			admin.GET("/admin/users/:id", AdminUsersGetByIDHandler)
+			admin.PUT("/admin/users/:id", AdminUsersPutHandler)
+			admin.DELETE("/admin/users/:id", AdminUsersDeleteHandler)
+			admin.POST("/admin/users/:id/treatment", AdminUsersTreatmentHandler)
+			admin.GET("/admin/users/:id/treatments", AdminUserTreatmentsHandler)
+			admin.GET("/admin/treatment-replies", AdminTreatmentRepliesHandler)
+			admin.PATCH("/admin/treatment-replies/:id/read", AdminTreatmentReplyReadHandler)
 
-			protected.GET("/admin/analytics", AdminAnalyticsHandler)
-			protected.GET("/admin/config", AdminConfigGetHandler)
-			protected.PUT("/admin/config", AdminConfigPutHandler)
-			protected.GET("/admin/quantum", AdminQuantumHandler)
-			protected.GET("/admin/model-evaluation", AdminModelEvaluationV2Handler)
+			admin.GET("/admin/analytics", AdminAnalyticsHandler)
+			admin.GET("/admin/config", AdminConfigGetHandler)
+			admin.PUT("/admin/config", AdminConfigPutHandler)
+			admin.GET("/admin/quantum", AdminQuantumHandler)
+			admin.GET("/admin/model-evaluation", AdminModelEvaluationV2Handler)
+			admin.GET("/admin/activity-logs", AdminActivityLogsHandler)
+			admin.GET("/admin/system-health", AdminSystemHealthHandler)
 		}
 	}
 

@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -137,6 +138,7 @@ func RegisterHandler(c *gin.Context) {
 	hashedPassword, _ := HashPassword(input.Password)
 	user := User{Username: input.Username, PasswordHash: hashedPassword, Nama: input.Nama, UserType: input.UserType}
 	DB.Create(&user)
+	recordActivity(c, &user, "auth_register", "user", fmt.Sprintf("%d", user.ID), gin.H{"user_type": user.UserType})
 
 	c.JSON(http.StatusOK, gin.H{"message": "User registered successfully"})
 }
@@ -169,6 +171,7 @@ func LoginHandler(c *gin.Context) {
 		return
 	}
 
+	recordActivity(c, &user, "auth_login", "user", fmt.Sprintf("%d", user.ID), gin.H{"method": "password"})
 	c.JSON(http.StatusOK, gin.H{"token": token, "user": gin.H{"username": user.Username, "nama": user.Nama, "role": user.Role, "user_type": normalizeUserType(user.UserType)}})
 }
 
@@ -229,6 +232,7 @@ func GoogleLoginHandler(c *gin.Context) {
 		return
 	}
 
+	recordActivity(c, &user, "auth_login", "user", fmt.Sprintf("%d", user.ID), gin.H{"method": "google"})
 	c.JSON(http.StatusOK, gin.H{"token": token, "user": gin.H{"username": user.Username, "nama": user.Nama, "role": user.Role, "user_type": normalizeUserType(user.UserType)}})
 }
 
@@ -283,5 +287,6 @@ func ForgotPasswordHandler(c *gin.Context) {
 		return
 	}
 
+	recordActivity(c, &user, "auth_password_reset", "user", fmt.Sprintf("%d", user.ID), gin.H{"user_type": normalizeUserType(user.UserType)})
 	c.JSON(http.StatusOK, gin.H{"message": "Kata sandi berhasil direset. Silakan masuk dengan kata sandi baru."})
 }
