@@ -13,6 +13,7 @@ import {
   Brain,
   Bell,
   Bot,
+  Clapperboard,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import api from '../api';
@@ -24,6 +25,7 @@ const navItems = [
   { label: 'Ruang Curhat Anonim', icon: MessageSquareHeart, path: '/user/curhat', badge: true },
   { label: 'Riwayat Asesmen', icon: Activity, path: '/user/asesmen' },
   { label: 'Jaringan Teman', icon: Users, path: '/user/network' },
+  { label: 'Ruang Film', icon: Clapperboard, path: '/user/film' },
   { label: 'Pengaturan Akun', icon: Settings, path: '/user/settings' },
 ];
 

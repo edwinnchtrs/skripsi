@@ -166,6 +166,46 @@ type PostComment struct {
 	Timestamp time.Time `gorm:"autoCreateTime"`
 }
 
+type UserFilm struct {
+	gorm.Model
+	UserID          uint   `gorm:"index"`
+	Title           string `gorm:"size:191"`
+	Studio          string `gorm:"size:191"`
+	Duration        string `gorm:"size:64"`
+	Mood            string `gorm:"size:64"`
+	Description     string `gorm:"type:text"`
+	EmbedURL        string `gorm:"size:512"`
+	SourceURL       string `gorm:"size:512;index"`
+	Accent          string `gorm:"size:32"`
+	Tag             string `gorm:"size:64"`
+	Category        string `gorm:"size:32;default:saved"`
+	Status          string `gorm:"size:32;default:watchlist"`
+	ProgressSeconds int
+	Rating          int
+	Notes           string `gorm:"type:text"`
+	LastWatchedAt   *time.Time
+}
+
+type FilmWatchEvent struct {
+	gorm.Model
+	UserID          uint `gorm:"index"`
+	UserFilmID      uint `gorm:"index"`
+	Title           string
+	SourceURL       string `gorm:"size:512"`
+	Event           string `gorm:"size:32"`
+	ProgressSeconds int
+}
+
+type FilmRecommendation struct {
+	gorm.Model
+	UserID    uint   `gorm:"index"`
+	Mood      string `gorm:"size:191"`
+	Query     string `gorm:"size:512"`
+	Source    string `gorm:"size:64"`
+	Reply     string `gorm:"type:text"`
+	ItemsJSON string `gorm:"type:longtext"`
+}
+
 type SystemConfig struct {
 	gorm.Model
 	BurnoutThresholdLow    float64 `gorm:"default:4"`

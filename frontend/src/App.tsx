@@ -21,6 +21,7 @@ import UserCurhat from './pages/UserCurhat'
 import UserProfileSettings from './pages/userDashboard/UserProfileSettings'
 import UserNetwork from './pages/userDashboard/UserNetwork'
 import UserProfilePage from './pages/userDashboard/UserProfilePage'
+import UserCinema from './pages/userDashboard/UserCinema'
 import NotFound from './pages/NotFound'
 import ForgotPassword from './pages/ForgotPassword'
 import RequireRole from './components/RequireRole'
@@ -72,6 +73,7 @@ function App() {
             <Route path="/user/curhat" element={<UserCurhat />} />
             <Route path="/user/settings" element={<UserProfileSettings />} />
             <Route path="/user/network" element={<UserNetwork />} />
+            <Route path="/user/film" element={<UserCinema />} />
             <Route path="/user/profile/:username" element={<UserProfilePage />} />
           </Route>
         </Route>

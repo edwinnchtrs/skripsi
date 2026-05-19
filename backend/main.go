@@ -66,6 +66,13 @@ func main() {
 			protected.GET("/assistant/context", AssistantContextHandler)
 			protected.POST("/assistant/chat", AssistantChatHandler)
 			protected.POST("/assistant/schedule/optimize", AssistantScheduleOptimizeHandler)
+			protected.GET("/cinema/discovery", CinemaDiscoveryHandler)
+			protected.GET("/user/films", UserFilmsGetHandler)
+			protected.POST("/user/films", UserFilmsCreateHandler)
+			protected.PATCH("/user/films/:id", UserFilmsUpdateHandler)
+			protected.DELETE("/user/films/:id", UserFilmsDeleteHandler)
+			protected.POST("/user/films/:id/watch", UserFilmWatchEventHandler)
+			protected.POST("/user/film-recommendations", UserFilmRecommendationCreateHandler)
 
 			// Social & Profile
 			protected.GET("/user/history", UserHistoryHandler)
