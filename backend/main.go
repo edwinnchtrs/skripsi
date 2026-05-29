@@ -126,6 +126,8 @@ func main() {
 			admin.GET("/admin/users/:id/treatments", AdminUserTreatmentsHandler)
 			admin.GET("/admin/treatment-replies", AdminTreatmentRepliesHandler)
 			admin.PATCH("/admin/treatment-replies/:id/read", AdminTreatmentReplyReadHandler)
+			admin.GET("/admin/curhat-analysis", AdminCurhatAnalysisHandler)
+			admin.PATCH("/admin/curhat-analysis/:id/status", AdminCurhatAnalysisStatusHandler)
 
 			admin.GET("/admin/analytics", AdminAnalyticsHandler)
 			admin.GET("/admin/config", AdminConfigGetHandler)

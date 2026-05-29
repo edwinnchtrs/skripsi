@@ -67,15 +67,28 @@ type MBTIResult struct {
 
 type Curhat struct {
 	gorm.Model
-	UserID      uint
-	User        User `gorm:"foreignKey:UserID"`
-	IsAnonymous bool `gorm:"default:true"`
-	Text        string
-	Image       string
-	StressScore float64
-	AIResponse  string
-	Timestamp   time.Time `gorm:"autoCreateTime"`
-	Replies     []CurhatReply
+	UserID              uint
+	User                User `gorm:"foreignKey:UserID"`
+	IsAnonymous         bool `gorm:"default:true"`
+	Text                string
+	Image               string
+	StressScore         float64
+	BurnoutScore        float64
+	PsychosomaticScore  float64
+	RiskLevel           string `gorm:"size:32;index"`
+	AnalysisConfidence  float64
+	CrisisFlag          bool   `gorm:"default:false;index"`
+	AdminPriority       string `gorm:"size:32;index"`
+	AdminStatus         string `gorm:"size:32;default:new;index"`
+	AdminSummary        string `gorm:"type:text"`
+	RedFlagsJSON        string `gorm:"type:text"`
+	RecommendationsJSON string `gorm:"type:text"`
+	UserNextStepsJSON   string `gorm:"type:text"`
+	AnalysisSource      string `gorm:"size:32"`
+	AIMode              string `gorm:"size:32;default:friend"`
+	AIResponse          string
+	Timestamp           time.Time `gorm:"autoCreateTime"`
+	Replies             []CurhatReply
 }
 
 type GossipReact struct {

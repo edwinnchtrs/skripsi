@@ -40,6 +40,19 @@ interface Curhat {
   Text: string;
   AIResponse: string;
   StressScore: number;
+  BurnoutScore?: number;
+  PsychosomaticScore?: number;
+  RiskLevel?: string;
+  AnalysisConfidence?: number;
+  CrisisFlag?: boolean;
+  AdminPriority?: string;
+  AdminStatus?: string;
+  AdminSummary?: string;
+  RedFlagsJSON?: string;
+  RecommendationsJSON?: string;
+  UserNextStepsJSON?: string;
+  AnalysisSource?: string;
+  AIMode?: string;
   Timestamp: string;
 }
 
@@ -65,6 +78,7 @@ interface TreatmentReply {
 
 type TabKey = 'chat' | 'saran';
 type SuggestionFilter = 'all' | 'pending' | 'completed';
+type AIModeKey = 'friend' | 'teacher' | 'doctor' | 'family';
 
 const categoryConfig: Record<string, { icon: LucideIcon; color: string; label: string; bg: string; border: string }> = {
   konseling: { icon: Heart, color: 'text-rose-300', label: 'Konseling Psikologis', bg: 'bg-rose-500/10', border: 'border-rose-400/25' },
@@ -109,10 +123,72 @@ const moodOptions = [
   { key: 'worse', label: 'Memburuk', className: 'border-rose-400/30 bg-rose-500/10 text-rose-300' },
 ];
 
+const aiModes: Array<{ key: AIModeKey; label: string; desc: string; icon: LucideIcon; active: string }> = [
+  { key: 'friend', label: 'Teman', desc: 'Santai dan suportif', icon: MessageSquareHeart, active: 'border-pink-400/40 bg-pink-500/15 text-pink-200' },
+  { key: 'teacher', label: 'Guru', desc: 'Terstruktur dan membimbing', icon: Brain, active: 'border-violet-400/40 bg-violet-500/15 text-violet-200' },
+  { key: 'doctor', label: 'Dokter', desc: 'Edukasi gejala, bukan diagnosis', icon: Activity, active: 'border-cyan-400/40 bg-cyan-500/15 text-cyan-200' },
+  { key: 'family', label: 'Keluarga', desc: 'Hangat dan protektif', icon: Heart, active: 'border-emerald-400/40 bg-emerald-500/15 text-emerald-200' },
+];
+
+const aiModeLabel = (mode?: string) => aiModes.find((item) => item.key === mode)?.label || 'Teman';
+
 const stressLevel = (score: number) => {
   if (score > 0.7) return { label: 'Tinggi', text: 'text-rose-300', bg: 'bg-rose-500/10', border: 'border-rose-400/30', hex: '#fb7185' };
   if (score > 0.4) return { label: 'Sedang', text: 'text-amber-300', bg: 'bg-amber-500/10', border: 'border-amber-400/30', hex: '#f59e0b' };
   return { label: 'Rendah', text: 'text-emerald-300', bg: 'bg-emerald-500/10', border: 'border-emerald-400/30', hex: '#34d399' };
+};
+
+const riskConfig: Record<string, { label: string; text: string; bg: string; border: string; desc: string }> = {
+  Crisis: {
+    label: 'Krisis',
+    text: 'text-rose-200',
+    bg: 'bg-rose-500/15',
+    border: 'border-rose-300/35',
+    desc: 'Butuh dukungan segera dan monitoring admin aktif.',
+  },
+  High: {
+    label: 'Tinggi',
+    text: 'text-rose-300',
+    bg: 'bg-rose-500/10',
+    border: 'border-rose-400/30',
+    desc: 'Perlu tindak lanjut lebih dekat dari admin atau pendamping.',
+  },
+  Medium: {
+    label: 'Sedang',
+    text: 'text-amber-300',
+    bg: 'bg-amber-500/10',
+    border: 'border-amber-400/30',
+    desc: 'Ada tekanan yang perlu dipantau sebelum meningkat.',
+  },
+  Low: {
+    label: 'Rendah',
+    text: 'text-emerald-300',
+    bg: 'bg-emerald-500/10',
+    border: 'border-emerald-400/30',
+    desc: 'Kondisi relatif stabil, tetap gunakan curhat sebagai check-in.',
+  },
+  Unknown: {
+    label: 'Belum dianalisis',
+    text: 'text-slate-400',
+    bg: 'bg-slate-500/10',
+    border: 'border-slate-700',
+    desc: 'Analisis lanjutan muncul untuk curhat terbaru.',
+  },
+};
+
+const getRiskConfig = (risk?: string) => riskConfig[risk || 'Unknown'] || riskConfig.Unknown;
+
+const scoreValue = (score?: number) => (typeof score === 'number' && Number.isFinite(score) ? Math.max(0, Math.min(score, 1)) : 0);
+const scorePercent = (score?: number) => Math.round(scoreValue(score) * 100);
+
+const parseStringList = (value?: string) => {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.filter((item) => typeof item === 'string' && item.trim()).slice(0, 4) : [];
+  } catch {
+    return [];
+  }
 };
 
 const formatTime = (date: string) =>
@@ -128,6 +204,7 @@ export default function UserCurhat() {
   const [curhats, setCurhats] = useState<Curhat[]>([]);
   const [notifications, setNotifications] = useState<TherapyNotif[]>([]);
   const [inputText, setInputText] = useState('');
+  const [aiMode, setAiMode] = useState<AIModeKey>('friend');
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
   const [expandedNotif, setExpandedNotif] = useState<number | null>(null);
@@ -218,7 +295,7 @@ export default function UserCurhat() {
     setSending(true);
 
     try {
-      const response = await api.post('/curhat/submit', { text });
+      const response = await api.post('/curhat/submit', { text, mode: aiMode });
       if (response.data.curhat) setCurhats((prev) => [...prev, response.data.curhat]);
     } catch {
       setInputText(text);
@@ -279,10 +356,14 @@ export default function UserCurhat() {
   const stats = useMemo(() => {
     const avgStress = curhats.length > 0 ? curhats.reduce((sum, item) => sum + item.StressScore, 0) / curhats.length : 0;
     const latestStress = curhats.length > 0 ? curhats[curhats.length - 1].StressScore : 0;
+    const avgBurnout = curhats.length > 0 ? curhats.reduce((sum, item) => sum + scoreValue(item.BurnoutScore), 0) / curhats.length : 0;
+    const avgPsychosomatic = curhats.length > 0 ? curhats.reduce((sum, item) => sum + scoreValue(item.PsychosomaticScore), 0) / curhats.length : 0;
+    const latestRisk = curhats.length > 0 ? curhats[curhats.length - 1].RiskLevel : undefined;
     const pending = notifications.filter((item) => item.Status === 'pending').length;
     const completed = notifications.filter((item) => item.Status === 'completed').length;
-    const highStress = curhats.filter((item) => item.StressScore > 0.7).length;
-    return { avgStress, latestStress, pending, completed, highStress };
+    const highStress = curhats.filter((item) => item.StressScore > 0.7 || item.RiskLevel === 'High' || item.RiskLevel === 'Crisis').length;
+    const crisisCount = curhats.filter((item) => item.CrisisFlag || item.RiskLevel === 'Crisis').length;
+    return { avgStress, latestStress, avgBurnout, avgPsychosomatic, latestRisk, pending, completed, highStress, crisisCount };
   }, [curhats, notifications]);
 
   const filteredNotifications = useMemo(() => {
@@ -292,12 +373,21 @@ export default function UserCurhat() {
   }, [notifications, suggestionFilter]);
 
   const trendData = useMemo(
-    () => curhats.slice(-10).map((item, index) => ({ name: index + 1, stress: Math.round(item.StressScore * 100) })),
+    () =>
+      curhats.slice(-10).map((item, index) => ({
+        name: index + 1,
+        stress: scorePercent(item.StressScore),
+        burnout: scorePercent(item.BurnoutScore),
+        psikosomatis: scorePercent(item.PsychosomaticScore),
+      })),
     [curhats],
   );
 
   const avgStressLevel = stressLevel(stats.avgStress);
   const latestStressLevel = stressLevel(stats.latestStress);
+  const avgBurnoutLevel = stressLevel(stats.avgBurnout);
+  const avgPsychosomaticLevel = stressLevel(stats.avgPsychosomatic);
+  const latestRiskLevel = getRiskConfig(stats.latestRisk);
 
   return (
     <div className="min-h-screen bg-[#0b0d14] px-5 py-6 text-slate-100 md:px-8">
@@ -323,8 +413,8 @@ export default function UserCurhat() {
               {[
                 { label: 'Curhat', value: curhats.length, icon: MessageSquareHeart, color: 'text-pink-300' },
                 { label: 'Avg stres', value: `${Math.round(stats.avgStress * 100)}%`, icon: Gauge, color: avgStressLevel.text },
-                { label: 'Saran aktif', value: stats.pending, icon: BellRing, color: 'text-amber-300' },
-                { label: 'Selesai', value: stats.completed, icon: CheckCircle2, color: 'text-emerald-300' },
+                { label: 'Burnout', value: `${scorePercent(stats.avgBurnout)}%`, icon: Brain, color: avgBurnoutLevel.text },
+                { label: 'Risiko tinggi', value: stats.highStress, icon: AlertCircle, color: 'text-rose-300' },
               ].map((item) => {
                 const Icon = item.icon;
 
@@ -368,8 +458,8 @@ export default function UserCurhat() {
         </nav>
 
         {activeTab === 'chat' ? (
-          <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
-            <main className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900/70 shadow-2xl shadow-black/20">
+          <section className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+            <main className="w-full overflow-hidden rounded-xl border border-slate-800 bg-slate-900/70 shadow-2xl shadow-black/20">
               <div className="flex items-center justify-between border-b border-slate-800 bg-slate-950/70 px-5 py-4">
                 <div className="flex items-center gap-3">
                   <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-pink-500">
@@ -379,16 +469,51 @@ export default function UserCurhat() {
                     <h2 className="text-base font-semibold tracking-normal text-white">Nexus AI Companion</h2>
                     <p className="flex items-center gap-2 text-xs text-emerald-300">
                       <span className="h-2 w-2 rounded-full bg-emerald-300" />
-                      Online dan siap mendengar
+                      Mode {aiModeLabel(aiMode)} aktif
                     </p>
                   </div>
                 </div>
                 <div className={`hidden rounded-full border px-3 py-1.5 text-xs font-semibold md:inline-flex ${latestStressLevel.border} ${latestStressLevel.bg} ${latestStressLevel.text}`}>
-                  Stres terbaru {latestStressLevel.label}
+                  Risiko terbaru {latestRiskLevel.label}
                 </div>
               </div>
 
-              <div className="flex max-h-[540px] min-h-[430px] flex-col gap-4 overflow-y-auto px-5 py-5">
+              <div className="border-b border-slate-800 bg-slate-950/40 px-5 py-4">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-white">Pilih mode AI</p>
+                    <p className="text-xs text-slate-500">Gaya jawaban berubah, analisis risiko tetap memakai safeguard yang sama.</p>
+                  </div>
+                  <span className="hidden rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-xs font-semibold text-slate-300 sm:inline-flex">
+                    {aiModeLabel(aiMode)}
+                  </span>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                  {aiModes.map((mode) => {
+                    const Icon = mode.icon;
+                    const selected = aiMode === mode.key;
+
+                    return (
+                      <button
+                        key={mode.key}
+                        type="button"
+                        onClick={() => setAiMode(mode.key)}
+                        className={`min-h-[72px] rounded-xl border p-3 text-left transition ${
+                          selected ? mode.active : 'border-slate-800 bg-slate-900/70 text-slate-400 hover:border-slate-700 hover:text-slate-200'
+                        }`}
+                      >
+                        <div className="mb-2 flex items-center gap-2">
+                          <Icon className="h-4 w-4" aria-hidden="true" />
+                          <span className="text-sm font-semibold">{mode.label}</span>
+                        </div>
+                        <p className="text-xs leading-4 text-slate-500">{mode.desc}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="flex max-h-[560px] min-h-[360px] flex-col gap-4 overflow-y-auto px-5 py-5">
                 {loading ? (
                   <div className="flex flex-1 items-center justify-center">
                     <Loader2 className="h-7 w-7 animate-spin text-slate-500" aria-hidden="true" />
@@ -401,7 +526,7 @@ export default function UserCurhat() {
                     <h2 className="mt-5 text-lg font-semibold tracking-normal text-white">Mulai dari satu kalimat</h2>
                     <p className="mt-2 text-sm leading-6 text-slate-400">
                       Tulis apa yang terasa berat. Respons AI akan membantu kamu menamai
-                      kondisi dan membaca tingkat stres dari cerita tersebut.
+                      kondisi, membaca stres, burnout, dan sinyal psikosomatis dari cerita tersebut.
                     </p>
                     <div className="mt-5 flex flex-wrap justify-center gap-2">
                       {quickPrompts.map((prompt) => (
@@ -418,6 +543,18 @@ export default function UserCurhat() {
                 ) : (
                   curhats.map((chat) => {
                     const stress = stressLevel(chat.StressScore);
+                    const burnout = stressLevel(scoreValue(chat.BurnoutScore));
+                    const psychosomatic = stressLevel(scoreValue(chat.PsychosomaticScore));
+                    const risk = getRiskConfig(chat.RiskLevel);
+                    const redFlags = parseStringList(chat.RedFlagsJSON);
+                    const recommendations = parseStringList(chat.RecommendationsJSON);
+                    const userNextSteps = parseStringList(chat.UserNextStepsJSON);
+                    const hasAdvancedAnalysis = Boolean(chat.RiskLevel || chat.BurnoutScore || chat.PsychosomaticScore || redFlags.length || recommendations.length || userNextSteps.length);
+                    const clinicalScores = [
+                      { label: 'Stres', value: scorePercent(chat.StressScore), level: stress },
+                      { label: 'Burnout', value: scorePercent(chat.BurnoutScore), level: burnout },
+                      { label: 'Psikosomatis', value: scorePercent(chat.PsychosomaticScore), level: psychosomatic },
+                    ];
 
                     return (
                       <motion.div
@@ -447,14 +584,95 @@ export default function UserCurhat() {
                           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-pink-500">
                             <Bot className="h-4 w-4 text-white" aria-hidden="true" />
                           </div>
-                          <div className="max-w-[78%] rounded-[20px] rounded-bl-md border border-slate-800 bg-slate-950/80 px-4 py-3 text-sm leading-6">
-                            <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-pink-300">
-                              <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-                              NEXUS AI
+                          <div className="max-w-[88%] space-y-3">
+                            <div className="rounded-[20px] rounded-bl-md border border-slate-800 bg-slate-950/80 px-4 py-3 text-sm leading-6">
+                              <div className="mb-2 flex flex-wrap items-center gap-2 text-xs font-semibold text-pink-300">
+                                <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+                                NEXUS AI
+                                <span className="rounded-full border border-slate-700 bg-slate-900 px-2 py-0.5 text-[10px] text-slate-400">
+                                  Mode {aiModeLabel(chat.AIMode)}
+                                </span>
+                              </div>
+                              <p className="whitespace-pre-wrap text-slate-300">
+                                {chat.AIResponse || 'Terima kasih sudah berbagi. Aku di sini untuk mendengarkan.'}
+                              </p>
                             </div>
-                            <p className="whitespace-pre-wrap text-slate-300">
-                              {chat.AIResponse || 'Terima kasih sudah berbagi. Aku di sini untuk mendengarkan.'}
-                            </p>
+
+                            {hasAdvancedAnalysis && (
+                              <div className={`rounded-xl border p-4 ${risk.border} ${risk.bg}`}>
+                                <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                                  <div>
+                                    <div className="flex items-center gap-2">
+                                      <Activity className={`h-4 w-4 ${risk.text}`} aria-hidden="true" />
+                                      <p className="text-sm font-semibold text-white">Analisis AI</p>
+                                    </div>
+                                    <p className="mt-1 text-xs leading-5 text-slate-400">Insight otomatis untuk monitoring, bukan diagnosis medis.</p>
+                                  </div>
+                                  <div className={`rounded-full border px-3 py-1 text-xs font-semibold ${risk.border} ${risk.bg} ${risk.text}`}>
+                                    {risk.label}
+                                  </div>
+                                </div>
+
+                                <div className="grid gap-2 md:grid-cols-3">
+                                  {clinicalScores.map((item) => (
+                                    <div key={item.label} className="rounded-lg border border-slate-800 bg-slate-950/70 p-3">
+                                      <div className="mb-2 flex items-center justify-between gap-2 text-xs">
+                                        <span className="text-slate-500">{item.label}</span>
+                                        <span className={`font-semibold ${item.level.text}`}>{item.level.label}</span>
+                                      </div>
+                                      <div className="text-xl font-semibold text-white">{item.value}%</div>
+                                      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-800">
+                                        <div className="h-full rounded-full" style={{ width: `${item.value}%`, backgroundColor: item.level.hex }} />
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+
+                                <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                                  <div className="rounded-lg border border-slate-800 bg-slate-950/70 p-3">
+                                    <p className="mb-2 text-xs font-semibold uppercase text-slate-500">Sinyal penting</p>
+                                    {redFlags.length > 0 ? (
+                                      <div className="space-y-2">
+                                        {redFlags.map((flag) => (
+                                          <div key={flag} className="flex gap-2 text-xs leading-5 text-slate-300">
+                                            <span className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${chat.CrisisFlag ? 'bg-rose-300' : 'bg-amber-300'}`} />
+                                            <span>{flag}</span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    ) : (
+                                      <p className="text-xs leading-5 text-slate-500">Belum ada red flag kuat dari pesan ini.</p>
+                                    )}
+                                  </div>
+
+                                  <div className="rounded-lg border border-slate-800 bg-slate-950/70 p-3">
+                                    <p className="mb-2 text-xs font-semibold uppercase text-slate-500">Langkah aman</p>
+                                    {userNextSteps.length > 0 ? (
+                                      <div className="space-y-2">
+                                        {userNextSteps.slice(0, 3).map((item) => (
+                                          <div key={item} className="flex gap-2 text-xs leading-5 text-slate-300">
+                                            <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-cyan-300" />
+                                            <span>{item}</span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    ) : (
+                                      <p className="text-xs leading-5 text-slate-500">{risk.desc}</p>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
+                                  <span>Confidence {scorePercent(chat.AnalysisConfidence || 0.65)}%</span>
+                                  <span className="h-1 w-1 rounded-full bg-slate-700" />
+                                  <span>Mode {aiModeLabel(chat.AIMode)}</span>
+                                  <span className="h-1 w-1 rounded-full bg-slate-700" />
+                                  <span>Sumber {chat.AnalysisSource === 'ai' ? 'AI + local safeguard' : 'local safeguard'}</span>
+                                  <span className="h-1 w-1 rounded-full bg-slate-700" />
+                                  <span>Status admin {chat.AdminStatus || 'new'}</span>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </div>
                       </motion.div>
@@ -506,15 +724,33 @@ export default function UserCurhat() {
               <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-5">
                 <div className="mb-4 flex items-center justify-between">
                   <div>
-                    <h2 className="text-base font-semibold tracking-normal text-white">Monitor stres</h2>
-                    <p className="text-xs text-slate-500">Berdasarkan cerita terakhir</p>
+                    <h2 className="text-base font-semibold tracking-normal text-white">Monitor kondisi</h2>
+                    <p className="text-xs text-slate-500">Stres, burnout, dan psikosomatis</p>
                   </div>
-                  <Gauge className={`h-5 w-5 ${avgStressLevel.text}`} aria-hidden="true" />
+                  <Gauge className={`h-5 w-5 ${latestRiskLevel.text}`} aria-hidden="true" />
                 </div>
 
-                <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
-                  <div className={`text-3xl font-semibold ${avgStressLevel.text}`}>{Math.round(stats.avgStress * 100)}%</div>
-                  <p className="mt-1 text-sm text-slate-400">Rata-rata stres {avgStressLevel.label}</p>
+                <div className={`rounded-xl border p-4 ${latestRiskLevel.border} ${latestRiskLevel.bg}`}>
+                  <div className={`text-3xl font-semibold ${latestRiskLevel.text}`}>{latestRiskLevel.label}</div>
+                  <p className="mt-1 text-sm leading-6 text-slate-400">{latestRiskLevel.desc}</p>
+                </div>
+
+                <div className="mt-4 grid gap-2">
+                  {[
+                    { label: 'Rata-rata stres', value: scorePercent(stats.avgStress), level: avgStressLevel },
+                    { label: 'Rata-rata burnout', value: scorePercent(stats.avgBurnout), level: avgBurnoutLevel },
+                    { label: 'Rata-rata psikosomatis', value: scorePercent(stats.avgPsychosomatic), level: avgPsychosomaticLevel },
+                  ].map((item) => (
+                    <div key={item.label} className="rounded-lg border border-slate-800 bg-slate-950/70 p-3">
+                      <div className="mb-2 flex items-center justify-between text-xs">
+                        <span className="text-slate-500">{item.label}</span>
+                        <span className={`font-semibold ${item.level.text}`}>{item.level.label}</span>
+                      </div>
+                      <div className="h-2 overflow-hidden rounded-full bg-slate-800">
+                        <div className="h-full rounded-full" style={{ width: `${item.value}%`, backgroundColor: item.level.hex }} />
+                      </div>
+                    </div>
+                  ))}
                 </div>
 
                 <div className="mt-4 overflow-hidden">
@@ -526,6 +762,14 @@ export default function UserCurhat() {
                             <stop offset="5%" stopColor="#ec4899" stopOpacity={0.35} />
                             <stop offset="95%" stopColor="#ec4899" stopOpacity={0} />
                           </linearGradient>
+                          <linearGradient id="burnoutFill" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#a855f7" stopOpacity={0.22} />
+                            <stop offset="95%" stopColor="#a855f7" stopOpacity={0} />
+                          </linearGradient>
+                          <linearGradient id="psychoFill" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#22d3ee" stopOpacity={0.18} />
+                            <stop offset="95%" stopColor="#22d3ee" stopOpacity={0} />
+                          </linearGradient>
                         </defs>
                         <Tooltip
                           contentStyle={{
@@ -536,6 +780,8 @@ export default function UserCurhat() {
                             fontSize: 12,
                           }}
                         />
+                        <Area type="monotone" dataKey="psikosomatis" stroke="#22d3ee" strokeWidth={1.5} fill="url(#psychoFill)" dot={false} />
+                        <Area type="monotone" dataKey="burnout" stroke="#a855f7" strokeWidth={1.5} fill="url(#burnoutFill)" dot={false} />
                         <Area type="monotone" dataKey="stress" stroke="#ec4899" strokeWidth={2} fill="url(#stressFill)" dot={false} />
                       </AreaChart>
                     </ChartShell>
@@ -548,12 +794,12 @@ export default function UserCurhat() {
               </div>
 
               <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-5">
-                <h2 className="mb-4 text-base font-semibold tracking-normal text-white">Level stres</h2>
+                <h2 className="mb-4 text-base font-semibold tracking-normal text-white">Level risiko</h2>
                 <div className="space-y-3">
                   {[
                     { icon: Smile, label: 'Rendah', desc: 'Kondisi relatif terkendali', level: stressLevel(0.2) },
                     { icon: AlertCircle, label: 'Sedang', desc: 'Butuh perhatian dan jeda', level: stressLevel(0.55) },
-                    { icon: Zap, label: 'Tinggi', desc: 'Perlu dukungan lebih aktif', level: stressLevel(0.85) },
+                    { icon: Zap, label: 'Tinggi/Krisis', desc: 'Admin ikut memonitor lebih aktif', level: stressLevel(0.85) },
                   ].map((item) => {
                     const Icon = item.icon;
 

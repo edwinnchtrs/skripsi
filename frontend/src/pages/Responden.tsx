@@ -86,9 +86,32 @@ interface AdminReply {
   status: string;
 }
 
+interface CurhatAnalysisItem {
+  id: number;
+  user_id: number;
+  user_name: string;
+  username: string;
+  text: string;
+  ai_response: string;
+  stress_score: number;
+  burnout_score: number;
+  psychosomatic_score: number;
+  risk_level: string;
+  confidence: number;
+  crisis_flag: boolean;
+  admin_priority: string;
+  admin_status: string;
+  admin_summary: string;
+  red_flags: string[];
+  recommendations: string[];
+  analysis_source: string;
+  created_at: string;
+}
+
 type RiskFilter = 'all' | 'Crisis' | 'High' | 'Medium' | 'Low' | 'empty';
 type ModalTab = 'compose' | 'history' | 'replies';
 type ReplyFilter = 'unread' | 'all';
+type CurhatMonitorFilter = 'open' | 'urgent' | 'all';
 
 const riskMeta = {
   Crisis: { label: 'Krisis', text: 'text-rose-200', bg: 'bg-rose-500/15', border: 'border-rose-300/35', hex: '#fb7185' },
@@ -160,6 +183,7 @@ const moodLabel: Record<string, { label: string; className: string }> = {
 
 const getRisk = (risk?: string) => riskMeta[risk as keyof typeof riskMeta] ?? riskMeta.Unknown;
 const hasData = (responden: Responden) => Boolean(responden.latest_risk);
+const percentScore = (score?: number) => Math.round(Math.max(0, Math.min(score || 0, 1)) * 100);
 
 const formatDate = (date: string) => {
   if (!date || date.startsWith('0001')) return '-';
@@ -186,10 +210,12 @@ const replyDate = (reply: TreatmentReply) => reply.created_at ?? reply.CreatedAt
 export default function Responden() {
   const [data, setData] = useState<Responden[]>([]);
   const [repliesInbox, setRepliesInbox] = useState<AdminReply[]>([]);
+  const [curhatAnalyses, setCurhatAnalyses] = useState<CurhatAnalysisItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [riskFilter, setRiskFilter] = useState<RiskFilter>('all');
   const [replyFilter, setReplyFilter] = useState<ReplyFilter>('unread');
+  const [curhatFilter, setCurhatFilter] = useState<CurhatMonitorFilter>('open');
   const [selected, setSelected] = useState<Responden | null>(null);
   const [modalTab, setModalTab] = useState<ModalTab>('compose');
   const [message, setMessage] = useState('');
@@ -203,6 +229,7 @@ export default function Responden() {
   const [history, setHistory] = useState<TreatmentHistory[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [replyReadLoading, setReplyReadLoading] = useState<number | null>(null);
+  const [curhatStatusLoading, setCurhatStatusLoading] = useState<number | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -218,12 +245,14 @@ export default function Responden() {
     setLoading(true);
 
     try {
-      const [respondentsRes, repliesRes] = await Promise.all([
+      const [respondentsRes, repliesRes, curhatRes] = await Promise.all([
         api.get('/responden'),
         api.get('/admin/treatment-replies').catch(() => ({ data: { replies: [] } })),
+        api.get('/admin/curhat-analysis').catch(() => ({ data: { curhats: [] } })),
       ]);
       setData(respondentsRes.data.respondents || []);
       setRepliesInbox(repliesRes.data.replies || []);
+      setCurhatAnalyses(curhatRes.data.curhats || []);
     } catch (error) {
       console.error(error);
     } finally {
@@ -261,6 +290,51 @@ export default function Responden() {
     const responden = data.find((item) => item.id === reply.user_id);
     if (responden) {
       openModal(responden, 'replies');
+    }
+  };
+
+  const openCurhatOwner = (item: CurhatAnalysisItem) => {
+    const responden =
+      data.find((entry) => entry.id === item.user_id) || {
+        id: item.user_id,
+        nama: item.user_name || 'User',
+        username: item.username || 'anonymous',
+        latest_burnout: item.burnout_score * 10,
+        latest_risk: item.risk_level,
+        latest_psychosomatic: item.psychosomatic_score * 10,
+        last_activity: item.created_at,
+      };
+
+    openModal(responden, 'compose');
+    setPriority(item.admin_priority || (item.risk_level === 'Crisis' ? 'urgent' : item.risk_level === 'High' ? 'high' : 'medium'));
+    setCategory('konseling');
+    setDuration(item.risk_level === 'Crisis' ? '1_week' : '2_weeks');
+    setMessage(
+      [
+        `TINDAK LANJUT CURHAT AI (${getRisk(item.risk_level).label})`,
+        item.admin_summary,
+        '',
+        'Sinyal terdeteksi:',
+        ...(item.red_flags?.length ? item.red_flags.map((flag) => `- ${flag}`) : ['- Belum ada red flag spesifik.']),
+        '',
+        'Rencana tindakan:',
+        ...(item.recommendations?.length ? item.recommendations.map((rec) => `- ${rec}`) : ['- Lakukan check-in singkat dan pantau respons user.']),
+      ].join('\n'),
+    );
+  };
+
+  const updateCurhatStatus = async (id: number, status: 'reviewing' | 'actioned' | 'resolved') => {
+    if (curhatStatusLoading === id) return;
+    setCurhatStatusLoading(id);
+
+    try {
+      await api.patch(`/admin/curhat-analysis/${id}/status`, { status });
+      setCurhatAnalyses((prev) => prev.map((item) => (item.id === id ? { ...item, admin_status: status } : item)));
+      setToast({ type: 'success', text: 'Status monitoring curhat diperbarui' });
+    } catch {
+      setToast({ type: 'error', text: 'Gagal memperbarui status monitoring' });
+    } finally {
+      setCurhatStatusLoading(null);
     }
   };
 
@@ -317,8 +391,10 @@ export default function Responden() {
       ? withData.reduce((sum, item) => sum + item.latest_burnout, 0) / withData.length
       : 0;
     const unreadReplies = repliesInbox.filter((reply) => !reply.admin_seen).length;
-    return { withData, high, medium, low, avgBurnout, unreadReplies };
-  }, [data, repliesInbox]);
+    const openCurhat = curhatAnalyses.filter((item) => item.admin_status !== 'resolved').length;
+    const urgentCurhat = curhatAnalyses.filter((item) => item.crisis_flag || item.risk_level === 'Crisis' || item.admin_priority === 'urgent').length;
+    return { withData, high, medium, low, avgBurnout, unreadReplies, openCurhat, urgentCurhat };
+  }, [curhatAnalyses, data, repliesInbox]);
 
   const filtered = useMemo(() => {
     return data.filter((responden) => {
@@ -338,6 +414,16 @@ export default function Responden() {
     if (replyFilter === 'unread') return repliesInbox.filter((reply) => !reply.admin_seen);
     return repliesInbox;
   }, [repliesInbox, replyFilter]);
+
+  const filteredCurhatAnalyses = useMemo(() => {
+    if (curhatFilter === 'urgent') {
+      return curhatAnalyses.filter((item) => item.crisis_flag || item.risk_level === 'Crisis' || item.admin_priority === 'urgent' || item.risk_level === 'High');
+    }
+    if (curhatFilter === 'open') {
+      return curhatAnalyses.filter((item) => item.admin_status === 'new' || item.admin_status === 'reviewing');
+    }
+    return curhatAnalyses;
+  }, [curhatAnalyses, curhatFilter]);
 
   const selectedReplies = useMemo(() => {
     if (!selected) return [];
@@ -369,7 +455,7 @@ export default function Responden() {
                 { label: 'Responden', value: data.length, icon: Users, color: 'text-indigo-300' },
                 { label: 'Data aktif', value: stats.withData.length, icon: CheckCircle2, color: 'text-emerald-300' },
                 { label: 'Risiko tinggi', value: stats.high, icon: Shield, color: 'text-rose-300' },
-                { label: 'Balasan baru', value: stats.unreadReplies, icon: Inbox, color: 'text-amber-300' },
+                { label: 'Curhat AI', value: stats.openCurhat, icon: Brain, color: 'text-cyan-300' },
               ].map((item) => {
                 const Icon = item.icon;
                 return (
@@ -557,6 +643,155 @@ export default function Responden() {
           </main>
 
           <aside className="space-y-5">
+            <section className="rounded-xl border border-cyan-400/20 bg-cyan-500/10 p-5">
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <h2 className="text-base font-semibold tracking-normal text-white">Monitoring Curhat AI</h2>
+                  <p className="text-xs text-slate-400">Burnout, stres, psikosomatis, dan status tindak lanjut</p>
+                </div>
+                <Brain className="h-5 w-5 text-cyan-300" />
+              </div>
+
+              <div className="mb-4 grid grid-cols-2 gap-2">
+                <div className="rounded-lg border border-slate-800 bg-slate-950/70 p-3">
+                  <p className="text-xs text-slate-500">Perlu dipantau</p>
+                  <p className="mt-1 text-2xl font-semibold text-white">{stats.openCurhat}</p>
+                </div>
+                <div className="rounded-lg border border-rose-400/25 bg-rose-500/10 p-3">
+                  <p className="text-xs text-rose-200/80">Prioritas tinggi</p>
+                  <p className="mt-1 text-2xl font-semibold text-rose-200">{stats.urgentCurhat}</p>
+                </div>
+              </div>
+
+              <div className="mb-4 flex w-fit rounded-lg border border-slate-800 bg-slate-950 p-1">
+                {[
+                  { key: 'open' as const, label: 'Aktif' },
+                  { key: 'urgent' as const, label: 'Prioritas' },
+                  { key: 'all' as const, label: 'Semua' },
+                ].map((item) => (
+                  <button
+                    key={item.key}
+                    onClick={() => setCurhatFilter(item.key)}
+                    className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${
+                      curhatFilter === item.key ? 'bg-cyan-500/15 text-cyan-200' : 'text-slate-500 hover:text-slate-300'
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="max-h-[520px] space-y-3 overflow-y-auto pr-1">
+                {filteredCurhatAnalyses.length === 0 ? (
+                  <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-8 text-center">
+                    <CheckCircle2 className="mx-auto h-8 w-8 text-slate-600" />
+                    <p className="mt-3 text-sm text-slate-500">Belum ada curhat yang perlu ditindaklanjuti.</p>
+                  </div>
+                ) : (
+                  filteredCurhatAnalyses.map((item) => {
+                    const risk = getRisk(item.risk_level);
+                    const priority = priorityConfig[item.admin_priority] || priorityConfig.medium;
+                    const statusLabel: Record<string, string> = {
+                      new: 'Baru',
+                      reviewing: 'Dipantau',
+                      actioned: 'Ditindak',
+                      resolved: 'Selesai',
+                    };
+
+                    return (
+                      <article key={item.id} className={`rounded-xl border p-4 ${risk.border} ${risk.bg}`}>
+                        <div className="mb-3 flex items-start gap-3">
+                          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border ${risk.border} bg-slate-950/60`}>
+                            <User className={`h-5 w-5 ${risk.text}`} />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <h3 className="truncate text-sm font-semibold text-white">{item.user_name || 'User'}</h3>
+                            <p className="truncate text-xs text-slate-500">@{item.username || 'anonymous'}</p>
+                          </div>
+                          <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${risk.border} ${risk.bg} ${risk.text}`}>
+                            {risk.label}
+                          </span>
+                        </div>
+
+                        <p className="line-clamp-2 text-sm leading-6 text-slate-300">{item.admin_summary || item.text}</p>
+
+                        <div className="mt-3 grid grid-cols-3 gap-2">
+                          {[
+                            { label: 'Stres', value: percentScore(item.stress_score), color: 'bg-pink-300' },
+                            { label: 'Burnout', value: percentScore(item.burnout_score), color: 'bg-violet-300' },
+                            { label: 'Psiko', value: percentScore(item.psychosomatic_score), color: 'bg-cyan-300' },
+                          ].map((metric) => (
+                            <div key={metric.label} className="rounded-lg border border-slate-800 bg-slate-950/70 p-2">
+                              <div className="mb-1 flex items-center justify-between gap-1 text-[10px] text-slate-500">
+                                <span>{metric.label}</span>
+                                <span className="text-slate-300">{metric.value}%</span>
+                              </div>
+                              <div className="h-1.5 overflow-hidden rounded-full bg-slate-800">
+                                <div className={`h-full rounded-full ${metric.color}`} style={{ width: `${metric.value}%` }} />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {item.red_flags?.length > 0 && (
+                          <div className="mt-3 rounded-lg border border-slate-800 bg-slate-950/70 p-3">
+                            <p className="mb-2 text-[11px] font-semibold uppercase text-slate-500">Red flag</p>
+                            <div className="space-y-1.5">
+                              {item.red_flags.slice(0, 3).map((flag) => (
+                                <div key={flag} className="flex gap-2 text-xs leading-5 text-slate-300">
+                                  <span className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${item.crisis_flag ? 'bg-rose-300' : 'bg-amber-300'}`} />
+                                  <span>{flag}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="mt-3 flex flex-wrap items-center gap-2">
+                          <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${priority.className}`}>
+                            <span className={`mr-1.5 inline-block h-1.5 w-1.5 rounded-full ${priority.dot}`} />
+                            {priority.label}
+                          </span>
+                          <span className="rounded-full border border-slate-800 bg-slate-950 px-2.5 py-1 text-[11px] text-slate-500">
+                            {statusLabel[item.admin_status] || item.admin_status || 'Baru'}
+                          </span>
+                        </div>
+
+                        <div className="mt-3 grid grid-cols-2 gap-2">
+                          <button
+                            onClick={() => openCurhatOwner(item)}
+                            className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-cyan-500 text-xs font-semibold text-slate-950 transition hover:bg-cyan-400"
+                          >
+                            <Send className="h-3.5 w-3.5" />
+                            Tindak
+                          </button>
+                          {item.admin_status === 'resolved' ? (
+                            <button
+                              onClick={() => updateCurhatStatus(item.id, 'reviewing')}
+                              disabled={curhatStatusLoading === item.id}
+                              className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-950 text-xs font-semibold text-slate-300 transition hover:border-cyan-400/40 hover:text-cyan-200 disabled:opacity-60"
+                            >
+                              {curhatStatusLoading === item.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <History className="h-3.5 w-3.5" />}
+                              Buka lagi
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => updateCurhatStatus(item.id, item.admin_status === 'new' ? 'reviewing' : 'resolved')}
+                              disabled={curhatStatusLoading === item.id}
+                              className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-950 text-xs font-semibold text-slate-300 transition hover:border-emerald-400/40 hover:text-emerald-200 disabled:opacity-60"
+                            >
+                              {curhatStatusLoading === item.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                              {item.admin_status === 'new' ? 'Pantau' : 'Selesai'}
+                            </button>
+                          )}
+                        </div>
+                      </article>
+                    );
+                  })
+                )}
+              </div>
+            </section>
+
             <section className="rounded-xl border border-slate-800 bg-slate-900/70 p-5">
               <div className="mb-4 flex items-center justify-between">
                 <div>
