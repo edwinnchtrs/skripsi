@@ -735,7 +735,7 @@ export default function AIAssistant({ role, open, onOpenChange }: AIAssistantPro
             initial={{ opacity: 0, y: 10, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 10, scale: 0.98 }}
-            className="fixed bottom-32 right-5 z-[121] w-[min(360px,calc(100vw-32px))] rounded-xl border border-slate-700 bg-slate-950/95 p-4 shadow-2xl shadow-black/40 backdrop-blur"
+            className="ai-assistant-insight fixed bottom-32 right-5 z-[121] w-[min(360px,calc(100vw-32px))] rounded-xl border border-slate-700 bg-slate-950/95 p-4 shadow-2xl shadow-black/40 backdrop-blur"
           >
             <div className="mb-3 flex items-start justify-between gap-3">
               <div className="flex items-center gap-2">
@@ -775,14 +775,14 @@ export default function AIAssistant({ role, open, onOpenChange }: AIAssistantPro
       </AnimatePresence>
 
       {!open && (
-        <div className="fixed bottom-5 right-5 z-[120]">
+        <div className="ai-assistant-launcher fixed bottom-5 right-5 z-[120]">
           <AnimatePresence>
             {clockOpen && (
               <motion.div
                 initial={{ opacity: 0, y: 8, scale: 0.98 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 8, scale: 0.98 }}
-                className="absolute bottom-[92px] right-0 w-64 rounded-xl border border-slate-700 bg-slate-950/95 p-4 shadow-2xl shadow-black/40 backdrop-blur"
+                className="ai-assistant-clock absolute bottom-[92px] right-0 w-64 rounded-xl border border-slate-700 bg-slate-950/95 p-4 shadow-2xl shadow-black/40 backdrop-blur"
               >
                 <div className="flex items-center gap-2 text-xs font-semibold uppercase text-cyan-200">
                   <Clock3 className="h-4 w-4" />
@@ -820,7 +820,7 @@ export default function AIAssistant({ role, open, onOpenChange }: AIAssistantPro
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 18, scale: 0.98 }}
             transition={{ duration: 0.18 }}
-            className="fixed bottom-5 right-5 z-[130] flex h-[min(790px,calc(100vh-40px))] w-[min(520px,calc(100vw-32px))] flex-col overflow-hidden rounded-xl border border-slate-700 bg-slate-950/95 shadow-2xl shadow-black/50 backdrop-blur"
+            className="ai-assistant-panel fixed bottom-5 right-5 z-[130] flex h-[min(790px,calc(100vh-40px))] w-[min(520px,calc(100vw-32px))] flex-col overflow-hidden rounded-xl border border-slate-700 bg-slate-950/95 shadow-2xl shadow-black/50 backdrop-blur"
           >
             <header className="border-b border-slate-800 bg-slate-900/80 p-4">
               <div className="flex items-start justify-between gap-3">

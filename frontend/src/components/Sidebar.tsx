@@ -12,14 +12,19 @@ import {
   Sun,
   Moon,
   Bot,
+  ShieldAlert,
+  Command,
+  X,
 } from 'lucide-react';
 import { useMemo } from 'react';
 import { useTheme } from '../hooks/useTheme';
 
 const navItems = [
+  { label: 'Command Center', icon: Command, path: '/command-center' },
   { label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
   { label: 'Prediksi Individu', icon: User, path: '/prediksi' },
   { label: 'Data Responden', icon: Users, path: '/responden' },
+  { label: 'Pusat Risiko', icon: ShieldAlert, path: '/risk-center' },
   { label: 'Analitik & Insight', icon: BarChart2, path: '/analitik' },
   { label: 'Quantum Cognition', icon: Brain, path: '/quantum' },
   { label: 'Model & Evaluasi', icon: FlaskConical, path: '/model' },
@@ -28,7 +33,15 @@ const navItems = [
   { label: 'Pengaturan Sistem', icon: Settings, path: '/settings' },
 ];
 
-export default function Sidebar({ onOpenAssistant }: { onOpenAssistant: () => void }) {
+export default function Sidebar({
+  open = false,
+  onClose,
+  onOpenAssistant,
+}: {
+  open?: boolean;
+  onClose?: () => void;
+  onOpenAssistant: () => void;
+}) {
   const location = useLocation();
   const navigate = useNavigate();
   const { dark, setDark } = useTheme();
@@ -48,6 +61,8 @@ export default function Sidebar({ onOpenAssistant }: { onOpenAssistant: () => vo
 
   return (
     <aside
+      className="dashboard-sidebar"
+      data-open={open ? 'true' : 'false'}
       style={{
         width: 220,
         minWidth: 220,
@@ -84,6 +99,9 @@ export default function Sidebar({ onOpenAssistant }: { onOpenAssistant: () => vo
             </div>
             <div style={{ color: 'var(--theme-text-muted)', fontSize: 10 }}>Quantum Cognition</div>
           </div>
+          <button type="button" className="mobile-sidebar-close" onClick={onClose} aria-label="Tutup menu admin">
+            <X size={17} />
+          </button>
         </div>
       </div>
 
@@ -96,6 +114,7 @@ export default function Sidebar({ onOpenAssistant }: { onOpenAssistant: () => vo
             <Link
               key={item.path}
               to={item.path}
+              onClick={onClose}
               style={{
                 display: 'flex',
                 alignItems: 'center',

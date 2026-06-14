@@ -14,6 +14,8 @@ import {
   Bell,
   Bot,
   Clapperboard,
+  HeartPulse,
+  X,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import api from '../api';
@@ -23,13 +25,22 @@ const navItems = [
   { label: 'Overview', icon: LayoutDashboard, path: '/user/dashboard' },
   { label: 'Kuisioner Harian', icon: ClipboardList, path: '/user/kuisioner' },
   { label: 'Ruang Curhat Anonim', icon: MessageSquareHeart, path: '/user/curhat', badge: true },
+  { label: 'Recovery Plan', icon: HeartPulse, path: '/user/recovery' },
   { label: 'Riwayat Asesmen', icon: Activity, path: '/user/asesmen' },
   { label: 'Jaringan Teman', icon: Users, path: '/user/network' },
   { label: 'Ruang Film', icon: Clapperboard, path: '/user/film' },
   { label: 'Pengaturan Akun', icon: Settings, path: '/user/settings' },
 ];
 
-export default function UserSidebar({ onOpenAssistant }: { onOpenAssistant: () => void }) {
+export default function UserSidebar({
+  open = false,
+  onClose,
+  onOpenAssistant,
+}: {
+  open?: boolean;
+  onClose?: () => void;
+  onOpenAssistant: () => void;
+}) {
   const location = useLocation();
   const navigate = useNavigate();
   const { dark, setDark } = useTheme();
@@ -64,6 +75,8 @@ export default function UserSidebar({ onOpenAssistant }: { onOpenAssistant: () =
 
   return (
     <aside
+      className="dashboard-sidebar"
+      data-open={open ? 'true' : 'false'}
       style={{
         width: 220,
         minWidth: 220,
@@ -100,6 +113,9 @@ export default function UserSidebar({ onOpenAssistant }: { onOpenAssistant: () =
             </div>
             <div style={{ color: 'var(--theme-text-muted)', fontSize: 10 }}>User Portal</div>
           </div>
+          <button type="button" className="mobile-sidebar-close" onClick={onClose} aria-label="Tutup menu user">
+            <X size={17} />
+          </button>
         </div>
       </div>
 
@@ -112,6 +128,7 @@ export default function UserSidebar({ onOpenAssistant }: { onOpenAssistant: () =
             <Link
               key={item.path}
               to={item.path}
+              onClick={onClose}
               style={{
                 display: 'flex',
                 alignItems: 'center',

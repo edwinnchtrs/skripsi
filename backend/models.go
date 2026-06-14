@@ -132,6 +132,17 @@ type TreatmentReply struct {
 	AdminSeen               bool `gorm:"default:false"`
 }
 
+type DailyCheckIn struct {
+	gorm.Model
+	UserID      uint      `gorm:"index"`
+	MoodScore   int       `gorm:"default:3"`
+	EnergyScore int       `gorm:"default:3"`
+	SleepHours  float64   `gorm:"default:7"`
+	StressScore int       `gorm:"default:3"`
+	Notes       string    `gorm:"type:text"`
+	Timestamp   time.Time `gorm:"autoCreateTime"`
+}
+
 type CurhatReply struct {
 	gorm.Model
 	CurhatID uint

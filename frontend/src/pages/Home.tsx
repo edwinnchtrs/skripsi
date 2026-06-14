@@ -169,8 +169,8 @@ function MiniTrend({ points }: { points: number[] }) {
         </linearGradient>
       </defs>
       <path d={`${path} L 100 100 L 0 100 Z`} fill="url(#trendFill)" />
-      <path d={path} fill="none" stroke="#8b6cff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx="100" cy={(100 - points[points.length - 1]).toFixed(1)} r="3.2" fill="#d9d2ff" stroke="#6b4cff" strokeWidth="2" />
+      <path className="landing-trend-line" d={path} fill="none" stroke="#8b6cff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+      <circle className="landing-trend-dot" cx="100" cy={(100 - points[points.length - 1]).toFixed(1)} r="3.2" fill="#d9d2ff" stroke="#6b4cff" strokeWidth="2" />
     </svg>
   );
 }
@@ -221,13 +221,14 @@ export default function Home() {
   const scrollToDemo = () => document.getElementById('platform')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
   return (
-    <div className="min-h-screen overflow-hidden bg-[#050816] text-slate-100">
-      <section className="relative min-h-[calc(100vh-5rem)] px-4 pb-12 pt-24 sm:px-6 lg:px-8">
+    <div className="landing-page min-h-screen overflow-hidden bg-[#050816] text-slate-100">
+      <section className="landing-hero-shell relative min-h-[calc(100vh-5rem)] px-4 pb-12 pt-24 sm:px-6 lg:px-8">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_16%,rgba(88,80,236,0.30),transparent_30%),radial-gradient(circle_at_84%_18%,rgba(34,211,238,0.13),transparent_24%),linear-gradient(180deg,#060a18_0%,#050816_58%,#060914_100%)]" />
-        <div className="absolute inset-0 opacity-[0.12] [background-image:linear-gradient(rgba(148,163,184,0.18)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.18)_1px,transparent_1px)] [background-size:48px_48px]" />
+        <div className="landing-grid-flow absolute inset-0 opacity-[0.12] [background-image:linear-gradient(rgba(148,163,184,0.18)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.18)_1px,transparent_1px)] [background-size:48px_48px]" />
+        <div className="landing-scanline absolute inset-x-0 top-20 h-px bg-cyan-200/30" />
 
         <div className="relative mx-auto grid max-w-7xl items-center gap-12 lg:grid-cols-[0.82fr_1.18fr]">
-          <div className="max-w-3xl">
+          <div className="landing-reveal max-w-3xl">
             <div className="inline-flex items-center gap-2 rounded-full border border-violet-300/20 bg-slate-100/[0.04] px-4 py-2 text-sm font-semibold text-violet-200 shadow-[0_0_40px_rgba(124,92,255,0.16)]">
               <Zap className="h-4 w-4 text-violet-300" aria-hidden="true" />
               AI-Powered Burnout Detection
@@ -265,7 +266,7 @@ export default function Home() {
               {metrics.map((item) => {
                 const Icon = item.icon;
                 return (
-                  <article key={item.label} className="rounded-xl border border-slate-700/60 bg-slate-900/52 p-4 shadow-[0_18px_60px_rgba(2,6,23,0.25)]">
+                  <article key={item.label} className="landing-card rounded-xl border border-slate-700/60 bg-slate-900/52 p-4 shadow-[0_18px_60px_rgba(2,6,23,0.25)]">
                     <Icon className="h-5 w-5 text-violet-300" aria-hidden="true" />
                     <p className="mt-4 text-3xl font-black text-violet-300">{item.value}</p>
                     <p className="mt-2 text-sm font-semibold text-slate-200">{item.label}</p>
@@ -276,7 +277,7 @@ export default function Home() {
             </div>
           </div>
 
-          <div id="demo" className="relative">
+          <div id="demo" className="landing-console relative">
             <div className="absolute -inset-5 rounded-[2rem] bg-violet-500/12 blur-3xl" />
             <div className="relative overflow-hidden rounded-[2rem] border border-violet-300/35 bg-[#0a0d1c] p-4 shadow-[0_30px_120px_rgba(39,36,120,0.45)]">
               <div className="rounded-[1.55rem] border border-slate-700/70 bg-[#0f1324] p-4 md:p-5">
@@ -316,7 +317,7 @@ export default function Home() {
                           key={mode}
                           type="button"
                           onClick={() => setActiveMode(mode)}
-                          className={`h-9 rounded-lg px-4 text-xs font-bold transition ${
+                          className={`landing-mode-button h-9 rounded-lg px-4 text-xs font-bold transition ${
                             activeMode === mode
                               ? 'bg-violet-500 text-slate-50'
                               : 'border border-slate-700 bg-[#0b0f1e] text-slate-400 hover:border-violet-300/40 hover:text-slate-100'
@@ -328,7 +329,7 @@ export default function Home() {
                     </div>
 
                     <div className="mt-5 grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
-                      <section className="rounded-xl border border-slate-700/70 bg-slate-950/35 p-5">
+                      <section className="landing-panel rounded-xl border border-slate-700/70 bg-slate-950/35 p-5">
                         <p className="text-sm font-semibold text-slate-300">Risk Score</p>
                         <div className="mt-5 grid items-center gap-5 sm:grid-cols-[150px_minmax(0,1fr)]">
                           <div
@@ -355,7 +356,7 @@ export default function Home() {
                         </div>
                       </section>
 
-                      <section className="rounded-xl border border-slate-700/70 bg-slate-950/35 p-5">
+                      <section className="landing-panel rounded-xl border border-slate-700/70 bg-slate-950/35 p-5">
                         <div className="flex items-center justify-between">
                           <p className="text-sm font-semibold text-slate-300">Risk Trend</p>
                           <span className="rounded-lg border border-slate-700 px-3 py-1 text-xs text-slate-400">7 Hari</span>
@@ -366,7 +367,7 @@ export default function Home() {
                       </section>
                     </div>
 
-                    <section className="mt-4 rounded-xl border border-slate-700/70 bg-slate-950/35 p-5">
+                    <section className="landing-panel mt-4 rounded-xl border border-slate-700/70 bg-slate-950/35 p-5">
                       <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                         <div>
                           <p className="text-sm font-semibold text-slate-300">Indikator Utama</p>
@@ -377,7 +378,7 @@ export default function Home() {
 
                       <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                         {active.indicators.map((indicator) => (
-                          <article key={indicator.label} className="rounded-xl border border-slate-800 bg-[#11162a] p-4">
+                          <article key={indicator.label} className="landing-card rounded-xl border border-slate-800 bg-[#11162a] p-4">
                             <p className="text-xs text-slate-400">{indicator.label}</p>
                             <p className="mt-3 text-3xl font-black text-slate-100">{indicator.value}</p>
                             <p className="mt-1 text-xs text-slate-500">{indicator.status}</p>
@@ -424,7 +425,7 @@ export default function Home() {
               {featureStack.map((feature) => {
                 const Icon = feature.icon;
                 return (
-                  <article key={feature.title} className="rounded-2xl border border-slate-800 bg-[#0d1224] p-6">
+                  <article key={feature.title} className="landing-card rounded-2xl border border-slate-800 bg-[#0d1224] p-6">
                     <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-violet-500/16 text-violet-300">
                       <Icon className="h-5 w-5" aria-hidden="true" />
                     </div>
@@ -441,7 +442,7 @@ export default function Home() {
       <section id="platform" className="bg-[#080c1a] px-4 py-20 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl">
           <div className="grid gap-10 lg:grid-cols-[1fr_0.82fr]">
-            <div className="rounded-[2rem] border border-slate-800 bg-[#0d1224] p-6 md:p-8">
+            <div className="landing-panel rounded-[2rem] border border-slate-800 bg-[#0d1224] p-6 md:p-8">
               <div className="flex items-start justify-between gap-6">
                 <div>
                   <p className="text-sm font-bold text-violet-300">Platform flow</p>
@@ -454,7 +455,7 @@ export default function Home() {
 
               <div className="mt-8 grid gap-4">
                 {platformFlow.map(([step, title, body]) => (
-                  <article key={step} className="grid gap-4 rounded-2xl border border-slate-800 bg-slate-950/32 p-5 sm:grid-cols-[72px_minmax(0,1fr)]">
+                  <article key={step} className="landing-card grid gap-4 rounded-2xl border border-slate-800 bg-slate-950/32 p-5 sm:grid-cols-[72px_minmax(0,1fr)]">
                     <p className="text-3xl font-black text-violet-300">{step}</p>
                     <div>
                       <h3 className="text-xl font-bold text-slate-50">{title}</h3>
@@ -465,12 +466,12 @@ export default function Home() {
               </div>
             </div>
 
-            <div id="untuk-siapa" className="rounded-[2rem] border border-violet-300/20 bg-violet-500 p-6 text-[#090b17] md:p-8">
+            <div id="untuk-siapa" className="landing-accent-panel rounded-[2rem] border border-violet-300/20 bg-violet-500 p-6 text-[#090b17] md:p-8">
               <p className="text-sm font-bold text-[#211545]">Untuk siapa</p>
               <h2 className="mt-4 text-4xl font-black leading-tight md:text-5xl">Satu sistem untuk tiga peran.</h2>
               <div className="mt-8 space-y-3">
                 {audiences.map(([title, body]) => (
-                  <article key={title} className="rounded-2xl bg-slate-950/12 p-5">
+                  <article key={title} className="landing-accent-item rounded-2xl bg-slate-950/12 p-5">
                     <h3 className="text-xl font-black">{title}</h3>
                     <p className="mt-2 text-sm leading-7 text-[#211545]">{body}</p>
                   </article>
@@ -503,7 +504,7 @@ export default function Home() {
             ].map(([Icon, title, body]) => {
               const TypedIcon = Icon as typeof Gauge;
               return (
-                <article key={title as string} className="rounded-2xl border border-slate-800 bg-[#0d1224] p-6">
+                <article key={title as string} className="landing-card rounded-2xl border border-slate-800 bg-[#0d1224] p-6">
                   <TypedIcon className="h-6 w-6 text-violet-300" aria-hidden="true" />
                   <h3 className="mt-5 text-xl font-bold text-slate-50">{title as string}</h3>
                   <p className="mt-3 text-sm leading-7 text-slate-400">{body as string}</p>
@@ -533,7 +534,7 @@ export default function Home() {
 
             <div className="space-y-3">
               {faqs.map(([question, answer]) => (
-                <article key={question} className="rounded-2xl border border-slate-800 bg-[#0d1224] p-5">
+                <article key={question} className="landing-card rounded-2xl border border-slate-800 bg-[#0d1224] p-5">
                   <div className="flex gap-3">
                     <CheckCircle2 className="mt-1 h-5 w-5 shrink-0 text-cyan-300" aria-hidden="true" />
                     <div>
@@ -549,7 +550,7 @@ export default function Home() {
       </section>
 
       <section className="px-4 py-20 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-7xl overflow-hidden rounded-[2rem] border border-violet-300/25 bg-violet-500 p-8 text-[#090b17] md:p-12">
+        <div className="landing-final-cta mx-auto max-w-7xl overflow-hidden rounded-[2rem] border border-violet-300/25 bg-violet-500 p-8 text-[#090b17] md:p-12">
           <div className="grid gap-8 lg:grid-cols-[1fr_0.72fr] lg:items-end">
             <div>
               <p className="text-sm font-bold text-[#211545]">Final call</p>

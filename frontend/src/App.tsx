@@ -5,6 +5,7 @@ import Home from './pages/Home'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
+import CommandCenter from './pages/CommandCenter'
 import UserDashboardLayout from './components/UserDashboardLayout'
 import UserDashboard from './pages/UserDashboard'
 import UserKuisioner from './pages/UserKuisioner'
@@ -16,12 +17,14 @@ import ModelEvaluasi from './pages/ModelEvaluasi'
 import ManajemenUser from './pages/ManajemenUser'
 import PengaturanSistem from './pages/PengaturanSistem'
 import Laporan from './pages/Laporan'
+import RiskCenter from './pages/RiskCenter'
 import UserAsesmenHistory from './pages/UserAsesmenHistory'
 import UserCurhat from './pages/UserCurhat'
 import UserProfileSettings from './pages/userDashboard/UserProfileSettings'
 import UserNetwork from './pages/userDashboard/UserNetwork'
 import UserProfilePage from './pages/userDashboard/UserProfilePage'
 import UserCinema from './pages/userDashboard/UserCinema'
+import UserRecoveryPlan from './pages/userDashboard/UserRecoveryPlan'
 import NotFound from './pages/NotFound'
 import ForgotPassword from './pages/ForgotPassword'
 import RequireRole from './components/RequireRole'
@@ -52,6 +55,7 @@ function App() {
         {/* Dashboard pakai layout sidebar baru */}
         <Route element={<RequireRole allow={['admin']} />}>
           <Route element={<DashboardLayout />}>
+            <Route path="/command-center" element={<CommandCenter />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/responden" element={<Responden />} />
             <Route path="/prediksi" element={<PrediksiIndividu />} />
@@ -61,6 +65,7 @@ function App() {
             <Route path="/users" element={<ManajemenUser />} />
             <Route path="/settings" element={<PengaturanSistem />} />
             <Route path="/laporan" element={<Laporan />} />
+            <Route path="/risk-center" element={<RiskCenter />} />
           </Route>
         </Route>
 
@@ -74,6 +79,7 @@ function App() {
             <Route path="/user/settings" element={<UserProfileSettings />} />
             <Route path="/user/network" element={<UserNetwork />} />
             <Route path="/user/film" element={<UserCinema />} />
+            <Route path="/user/recovery" element={<UserRecoveryPlan />} />
             <Route path="/user/profile/:username" element={<UserProfilePage />} />
           </Route>
         </Route>

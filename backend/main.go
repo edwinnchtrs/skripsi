@@ -77,6 +77,10 @@ func main() {
 
 			// Social & Profile
 			protected.GET("/user/history", UserHistoryHandler)
+			protected.GET("/user/risk-timeline", UserRiskTimelineHandler)
+			protected.GET("/user/recovery-plan", UserRecoveryPlanHandler)
+			protected.GET("/user/checkins", UserCheckInsHandler)
+			protected.POST("/user/checkins", UserCheckInCreateHandler)
 			protected.GET("/user/profile", UserProfileGetHandler)
 			protected.PUT("/user/profile", UserProfilePutHandler)
 			protected.GET("/network/users", NetworkUsersHandler)
@@ -128,6 +132,12 @@ func main() {
 			admin.PATCH("/admin/treatment-replies/:id/read", AdminTreatmentReplyReadHandler)
 			admin.GET("/admin/curhat-analysis", AdminCurhatAnalysisHandler)
 			admin.PATCH("/admin/curhat-analysis/:id/status", AdminCurhatAnalysisStatusHandler)
+			admin.GET("/admin/command-center", AdminCommandCenterHandler)
+			admin.GET("/admin/risk-center", AdminRiskCenterHandler)
+			admin.GET("/admin/users/:id/timeline", AdminUserTimelineHandler)
+			admin.GET("/admin/users/:id/case-summary", AdminUserCaseSummaryHandler)
+			admin.GET("/admin/users/:id/report", AdminUserReportExportHandler)
+			admin.PATCH("/admin/triage/:type/:id/status", AdminTriageStatusHandler)
 
 			admin.GET("/admin/analytics", AdminAnalyticsHandler)
 			admin.GET("/admin/config", AdminConfigGetHandler)

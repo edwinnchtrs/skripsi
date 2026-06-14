@@ -48,18 +48,18 @@ export default function Layout() {
 
     return (
       <div className="min-h-screen bg-[#050816] text-slate-100">
-        <header className="fixed inset-x-0 top-0 z-50 border-b border-slate-800/70 bg-[#050816]/92">
+        <header className="landing-nav fixed inset-x-0 top-0 z-50 border-b border-slate-800/70 bg-[#050816]/88">
           <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-            <Link to="/" className="flex items-center gap-3" aria-label="NexusMind home">
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500 text-xl font-black text-slate-50 shadow-[0_12px_34px_rgba(124,92,255,0.35)]">
+            <Link to="/" className="group flex items-center gap-3" aria-label="NexusMind home">
+              <span className="landing-logo-mark flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500 text-xl font-black text-slate-50 shadow-[0_12px_34px_rgba(124,92,255,0.35)]">
                 N
               </span>
-              <span className="text-2xl font-black text-slate-50">NexusMind</span>
+              <span className="text-2xl font-black text-slate-50 transition group-hover:text-violet-200">NexusMind</span>
             </Link>
 
             <nav className="hidden items-center gap-10 text-sm font-semibold text-slate-200 lg:flex">
               {landingNav.map((item) => (
-                <a key={item.to} href={item.to} className="transition hover:text-violet-300">
+                <a key={item.to} href={item.to} className="landing-nav-link transition hover:text-violet-300">
                   {item.label}
                 </a>
               ))}
@@ -77,7 +77,7 @@ export default function Layout() {
               )}
               <Link
                 to={isAuthenticated ? (role === 'admin' ? '/dashboard' : '/user/kuisioner') : '/register'}
-                className="inline-flex h-12 items-center justify-center rounded-xl bg-violet-500 px-6 text-sm font-bold text-slate-50 shadow-[0_18px_48px_rgba(124,92,255,0.32)] transition hover:bg-violet-400"
+                className="landing-primary-action inline-flex h-12 items-center justify-center rounded-xl bg-violet-500 px-6 text-sm font-bold text-slate-50 shadow-[0_18px_48px_rgba(124,92,255,0.32)] transition hover:bg-violet-400"
               >
                 {isAuthenticated ? 'Buka Sistem' : 'Daftar Gratis'}
               </Link>

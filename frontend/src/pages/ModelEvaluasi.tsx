@@ -58,6 +58,45 @@ interface ModelData {
     color: string;
   }[];
   formula: { burnout: string; psychosomatic: string };
+  validation: {
+    status: string;
+    status_level: string;
+    summary: string;
+    dataset: {
+      source: string;
+      dataset_type: string;
+      paired_samples: number;
+      unique_users: number;
+      assessment_records: number;
+      prediction_records: number;
+      period_start: string;
+      period_end: string;
+      risk_distribution: Record<string, number>;
+      target_definition: string;
+      ground_truth_status: string;
+      feature_definition: string;
+      minimum_for_training: number;
+    };
+    holdout: {
+      strategy: string;
+      train_samples: number;
+      test_samples: number;
+      models: Array<{
+        model: string;
+        short: string;
+        trained: boolean;
+        samples: number;
+        r2: number;
+        accuracy: number;
+        mae: number;
+        rmse: number;
+        f1: number;
+        note?: string;
+      }>;
+    };
+    thesis_notes: string[];
+    limitations: string[];
+  };
   metadata: {
     active_model: string;
     trained: boolean;
@@ -71,7 +110,7 @@ interface ModelData {
   };
 }
 
-type TabKey = 'overview' | 'comparison' | 'details';
+type TabKey = 'overview' | 'validation' | 'comparison' | 'details';
 
 const tooltipStyle = {
   background: '#0f172a',
@@ -142,6 +181,7 @@ export default function ModelEvaluasi() {
         cross_val_scores: data.cross_val_scores,
         confusion_matrix: data.confusion_matrix,
         formula: data.formula,
+        validation: data.validation,
       },
       null,
       2,
@@ -339,6 +379,10 @@ export default function ModelEvaluasi() {
                   <ShieldCheck className="h-3.5 w-3.5" />
                   {data.metadata.trained ? 'Model terlatih' : 'Fallback aktif'}
                 </span>
+                <span className="inline-flex items-center gap-2 rounded-full border border-sky-300/20 bg-sky-300/10 px-3 py-1 text-xs font-semibold text-sky-100">
+                  <Database className="h-3.5 w-3.5" />
+                  {data.validation?.status || 'Validasi internal'}
+                </span>
               </div>
               <h1 className="text-2xl font-bold tracking-normal text-white sm:text-3xl">Model & Evaluasi</h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
@@ -394,6 +438,7 @@ export default function ModelEvaluasi() {
           <div className="flex flex-wrap gap-2">
             {[
               { key: 'overview' as const, label: 'Overview', desc: 'Metrik, matrix, dan fitur', icon: BarChart3 },
+              { key: 'validation' as const, label: 'Validasi Skripsi', desc: 'Dataset nyata dan holdout', icon: ShieldCheck },
               { key: 'comparison' as const, label: 'Perbandingan Model', desc: 'QC, RF, LR, dan SVM', icon: GitCompare },
               { key: 'details' as const, label: 'Formula & Detail', desc: 'Bobot, pipeline, dan matrix', icon: Sigma },
             ].map(({ key, label, desc, icon: Icon }) => (
@@ -517,6 +562,136 @@ export default function ModelEvaluasi() {
               </SectionCard>
 
               <FormulaMiniCard data={data} />
+            </aside>
+          </section>
+        )}
+
+        {activeTab === 'validation' && (
+          <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
+            <div className="grid gap-5">
+              <SectionCard className="p-5 sm:p-6">
+                <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-sky-300/20 bg-sky-400/10 px-3 py-1 text-xs font-semibold text-sky-100">
+                      <ShieldCheck className="h-3.5 w-3.5" />
+                      {data.validation.status}
+                    </div>
+                    <h2 className="text-xl font-bold text-white">Dossier Validasi Dataset Nyata</h2>
+                    <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">{data.validation.summary}</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-slate-950/45 p-4 text-right">
+                    <p className="text-xs text-slate-500">Paired samples</p>
+                    <p className="mt-2 text-3xl font-bold text-white">{data.validation.dataset.paired_samples}</p>
+                    <p className="mt-1 text-xs text-slate-500">{data.validation.dataset.unique_users} user unik</p>
+                  </div>
+                </div>
+
+                <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                  {[
+                    ['Sumber dataset', data.validation.dataset.source],
+                    ['Tipe dataset', data.validation.dataset.dataset_type],
+                    ['Periode data', `${data.validation.dataset.period_start || '-'} sampai ${data.validation.dataset.period_end || '-'}`],
+                    ['Ground truth', data.validation.dataset.ground_truth_status],
+                  ].map(([label, value]) => (
+                    <div key={label} className="rounded-xl border border-white/10 bg-slate-950/45 p-4">
+                      <p className="text-xs text-slate-500">{label}</p>
+                      <p className="mt-2 text-sm font-semibold leading-6 text-slate-100">{value}</p>
+                    </div>
+                  ))}
+                </div>
+              </SectionCard>
+
+              <SectionCard className="p-5 sm:p-6">
+                <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <h2 className="text-base font-semibold text-white">Holdout Validation</h2>
+                    <p className="mt-1 text-xs text-slate-500">{data.validation.holdout.strategy}, train {data.validation.holdout.train_samples}, test {data.validation.holdout.test_samples}</p>
+                  </div>
+                  <span className="rounded-full border border-amber-300/20 bg-amber-400/10 px-3 py-1 text-xs font-semibold text-amber-100">
+                    Anti data leakage
+                  </span>
+                </div>
+                <div className="grid gap-3 lg:grid-cols-3">
+                  {data.validation.holdout.models.map((model) => (
+                    <div key={model.model} className="rounded-2xl border border-white/10 bg-slate-950/45 p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-white">{model.model}</p>
+                          <p className="mt-1 text-xs text-slate-500">{model.trained ? 'Terlatih pada train set' : model.note || 'Belum terlatih'}</p>
+                        </div>
+                        <span className="rounded-lg bg-white/10 px-2 py-1 text-xs font-bold text-slate-200">{model.short}</span>
+                      </div>
+                      <div className="mt-4 grid grid-cols-2 gap-2">
+                        {[
+                          ['R2', model.r2.toFixed(3)],
+                          ['Acc', formatPct(model.accuracy || 0)],
+                          ['MAE', model.mae.toFixed(2)],
+                          ['RMSE', model.rmse.toFixed(2)],
+                        ].map(([label, value]) => (
+                          <div key={label} className="rounded-lg border border-white/10 bg-[#090b12] px-3 py-2">
+                            <p className="text-[11px] text-slate-500">{label}</p>
+                            <p className="mt-1 text-sm font-bold text-white">{value}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </SectionCard>
+
+              <section className="grid gap-5 lg:grid-cols-2">
+                <DetailPanel
+                  title="Profil Dataset"
+                  icon={Database}
+                  items={[
+                    ['Assessment records', data.validation.dataset.assessment_records],
+                    ['Prediction records', data.validation.dataset.prediction_records],
+                    ['Paired samples', data.validation.dataset.paired_samples],
+                    ['Unique users', data.validation.dataset.unique_users],
+                    ['Minimum training', data.validation.dataset.minimum_for_training],
+                    ['Target', data.validation.dataset.target_definition],
+                    ['Fitur', data.validation.dataset.feature_definition],
+                  ]}
+                />
+                <DetailPanel
+                  title="Distribusi Risiko"
+                  icon={BarChart3}
+                  items={Object.entries(data.validation.dataset.risk_distribution || {}).map(([key, value]) => [key, value])}
+                />
+              </section>
+            </div>
+
+            <aside className="grid gap-5">
+              <SectionCard className="p-5">
+                <h2 className="text-base font-semibold text-white">Narasi untuk Sidang</h2>
+                <div className="mt-4 space-y-3">
+                  {data.validation.thesis_notes.map((item) => (
+                    <div key={item} className="flex gap-3 rounded-xl border border-emerald-300/15 bg-emerald-400/10 p-3 text-sm leading-6 text-emerald-50">
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-200" />
+                      <span>{item}</span>
+                    </div>
+                  ))}
+                </div>
+              </SectionCard>
+
+              <SectionCard className="p-5">
+                <h2 className="text-base font-semibold text-white">Batas Klaim Ilmiah</h2>
+                <div className="mt-4 space-y-3">
+                  {data.validation.limitations.map((item) => (
+                    <div key={item} className="flex gap-3 rounded-xl border border-amber-300/15 bg-amber-400/10 p-3 text-sm leading-6 text-amber-50">
+                      <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-200" />
+                      <span>{item}</span>
+                    </div>
+                  ))}
+                </div>
+              </SectionCard>
+
+              <SectionCard className="p-5">
+                <h2 className="text-base font-semibold text-white">Kesimpulan Validasi</h2>
+                <p className="mt-3 text-sm leading-6 text-slate-400">
+                  Sistem sudah dapat menunjukkan validasi internal dari data nyata yang tersimpan di database. Untuk klaim medis, tetap perlu label klinis independen. Untuk sidang skripsi sistem informasi, bukti ini kuat sebagai validasi performa model terhadap dataset operasional aplikasi.
+                </p>
+              </SectionCard>
             </aside>
           </section>
         )}

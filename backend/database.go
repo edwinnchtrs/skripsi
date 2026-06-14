@@ -38,6 +38,7 @@ func ConnectDatabase() {
 		&Prediction{},
 		&TherapyRecommendation{},
 		&TreatmentReply{},
+		&DailyCheckIn{},
 		&Follow{},
 		&Affinity{},
 		&Message{},

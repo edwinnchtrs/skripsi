@@ -192,7 +192,15 @@ export default function Login() {
         .role-btn.active{border-color:#6366f1;background:#eef2ff;box-shadow:0 0 0 3px rgba(99,102,241,.12)}
         .role-help{margin:7px 0 0;font-size:10.5px;line-height:1.45;color:#64748b}
 
-        @media(max-width:1024px){.lp{display:none}.rp{width:100%}}
+        @media(max-width:1024px){.lp{display:none}.rp{width:100%;min-height:100vh}}
+        @media(max-width:520px){
+          .rp{padding:18px;background:#f8fafc;justify-content:flex-start}
+          .rp-card{max-width:none;border-radius:18px;padding:24px 18px;margin-top:10px;box-shadow:0 14px 40px rgba(15,23,42,.08)}
+          .rp-header h3{font-size:18px}
+          .rp-footer{position:static;margin-top:18px;text-align:center}
+          .sec-row{grid-template-columns:1fr}
+          .role-grid{grid-template-columns:1fr}
+        }
       `}</style>
 
       <div className="login-root">

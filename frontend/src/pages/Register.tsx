@@ -151,7 +151,15 @@ export default function Register() {
         .signin a{color:#6366f1;font-weight:700;text-decoration:none}
         .rp-footer{margin-top:28px;font-size:11px;color:#94a3b8;position:relative;z-index:1}
 
-        @media(max-width:1024px){.lp{display:none}.rp{width:100%}}
+        @media(max-width:1024px){.lp{display:none}.rp{width:100%;min-height:100vh}}
+        @media(max-width:520px){
+          .rp{padding:18px;background:#f8fafc;justify-content:flex-start}
+          .rp-card{max-width:none;border-radius:18px;padding:24px 18px;margin-top:10px;box-shadow:0 14px 40px rgba(15,23,42,.08)}
+          .rp-header h3{font-size:18px}
+          .rp-footer{position:static;margin-top:18px;text-align:center}
+          .sec-grid{grid-template-columns:1fr}
+          .type-grid{grid-template-columns:1fr}
+        }
       `}</style>
 
       <div className="reg-root">
