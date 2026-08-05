@@ -1,13 +1,20 @@
 package main
 
 import (
+	"log"
+	"net"
+	"net/url"
 	"os"
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 )
 
 func main() {
+	if err := godotenv.Load(); err != nil {
+		log.Println("No .env file found, using system environment variables")
+	}
 	ConnectDatabase()
 
 	r := gin.Default()
@@ -20,13 +27,7 @@ func main() {
 
 		origin := c.Request.Header.Get("Origin")
 		allowedOrigins := strings.Split(getEnv("CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:5175"), ",")
-		originAllowed := origin == ""
-		for _, allowedOrigin := range allowedOrigins {
-			if strings.TrimSpace(allowedOrigin) == origin {
-				originAllowed = true
-				break
-			}
-		}
+		originAllowed := isOriginAllowed(origin, allowedOrigins)
 
 		if origin != "" && originAllowed {
 			c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
@@ -78,6 +79,7 @@ func main() {
 			// Social & Profile
 			protected.GET("/user/history", UserHistoryHandler)
 			protected.GET("/user/risk-timeline", UserRiskTimelineHandler)
+			protected.GET("/user/daily-brief", UserDailyBriefHandler)
 			protected.GET("/user/recovery-plan", UserRecoveryPlanHandler)
 			protected.GET("/user/checkins", UserCheckInsHandler)
 			protected.POST("/user/checkins", UserCheckInCreateHandler)
@@ -133,6 +135,7 @@ func main() {
 			admin.GET("/admin/curhat-analysis", AdminCurhatAnalysisHandler)
 			admin.PATCH("/admin/curhat-analysis/:id/status", AdminCurhatAnalysisStatusHandler)
 			admin.GET("/admin/command-center", AdminCommandCenterHandler)
+			admin.GET("/admin/launch-readiness", AdminLaunchReadinessHandler)
 			admin.GET("/admin/risk-center", AdminRiskCenterHandler)
 			admin.GET("/admin/users/:id/timeline", AdminUserTimelineHandler)
 			admin.GET("/admin/users/:id/case-summary", AdminUserCaseSummaryHandler)
@@ -156,4 +159,29 @@ func main() {
 	if err := r.Run(port); err != nil {
 		_, _ = os.Stderr.WriteString(err.Error())
 	}
+}
+
+func isOriginAllowed(origin string, allowedOrigins []string) bool {
+	if origin == "" {
+		return true
+	}
+	for _, allowedOrigin := range allowedOrigins {
+		allowedOrigin = strings.TrimSpace(allowedOrigin)
+		if allowedOrigin == "*" || allowedOrigin == origin {
+			return true
+		}
+	}
+	parsed, err := url.Parse(origin)
+	if err != nil {
+		return false
+	}
+	host := parsed.Hostname()
+	if host == "localhost" || host == "127.0.0.1" || host == "::1" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return false
+	}
+	return ip.IsPrivate() || ip.IsLoopback()
 }

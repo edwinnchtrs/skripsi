@@ -8,6 +8,25 @@ import DailyQuestionnaire from './userDashboard/DailyQuestionnaire';
 import AnonymousVentingFeed from './userDashboard/AnonymousVentingFeed';
 import api from '../api';
 
+interface DailyBriefAction {
+  title: string;
+  body: string;
+  path: string;
+  priority: string;
+}
+
+interface DailyBrief {
+  headline: string;
+  summary: string;
+  risk_level: string;
+  data_quality: string;
+  evidence: string[];
+  next_actions: DailyBriefAction[];
+  pending_treatments: number;
+  unread_items: number;
+  monitoring_disclaimer: string;
+}
+
 export default function UserDashboard() {
   const navigate = useNavigate();
   const [toast, setToast] = useState<{ id: number; message: string } | null>(null);
@@ -15,6 +34,7 @@ export default function UserDashboard() {
   const [assessments, setAssessments] = useState<Assessment[]>([]);
   const [treatments, setTreatments] = useState<any[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [dailyBrief, setDailyBrief] = useState<DailyBrief | null>(null);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [historyError, setHistoryError] = useState('');
 
@@ -25,12 +45,14 @@ export default function UserDashboard() {
       const res = await api.get('/user/history');
       setPredictions(res.data.predictions ?? []);
       setAssessments(res.data.assessments ?? []);
-      const [treatmentRes, unreadRes] = await Promise.all([
+      const [treatmentRes, unreadRes, briefRes] = await Promise.all([
         api.get('/user/notifications'),
         api.get('/notifications/unread'),
+        api.get('/user/daily-brief'),
       ]);
       setTreatments(treatmentRes.data.notifications ?? []);
       setUnreadCount((unreadRes.data.notifications ?? []).length);
+      setDailyBrief(briefRes.data ?? null);
     } catch (err) {
       console.error('Failed to fetch user history', err);
       setHistoryError('Data dashboard belum bisa dimuat. Periksa koneksi atau coba muat ulang.');
@@ -114,6 +136,62 @@ export default function UserDashboard() {
         )}
 
         <UserStatCards predictions={predictions} assessments={assessments} loading={historyLoading} />
+
+        <section className="rounded-2xl border border-white/10 bg-slate-950/70 p-5 shadow-xl shadow-black/10">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+            <div className="max-w-3xl">
+              <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-teal-300/25 bg-teal-300/10 px-3 py-1 text-xs font-semibold text-teal-100">
+                <HeartPulse className="h-3.5 w-3.5" />
+                Daily Brief AI
+              </div>
+              <h2 className="text-xl font-semibold text-white">{dailyBrief?.headline || 'Brief harian sedang disiapkan'}</h2>
+              <p className="mt-2 text-sm leading-6 text-slate-400">
+                {dailyBrief?.summary || 'NexusMind membaca asesmen, prediksi, check-in, curhat, dan saran admin untuk menyusun prioritas hari ini.'}
+              </p>
+              <div className="mt-4 flex flex-wrap gap-2 text-xs">
+                <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-slate-300">
+                  Risiko {dailyBrief?.risk_level || '-'}
+                </span>
+                <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-slate-300">
+                  Data {dailyBrief?.data_quality || '-'}
+                </span>
+                <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-slate-300">
+                  Pending {dailyBrief?.pending_treatments ?? 0}
+                </span>
+              </div>
+            </div>
+            <div className="grid w-full gap-2 lg:max-w-md">
+              {(dailyBrief?.next_actions || []).slice(0, 3).map((action) => (
+                <button
+                  key={`${action.title}-${action.path}`}
+                  type="button"
+                  onClick={() => navigate(action.path)}
+                  className="rounded-xl border border-white/10 bg-white/[0.04] p-3 text-left transition hover:border-teal-300/30 hover:bg-teal-300/10"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-sm font-semibold text-white">{action.title}</span>
+                    <ArrowRight className="h-4 w-4 text-teal-200" />
+                  </div>
+                  <p className="mt-1 text-xs leading-5 text-slate-400">{action.body}</p>
+                </button>
+              ))}
+              {(!dailyBrief?.next_actions || dailyBrief.next_actions.length === 0) && (
+                <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4 text-sm text-slate-400">
+                  Tidak ada prioritas besar saat ini.
+                </div>
+              )}
+            </div>
+          </div>
+          {dailyBrief?.evidence?.length ? (
+            <div className="mt-5 grid gap-2 md:grid-cols-2">
+              {dailyBrief.evidence.slice(0, 4).map((item) => (
+                <div key={item} className="rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 text-xs leading-5 text-slate-300">
+                  {item}
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </section>
 
         <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(320px,420px)]">
           <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 shadow-xl shadow-black/10">

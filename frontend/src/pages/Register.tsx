@@ -6,6 +6,8 @@ import {
   User, Lock, Eye, EyeOff, UserPlus, Mail,
 } from 'lucide-react';
 import api from '../api';
+import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import GoogleAccountButton, { getAuthErrorMessage, getGoogleOriginNotice } from '../components/auth/GoogleAccountButton';
 
 const features = [
   { Icon: Brain,      t: 'Quantum Cognition',  d: 'Memodelkan ketidakpastian dan pengambilan keputusan manusia secara probabilistik.' },
@@ -41,6 +43,8 @@ export default function Register() {
   const [err,         setErr]        = useState('');
   const [success,     setSuccess]    = useState('');
   const [busy,        setBusy]       = useState(false);
+  const online = useOnlineStatus();
+  const googleOriginNotice = getGoogleOriginNotice();
   const passwordRules = useMemo(() => validatePassword(password), [password]);
   const passwordSafe = Object.values(passwordRules).every(Boolean);
 
@@ -73,8 +77,8 @@ export default function Register() {
       await api.post('/register', { username: cleanUsername, password, nama: cleanNama, user_type: userType });
       setSuccess('Akun berhasil dibuat! Mengarahkan ke halaman masuk...');
       setTimeout(() => nav('/login'), 1500);
-    } catch (x: any) {
-      setErr(x.response?.data?.error || 'Pendaftaran gagal. Coba lagi.');
+    } catch (x: unknown) {
+      setErr(getAuthErrorMessage(x, 'Pendaftaran gagal. Coba lagi.'));
     } finally {
       setBusy(false);
     }
@@ -146,6 +150,15 @@ export default function Register() {
         .password-rules{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:-5px 0 13px}
         .rule{font-size:10.5px;color:#94a3b8;background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;padding:5px 7px}
         .rule.ok{color:#16a34a;border-color:#bbf7d0;background:#f0fdf4}
+        .divider{display:flex;align-items:center;gap:10px;margin:18px 0}
+        .divider span{font-size:11px;color:#9ca3af;white-space:nowrap}
+        .divider::before,.divider::after{content:'';flex:1;height:1px;background:#e5e7eb}
+        .socials{display:grid;grid-template-columns:1fr;gap:8px}
+        .social-btn{display:flex;align-items:center;justify-content:center;gap:5px;padding:8px 4px;border:1.5px solid #e5e7eb;border-radius:10px;background:#fff;cursor:pointer;font-size:11px;font-weight:600;color:#374151;transition:background .15s;font-family:'Inter',sans-serif}
+        .social-btn:hover{background:#f9fafb}
+        .social-btn:disabled{opacity:.65;cursor:not-allowed}
+        .social-btn svg{width:14px;height:14px}
+        .lan-note{margin:10px 0 0;padding:9px 10px;border-radius:10px;border:1px solid #fde68a;background:#fffbeb;color:#92400e;font-size:10.5px;line-height:1.45}
 
         .signin{text-align:center;font-size:12px;color:#6b7280;margin-top:18px}
         .signin a{color:#6366f1;font-weight:700;text-decoration:none}
@@ -309,6 +322,25 @@ export default function Register() {
                 {busy ? 'Mendaftarkan...' : 'Daftar Sekarang'}
               </button>
             </form>
+
+            <div className="divider"><span>atau daftar dengan</span></div>
+
+            <div className="socials">
+              <GoogleAccountButton
+                busy={busy}
+                online={online}
+                userType={userType}
+                label="Daftar dengan Google"
+                onBusyChange={setBusy}
+                onError={setErr}
+                onAuthenticated={(token, userData) => {
+                  localStorage.setItem('token', token);
+                  localStorage.setItem('user', JSON.stringify(userData));
+                  nav(userData.role === 'admin' ? '/dashboard' : '/user/dashboard');
+                }}
+              />
+            </div>
+            {googleOriginNotice && <div className="lan-note">{googleOriginNotice}</div>}
 
             <div className="signin">
               Sudah punya akun?{' '}

@@ -91,6 +91,25 @@ interface CommandCenterData {
   readiness: Record<string, string>;
 }
 
+interface LaunchCheck {
+  label: string;
+  status: 'pass' | 'warning' | 'blocked';
+  detail: string;
+  path: string;
+  severity: string;
+}
+
+interface LaunchReadiness {
+  score: number;
+  status: string;
+  pass: number;
+  warning: number;
+  blocked: number;
+  checks: LaunchCheck[];
+  next_moves: RecommendedMove[];
+  operational_metrics: Record<string, number>;
+}
+
 const severityTone: Record<string, string> = {
   urgent: 'border-rose-400/30 bg-rose-500/10 text-rose-100',
   high: 'border-orange-400/30 bg-orange-500/10 text-orange-100',
@@ -105,6 +124,12 @@ const priorityTone: Record<string, string> = {
   low: 'border-emerald-400/30 bg-emerald-500/10 text-emerald-100',
 };
 
+const readinessTone: Record<string, string> = {
+  pass: 'border-emerald-400/25 bg-emerald-500/10 text-emerald-100',
+  warning: 'border-amber-400/25 bg-amber-500/10 text-amber-100',
+  blocked: 'border-rose-400/25 bg-rose-500/10 text-rose-100',
+};
+
 const formatDate = (value?: string) => {
   if (!value || value.startsWith('0001')) return '-';
   return new Date(value).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
@@ -114,6 +139,7 @@ const pct = (value: number) => `${Math.round(Math.max(0, Math.min(value || 0, 1)
 
 export default function CommandCenter() {
   const [data, setData] = useState<CommandCenterData | null>(null);
+  const [launch, setLaunch] = useState<LaunchReadiness | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -121,8 +147,12 @@ export default function CommandCenter() {
     setLoading(true);
     setError('');
     try {
-      const response = await api.get('/admin/command-center');
-      setData(response.data);
+      const [commandRes, launchRes] = await Promise.all([
+        api.get('/admin/command-center'),
+        api.get('/admin/launch-readiness'),
+      ]);
+      setData(commandRes.data);
+      setLaunch(launchRes.data);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Command Center gagal dimuat.');
     } finally {
@@ -204,6 +234,51 @@ export default function CommandCenter() {
           <StatCard icon={Bell} label="Balasan & notifikasi" value={(data?.headline.unread_replies ?? 0) + (data?.headline.unread_notifications ?? 0)} detail="Butuh dibaca admin" tone="text-amber-200" />
           <StatCard icon={Users} label="Total pengguna" value={data?.cohorts.total_users ?? 0} detail={`${data?.cohorts.mahasiswa ?? 0} mahasiswa, ${data?.cohorts.karyawan ?? 0} karyawan`} tone="text-emerald-200" />
           <StatCard icon={Activity} label="Aktivitas 24 jam" value={data?.throughput.activity_24h ?? 0} detail={`${data?.throughput.checkins_24h ?? 0} check-in hari ini`} tone="text-violet-200" />
+        </section>
+
+        <section className="rounded-xl border border-slate-800 bg-slate-900/70 p-5">
+          <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-emerald-400/25 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-100">
+                <ShieldCheck className="h-3.5 w-3.5" />
+                Launch readiness
+              </div>
+              <h2 className="text-base font-semibold text-white">{launch?.status || 'Memuat kesiapan sistem'}</h2>
+              <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">
+                Checklist ini membaca API, database, admin, audit log, AI, validasi model, monitoring risiko, follow-up, dan laporan.
+              </p>
+            </div>
+            <div className="min-w-[180px] rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+              <div className="flex items-end justify-between gap-3">
+                <span className="text-xs font-semibold uppercase text-slate-500">Skor siap</span>
+                <span className="text-2xl font-semibold text-white">{launch?.score ?? 0}%</span>
+              </div>
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-800">
+                <div className="h-full rounded-full bg-emerald-300 transition-all" style={{ width: `${launch?.score ?? 0}%` }} />
+              </div>
+              <div className="mt-3 flex justify-between text-[11px] text-slate-500">
+                <span>{launch?.pass ?? 0} pass</span>
+                <span>{launch?.warning ?? 0} warning</span>
+                <span>{launch?.blocked ?? 0} blocked</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {(launch?.checks || []).slice(0, 9).map((check) => (
+              <Link
+                key={check.label}
+                to={check.path}
+                className={`rounded-xl border p-4 transition hover:bg-white/[0.04] ${readinessTone[check.status] || readinessTone.warning}`}
+              >
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <span className="text-sm font-semibold text-white">{check.label}</span>
+                  <span className="rounded-full border border-white/10 bg-black/10 px-2 py-0.5 text-[10px] font-semibold uppercase">{check.status}</span>
+                </div>
+                <p className="text-xs leading-5 text-slate-300">{check.detail}</p>
+              </Link>
+            ))}
+          </div>
         </section>
 
         <section className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_390px]">

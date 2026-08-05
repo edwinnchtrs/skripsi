@@ -84,6 +84,21 @@ const sourceLabel: Record<string, string> = {
   treatment: 'Terapi',
 };
 
+const dataQuality = (selected?: WarningItem | null, summary?: CaseSummary | null) => {
+  const points = [
+    Boolean(selected?.summary),
+    Boolean(selected?.explanation?.length),
+    Boolean(summary?.key_factors?.length),
+    Boolean(summary?.recommended_actions?.length),
+    Boolean(Object.keys(summary?.model_explainability || {}).length),
+    Boolean((summary?.pending_treatments ?? 0) > 0 || (summary?.unread_replies ?? 0) > 0),
+  ].filter(Boolean).length;
+
+  if (points >= 5) return { label: 'Kuat', desc: 'Bukti lintas sumber cukup untuk triage cepat.', className: 'border-emerald-400/25 bg-emerald-500/10 text-emerald-200' };
+  if (points >= 3) return { label: 'Cukup', desc: 'Bukti memadai, tetap cek riwayat sebelum eskalasi.', className: 'border-cyan-400/25 bg-cyan-500/10 text-cyan-200' };
+  return { label: 'Perlu data', desc: 'Butuh asesmen, check-in, atau curhat tambahan.', className: 'border-amber-400/25 bg-amber-500/10 text-amber-200' };
+};
+
 export default function RiskCenter() {
   const [warnings, setWarnings] = useState<WarningItem[]>([]);
   const [selected, setSelected] = useState<WarningItem | null>(null);
@@ -345,12 +360,25 @@ export default function RiskCenter() {
             </div>
 
             {loading ? (
-              <div className="flex h-72 items-center justify-center">
-                <Loader2 className="h-8 w-8 animate-spin text-slate-500" />
+              <div className="space-y-3">
+                {[0, 1, 2, 3].map((item) => (
+                  <div key={item} className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+                    <div className="mb-3 flex items-center justify-between gap-4">
+                      <div className="h-5 w-40 animate-pulse rounded bg-slate-800" />
+                      <div className="h-7 w-16 animate-pulse rounded bg-slate-800" />
+                    </div>
+                    <div className="h-4 w-full animate-pulse rounded bg-slate-800" />
+                    <div className="mt-2 h-4 w-2/3 animate-pulse rounded bg-slate-800" />
+                  </div>
+                ))}
               </div>
             ) : filtered.length === 0 ? (
-              <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-12 text-center text-sm text-slate-500">
-                Tidak ada sinyal pada filter ini.
+              <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-12 text-center">
+                <ShieldCheck className="mx-auto h-10 w-10 text-emerald-300" />
+                <h3 className="mt-4 text-base font-semibold text-white">Tidak ada sinyal pada filter ini</h3>
+                <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">
+                  Sistem tetap memantau curhat, asesmen, check-in, dan balasan terapi secara berkala.
+                </p>
               </div>
             ) : (
               <div className="space-y-3">
@@ -436,6 +464,19 @@ export default function RiskCenter() {
                       </div>
                     </div>
                   </div>
+
+                  {(() => {
+                    const quality = dataQuality(selected, summary);
+                    return (
+                      <div className={`mt-4 rounded-lg border p-4 ${quality.className}`}>
+                        <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase">
+                          <ShieldCheck className="h-3.5 w-3.5" />
+                          Kualitas data: {quality.label}
+                        </div>
+                        <p className="text-sm leading-6 opacity-80">{quality.desc}</p>
+                      </div>
+                    );
+                  })()}
 
                   <div className="mt-4 grid grid-cols-2 gap-3">
                     <div className="rounded-lg border border-slate-800 bg-slate-950/70 p-3">

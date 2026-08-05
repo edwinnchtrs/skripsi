@@ -12,19 +12,26 @@ import {
   ChevronDown,
   Clock,
   Clock3,
+  FileText,
   Gauge,
   Heart,
   History,
+  Image,
   Info,
   Lightbulb,
   Loader2,
   MessageCircleReply,
   MessageSquareHeart,
+  Mic,
+  MicOff,
+  Paperclip,
   Send,
   Smile,
   Sparkles,
   Target,
   TimerReset,
+  Trash2,
+  UploadCloud,
   User,
   Users,
   X,
@@ -38,6 +45,15 @@ import api from '../api';
 interface Curhat {
   ID: number;
   Text: string;
+  Image?: string;
+  AttachmentName?: string;
+  AttachmentType?: string;
+  AttachmentData?: string;
+  AttachmentText?: string;
+  VoiceTranscript?: string;
+  MemorySummary?: string;
+  KeywordAnalysisJSON?: string;
+  AgentInsightsJSON?: string;
   AIResponse: string;
   StressScore: number;
   BurnoutScore?: number;
@@ -78,7 +94,31 @@ interface TreatmentReply {
 
 type TabKey = 'chat' | 'saran';
 type SuggestionFilter = 'all' | 'pending' | 'completed';
-type AIModeKey = 'friend' | 'teacher' | 'doctor' | 'family';
+type AIModeKey = 'general' | 'friend' | 'teacher' | 'doctor' | 'family';
+
+type ChatAttachment = {
+  name: string;
+  type: string;
+  data: string;
+  size: number;
+  text?: string;
+};
+
+type KeywordInsight = {
+  phrase: string;
+  category: string;
+  weight: number;
+  impact: 'risk' | 'protective' | 'critical';
+};
+
+type AgentInsight = {
+  label: string;
+  value: string;
+  tone: string;
+  detail: string;
+};
+
+const MAX_CURHAT_ATTACHMENT_BYTES = 4 * 1024 * 1024;
 
 const categoryConfig: Record<string, { icon: LucideIcon; color: string; label: string; bg: string; border: string }> = {
   konseling: { icon: Heart, color: 'text-rose-300', label: 'Konseling Psikologis', bg: 'bg-rose-500/10', border: 'border-rose-400/25' },
@@ -124,6 +164,7 @@ const moodOptions = [
 ];
 
 const aiModes: Array<{ key: AIModeKey; label: string; desc: string; icon: LucideIcon; active: string }> = [
+  { key: 'general', label: 'Nexus Pro', desc: 'All-rounder untuk file, ide, coding, belajar', icon: Sparkles, active: 'border-cyan-400/40 bg-cyan-500/15 text-cyan-200' },
   { key: 'friend', label: 'Teman', desc: 'Santai dan suportif', icon: MessageSquareHeart, active: 'border-pink-400/40 bg-pink-500/15 text-pink-200' },
   { key: 'teacher', label: 'Guru', desc: 'Terstruktur dan membimbing', icon: Brain, active: 'border-violet-400/40 bg-violet-500/15 text-violet-200' },
   { key: 'doctor', label: 'Dokter', desc: 'Edukasi gejala, bukan diagnosis', icon: Activity, active: 'border-cyan-400/40 bg-cyan-500/15 text-cyan-200' },
@@ -191,6 +232,101 @@ const parseStringList = (value?: string) => {
   }
 };
 
+const parseKeywordInsights = (value?: string): KeywordInsight[] => {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((item) => item && typeof item.phrase === 'string')
+      .map((item) => ({
+        phrase: item.phrase,
+        category: item.category || 'stres',
+        weight: typeof item.weight === 'number' ? item.weight : 0,
+        impact: item.impact === 'protective' || item.impact === 'critical' ? item.impact : 'risk',
+      }))
+      .slice(0, 12);
+  } catch {
+    return [];
+  }
+};
+
+const parseAgentInsights = (value?: string): AgentInsight[] => {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((item) => item && typeof item.label === 'string' && typeof item.value === 'string')
+      .map((item) => ({
+        label: item.label,
+        value: item.value,
+        tone: item.tone || 'info',
+        detail: item.detail || '',
+      }))
+      .slice(0, 8);
+  } catch {
+    return [];
+  }
+};
+
+const agentInsightTone = (tone?: string) => {
+  switch ((tone || '').toLowerCase()) {
+    case 'success':
+    case 'low':
+      return 'border-emerald-400/25 bg-emerald-500/10 text-emerald-200';
+    case 'warning':
+    case 'medium':
+      return 'border-amber-400/25 bg-amber-500/10 text-amber-200';
+    case 'danger':
+    case 'high':
+    case 'urgent':
+      return 'border-rose-400/25 bg-rose-500/10 text-rose-200';
+    default:
+      return 'border-cyan-400/25 bg-cyan-500/10 text-cyan-200';
+  }
+};
+
+const formatFileSize = (size: number) => {
+  if (!size) return '-';
+  if (size < 1024 * 1024) return `${Math.round(size / 1024)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+};
+
+const attachmentKind = (type?: string) => {
+  if (!type) return 'file';
+  if (type.startsWith('image/')) return 'image';
+  if (type.startsWith('audio/')) return 'audio';
+  return 'file';
+};
+
+const isReadableTextFile = (file: File) => {
+  const lowerName = file.name.toLowerCase();
+  return (
+    file.type.startsWith('text/') ||
+    ['.txt', '.md', '.markdown', '.json', '.csv', '.tsv', '.log', '.xml', '.yaml', '.yml'].some((suffix) => lowerName.endsWith(suffix))
+  );
+};
+
+const readFileAsText = (file: File) =>
+  new Promise<string>((resolve) => {
+    if (!isReadableTextFile(file)) {
+      resolve('');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(String(reader.result || '').slice(0, 16000));
+    reader.onerror = () => resolve('');
+    reader.readAsText(file);
+  });
+
+const apiErrorMessage = (error: unknown, fallback: string) => {
+  const typed = error as { response?: { data?: { error?: string } }; request?: unknown; message?: string };
+  if (typed.response?.data?.error) return typed.response.data.error;
+  if (typed.request) return 'Backend tidak merespons. Pastikan server aktif lalu coba lagi.';
+  return typed.message || fallback;
+};
+
 const formatTime = (date: string) =>
   new Date(date).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
 
@@ -204,7 +340,13 @@ export default function UserCurhat() {
   const [curhats, setCurhats] = useState<Curhat[]>([]);
   const [notifications, setNotifications] = useState<TherapyNotif[]>([]);
   const [inputText, setInputText] = useState('');
-  const [aiMode, setAiMode] = useState<AIModeKey>('friend');
+  const [attachment, setAttachment] = useState<ChatAttachment | null>(null);
+  const [voiceTranscript, setVoiceTranscript] = useState('');
+  const [isRecording, setIsRecording] = useState(false);
+  const [attachmentError, setAttachmentError] = useState('');
+  const [sendError, setSendError] = useState('');
+  const [draftSavedAt, setDraftSavedAt] = useState<string>('');
+  const [aiMode, setAiMode] = useState<AIModeKey>('general');
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
   const [expandedNotif, setExpandedNotif] = useState<number | null>(null);
@@ -218,9 +360,58 @@ export default function UserCurhat() {
   const [replyDraftOpen, setReplyDraftOpen] = useState<number | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<BlobPart[]>([]);
+  const speechRecognitionRef = useRef<any>(null);
+  const draftKey = useMemo(() => {
+    try {
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      return `nexusmind:curhat-draft:v2:${user.username || 'local'}`;
+    } catch {
+      return 'nexusmind:curhat-draft:v2:local';
+    }
+  }, []);
 
   useEffect(() => {
     fetchData();
+  }, []);
+
+  useEffect(() => {
+    try {
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      localStorage.removeItem(`nexusmind:curhat-draft:${user.username || 'local'}`);
+      localStorage.removeItem('nexusmind:curhat-draft:local');
+      const saved = JSON.parse(localStorage.getItem(draftKey) || '{}');
+      if (saved.inputText) setInputText(saved.inputText);
+      if (saved.voiceTranscript) setVoiceTranscript(saved.voiceTranscript);
+      if (aiModes.some((mode) => mode.key === saved.aiMode)) setAiMode(saved.aiMode);
+      if (saved.savedAt) setDraftSavedAt(saved.savedAt);
+    } catch {
+      // Ignore broken local drafts.
+    }
+  }, [draftKey]);
+
+  useEffect(() => {
+    const hasDraft = inputText.trim() || voiceTranscript.trim();
+    if (!hasDraft) {
+      localStorage.removeItem(draftKey);
+      setDraftSavedAt('');
+      return;
+    }
+    const timeout = setTimeout(() => {
+      const savedAt = new Date().toISOString();
+      localStorage.setItem(draftKey, JSON.stringify({ inputText, voiceTranscript, aiMode, savedAt }));
+      setDraftSavedAt(savedAt);
+    }, 500);
+    return () => clearTimeout(timeout);
+  }, [inputText, voiceTranscript, aiMode, draftKey]);
+
+  useEffect(() => () => {
+    if (mediaRecorderRef.current?.state === 'recording') {
+      mediaRecorderRef.current.stop();
+    }
+    speechRecognitionRef.current?.stop?.();
   }, []);
 
   useEffect(() => {
@@ -286,19 +477,155 @@ export default function UserCurhat() {
     }
   };
 
+  const handleAttachmentChange = (file?: File) => {
+    setAttachmentError('');
+    setSendError('');
+    if (!file) return;
+    if (file.size > MAX_CURHAT_ATTACHMENT_BYTES) {
+      setAttachmentError('Ukuran lampiran maksimal 4 MB.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      readFileAsText(file).then((fileText) => setAttachment({
+        name: file.name,
+        type: file.type || 'application/octet-stream',
+        data: String(reader.result || ''),
+        size: file.size,
+        text: fileText,
+      }));
+    };
+    reader.onerror = () => setAttachmentError('Lampiran gagal dibaca. Coba pilih file lain.');
+    reader.readAsDataURL(file);
+  };
+
+  const clearAttachment = () => {
+    setAttachment(null);
+    setAttachmentError('');
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const blobToDataUrl = (blob: Blob) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(String(reader.result || ''));
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+
+  const startVoiceCapture = async () => {
+    setAttachmentError('');
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'id-ID';
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.onresult = (event: any) => {
+        const text = Array.from(event.results)
+          .map((result: any) => result[0]?.transcript || '')
+          .join(' ')
+          .trim();
+        setVoiceTranscript(text);
+      };
+      recognition.onerror = () => setAttachmentError('Transkrip suara tidak tersedia di browser ini, audio tetap direkam bila izin mikrofon aktif.');
+      speechRecognitionRef.current = recognition;
+      recognition.start();
+    }
+
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+      if (!SpeechRecognition) setAttachmentError('Browser ini belum mendukung rekam suara langsung. Kamu bisa unggah file audio.');
+      setIsRecording(Boolean(SpeechRecognition));
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioChunksRef.current = [];
+      const recorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = recorder;
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) audioChunksRef.current.push(event.data);
+      };
+      recorder.onstop = async () => {
+        stream.getTracks().forEach((track) => track.stop());
+        const blob = new Blob(audioChunksRef.current, { type: recorder.mimeType || 'audio/webm' });
+        if (blob.size > 0 && blob.size <= MAX_CURHAT_ATTACHMENT_BYTES) {
+          const data = await blobToDataUrl(blob);
+          setAttachment({
+            name: `voice-note-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.webm`,
+            type: blob.type || 'audio/webm',
+            data,
+            size: blob.size,
+          });
+        } else if (blob.size > MAX_CURHAT_ATTACHMENT_BYTES) {
+          setAttachmentError('Rekaman terlalu besar. Coba rekam lebih singkat.');
+        }
+      };
+      recorder.start();
+      setIsRecording(true);
+    } catch {
+      setAttachmentError('Izin mikrofon ditolak atau tidak tersedia. Kamu masih bisa mengetik atau unggah audio.');
+      setIsRecording(Boolean(SpeechRecognition));
+    }
+  };
+
+  const stopVoiceCapture = () => {
+    speechRecognitionRef.current?.stop?.();
+    speechRecognitionRef.current = null;
+    if (mediaRecorderRef.current?.state === 'recording') {
+      mediaRecorderRef.current.stop();
+    }
+    setIsRecording(false);
+  };
+
+  const toggleVoiceCapture = () => {
+    if (isRecording) {
+      stopVoiceCapture();
+    } else {
+      startVoiceCapture();
+    }
+  };
+
   const handleSend = async (event: FormEvent) => {
     event.preventDefault();
     const text = inputText.trim();
-    if (!text || sending) return;
+    const transcript = voiceTranscript.trim();
+    setSendError('');
+    if ((!text && !attachment && !transcript) || sending) return;
+    const messageText =
+      text ||
+      transcript ||
+      (attachment
+        ? `Saya mengirim lampiran ${attachment.name}. Tolong bantu baca, jelaskan, dan beri saran berdasarkan konteks file ini.`
+        : '');
 
     setInputText('');
+    setVoiceTranscript('');
+    const pendingAttachment = attachment;
+    setAttachment(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
     setSending(true);
 
     try {
-      const response = await api.post('/curhat/submit', { text, mode: aiMode });
+      const response = await api.post('/curhat/submit', {
+        text: messageText,
+        mode: aiMode,
+        attachment_name: pendingAttachment?.name || '',
+        attachment_type: pendingAttachment?.type || '',
+        attachment_data: pendingAttachment?.data || '',
+        attachment_text: pendingAttachment?.text || '',
+        voice_transcript: transcript,
+      });
       if (response.data.curhat) setCurhats((prev) => [...prev, response.data.curhat]);
-    } catch {
+      localStorage.removeItem(draftKey);
+      setDraftSavedAt('');
+    } catch (error: unknown) {
+      setSendError(apiErrorMessage(error, 'Curhat gagal dikirim. Periksa isi pesan atau lampiran lalu coba lagi.'));
       setInputText(text);
+      setVoiceTranscript(transcript);
+      setAttachment(pendingAttachment);
     } finally {
       setSending(false);
       inputRef.current?.focus();
@@ -388,6 +715,8 @@ export default function UserCurhat() {
   const avgBurnoutLevel = stressLevel(stats.avgBurnout);
   const avgPsychosomaticLevel = stressLevel(stats.avgPsychosomatic);
   const latestRiskLevel = getRiskConfig(stats.latestRisk);
+  const latestMemory = curhats[curhats.length - 1]?.MemorySummary || 'Memori akan terisi setelah kamu mulai bercerita beberapa kali.';
+  const canSend = Boolean(inputText.trim() || attachment || voiceTranscript.trim()) && !sending;
 
   return (
     <div className="min-h-screen bg-[#0b0d14] px-5 py-6 text-slate-100 md:px-8">
@@ -549,7 +878,10 @@ export default function UserCurhat() {
                     const redFlags = parseStringList(chat.RedFlagsJSON);
                     const recommendations = parseStringList(chat.RecommendationsJSON);
                     const userNextSteps = parseStringList(chat.UserNextStepsJSON);
-                    const hasAdvancedAnalysis = Boolean(chat.RiskLevel || chat.BurnoutScore || chat.PsychosomaticScore || redFlags.length || recommendations.length || userNextSteps.length);
+                    const keywordInsights = parseKeywordInsights(chat.KeywordAnalysisJSON);
+                    const agentInsights = parseAgentInsights(chat.AgentInsightsJSON);
+                    const kind = attachmentKind(chat.AttachmentType);
+                    const hasAdvancedAnalysis = Boolean(chat.RiskLevel || chat.BurnoutScore || chat.PsychosomaticScore || redFlags.length || recommendations.length || userNextSteps.length || agentInsights.length);
                     const clinicalScores = [
                       { label: 'Stres', value: scorePercent(chat.StressScore), level: stress },
                       { label: 'Burnout', value: scorePercent(chat.BurnoutScore), level: burnout },
@@ -565,8 +897,35 @@ export default function UserCurhat() {
                       >
                         <div className="flex justify-end gap-3">
                           <div className="max-w-[78%]">
-                            <div className="rounded-[20px] rounded-br-md bg-gradient-to-br from-indigo-500 to-violet-600 px-4 py-3 text-sm leading-6 text-white">
-                              {chat.Text}
+                            <div className="space-y-3 rounded-[20px] rounded-br-md bg-gradient-to-br from-indigo-500 to-violet-600 px-4 py-3 text-sm leading-6 text-white">
+                              {chat.Text && <p className="whitespace-pre-wrap">{chat.Text}</p>}
+                              {chat.VoiceTranscript && (
+                                <div className="rounded-xl border border-white/15 bg-white/10 p-3 text-xs leading-5 text-indigo-50">
+                                  <div className="mb-1 flex items-center gap-2 font-semibold">
+                                    <Mic className="h-3.5 w-3.5" aria-hidden="true" />
+                                    Transkrip suara
+                                  </div>
+                                  {chat.VoiceTranscript}
+                                </div>
+                              )}
+                              {(chat.AttachmentData || chat.AttachmentText) && (
+                                <div className="rounded-xl border border-white/15 bg-white/10 p-3">
+                                  {chat.AttachmentData && kind === 'image' ? (
+                                    <img src={chat.AttachmentData} alt={chat.AttachmentName || 'Lampiran curhat'} className="mb-2 max-h-56 w-full rounded-lg object-cover" />
+                                  ) : chat.AttachmentData && kind === 'audio' ? (
+                                    <audio controls src={chat.AttachmentData} className="mb-2 w-full" />
+                                  ) : null}
+                                  <div className="flex items-center gap-2 text-xs font-semibold text-indigo-50">
+                                    {kind === 'image' ? <Image className="h-3.5 w-3.5" aria-hidden="true" /> : <FileText className="h-3.5 w-3.5" aria-hidden="true" />}
+                                    <span className="truncate">{chat.AttachmentName || 'Lampiran'}</span>
+                                  </div>
+                                  {chat.AttachmentText && (
+                                    <pre className="mt-2 max-h-28 overflow-auto rounded-lg bg-black/20 p-2 text-[11px] leading-5 text-indigo-50/85">
+                                      {chat.AttachmentText.slice(0, 900)}
+                                    </pre>
+                                  )}
+                                </div>
+                              )}
                             </div>
                             <div className="mt-2 flex items-center justify-end gap-2 text-[11px] text-slate-600">
                               <span>{formatTime(chat.Timestamp)}</span>
@@ -628,6 +987,29 @@ export default function UserCurhat() {
                                   ))}
                                 </div>
 
+                                {agentInsights.length > 0 && (
+                                  <div className="mt-4 rounded-lg border border-cyan-400/20 bg-cyan-500/10 p-3">
+                                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                                      <div className="flex items-center gap-2">
+                                        <Sparkles className="h-4 w-4 text-cyan-200" aria-hidden="true" />
+                                        <p className="text-xs font-semibold uppercase text-cyan-100">Pembacaan agent</p>
+                                      </div>
+                                      <span className="text-[11px] text-cyan-200/70">Berbasis chat, memori, dan data sistem</span>
+                                    </div>
+                                    <div className="grid gap-2 md:grid-cols-2">
+                                      {agentInsights.map((item) => (
+                                        <div key={`${item.label}-${item.value}`} className={`rounded-lg border p-3 ${agentInsightTone(item.tone)}`}>
+                                          <div className="mb-1 flex flex-wrap items-center gap-2">
+                                            <span className="text-[11px] font-semibold uppercase opacity-75">{item.label}</span>
+                                            <span className="rounded-full border border-white/10 bg-black/10 px-2 py-0.5 text-[10px] font-semibold">{item.value}</span>
+                                          </div>
+                                          {item.detail && <p className="text-xs leading-5 text-slate-300">{item.detail}</p>}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
                                 <div className="mt-4 grid gap-3 lg:grid-cols-2">
                                   <div className="rounded-lg border border-slate-800 bg-slate-950/70 p-3">
                                     <p className="mb-2 text-xs font-semibold uppercase text-slate-500">Sinyal penting</p>
@@ -661,6 +1043,32 @@ export default function UserCurhat() {
                                     )}
                                   </div>
                                 </div>
+
+                                {keywordInsights.length > 0 && (
+                                  <div className="mt-4 rounded-lg border border-slate-800 bg-slate-950/70 p-3">
+                                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                                      <p className="text-xs font-semibold uppercase text-slate-500">Analisis kata dan frasa</p>
+                                      <span className="text-[11px] text-slate-600">{keywordInsights.length} sinyal terbaca</span>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                      {keywordInsights.map((item) => {
+                                        const tone =
+                                          item.impact === 'critical'
+                                            ? 'border-rose-400/30 bg-rose-500/10 text-rose-200'
+                                            : item.impact === 'protective'
+                                              ? 'border-emerald-400/30 bg-emerald-500/10 text-emerald-200'
+                                              : 'border-amber-400/30 bg-amber-500/10 text-amber-200';
+
+                                        return (
+                                          <span key={`${item.category}-${item.phrase}`} className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${tone}`}>
+                                            {item.phrase}
+                                            <span className="ml-1 text-slate-500">/{item.category}</span>
+                                          </span>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
 
                                 <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
                                   <span>Confidence {scorePercent(chat.AnalysisConfidence || 0.65)}%</span>
@@ -700,22 +1108,106 @@ export default function UserCurhat() {
               </div>
 
               <div className="border-t border-slate-800 bg-slate-950/80 p-4">
-                <form onSubmit={handleSend} className="flex gap-3">
-                  <input
-                    ref={inputRef}
-                    value={inputText}
-                    onChange={(event) => setInputText(event.target.value)}
-                    placeholder="Tulis curhatanmu di sini..."
-                    disabled={sending}
-                    className="h-12 min-w-0 flex-1 rounded-xl border border-slate-800 bg-slate-900 px-4 text-sm text-slate-100 outline-none transition placeholder:text-slate-600 focus:border-pink-400/50 focus:ring-4 focus:ring-pink-500/10 disabled:opacity-60"
-                  />
-                  <button
-                    type="submit"
-                    disabled={!inputText.trim() || sending}
-                    className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-pink-500 text-white transition hover:bg-pink-400 disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-500"
-                  >
-                    {sending ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" /> : <Send className="h-5 w-5" aria-hidden="true" />}
-                  </button>
+                <form onSubmit={handleSend} className="space-y-3">
+                  {(attachment || voiceTranscript || attachmentError || isRecording) && (
+                    <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-3">
+                      {attachment && (
+                        <div className="mb-3 flex items-center gap-3 rounded-lg border border-slate-800 bg-slate-950/70 p-3">
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
+                            {attachmentKind(attachment.type) === 'image' ? <Image className="h-4 w-4" aria-hidden="true" /> : attachmentKind(attachment.type) === 'audio' ? <Mic className="h-4 w-4" aria-hidden="true" /> : <FileText className="h-4 w-4" aria-hidden="true" />}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-semibold text-slate-200">{attachment.name}</p>
+                            <p className="text-xs text-slate-500">{attachment.type || 'file'} • {formatFileSize(attachment.size)}</p>
+                            {attachment.text && <p className="mt-1 text-xs text-emerald-300">Isi teks file siap dibaca AI</p>}
+                          </div>
+                          <button type="button" onClick={clearAttachment} className="rounded-lg border border-slate-700 p-2 text-slate-500 transition hover:border-rose-400/30 hover:text-rose-300" aria-label="Hapus lampiran">
+                            <Trash2 className="h-4 w-4" aria-hidden="true" />
+                          </button>
+                        </div>
+                      )}
+
+                      {(voiceTranscript || isRecording) && (
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2 text-xs font-semibold text-cyan-200">
+                            {isRecording ? <MicOff className="h-4 w-4" aria-hidden="true" /> : <Mic className="h-4 w-4" aria-hidden="true" />}
+                            {isRecording ? 'Merekam suara, transkrip berjalan' : 'Transkrip suara'}
+                          </div>
+                          <textarea
+                            value={voiceTranscript}
+                            onChange={(event) => setVoiceTranscript(event.target.value)}
+                            placeholder="Transkrip suara akan muncul di sini bila browser mendukung..."
+                            rows={3}
+                            className="w-full resize-none rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm leading-6 text-slate-100 outline-none transition placeholder:text-slate-600 focus:border-cyan-400/50 focus:ring-4 focus:ring-cyan-500/10"
+                          />
+                        </div>
+                      )}
+
+                      {attachmentError && <p className="text-xs leading-5 text-amber-300">{attachmentError}</p>}
+                      {sendError && <p className="text-xs leading-5 text-rose-300">{sendError}</p>}
+                    </div>
+                  )}
+                  {sendError && !attachment && !voiceTranscript && !attachmentError && (
+                    <div className="rounded-xl border border-rose-400/25 bg-rose-500/10 px-3 py-2 text-xs leading-5 text-rose-200">
+                      {sendError}
+                    </div>
+                  )}
+
+                  <div className="flex gap-3">
+                    <input
+                      ref={inputRef}
+                      value={inputText}
+                      onChange={(event) => setInputText(event.target.value)}
+                      placeholder="Tulis curhatanmu di sini..."
+                      disabled={sending}
+                      className="h-12 min-w-0 flex-1 rounded-xl border border-slate-800 bg-slate-900 px-4 text-sm text-slate-100 outline-none transition placeholder:text-slate-600 focus:border-pink-400/50 focus:ring-4 focus:ring-pink-500/10 disabled:opacity-60"
+                    />
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*,audio/*,.pdf,.doc,.docx,.txt,.md,.json,.csv,.tsv,.log,.xml,.yaml,.yml,text/*"
+                      className="hidden"
+                      onChange={(event) => handleAttachmentChange(event.target.files?.[0])}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={sending}
+                      className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-slate-800 bg-slate-900 text-slate-400 transition hover:border-cyan-400/40 hover:text-cyan-200 disabled:opacity-60"
+                      aria-label="Tambah foto atau file"
+                    >
+                      <Paperclip className="h-5 w-5" aria-hidden="true" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={toggleVoiceCapture}
+                      disabled={sending}
+                      className={`inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border transition disabled:opacity-60 ${
+                        isRecording ? 'border-rose-400/40 bg-rose-500/10 text-rose-200' : 'border-slate-800 bg-slate-900 text-slate-400 hover:border-cyan-400/40 hover:text-cyan-200'
+                      }`}
+                      aria-label={isRecording ? 'Stop rekam suara' : 'Rekam suara'}
+                    >
+                      {isRecording ? <MicOff className="h-5 w-5" aria-hidden="true" /> : <Mic className="h-5 w-5" aria-hidden="true" />}
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={!canSend}
+                      className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-pink-500 text-white transition hover:bg-pink-400 disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-500"
+                      aria-label="Kirim curhat"
+                    >
+                      {sending ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" /> : <Send className="h-5 w-5" aria-hidden="true" />}
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-600">
+                    <UploadCloud className="h-3.5 w-3.5" aria-hidden="true" />
+                    <span>Foto, audio, PDF, dokumen, atau teks. Maksimal 4 MB per lampiran.</span>
+                    {draftSavedAt && (
+                      <>
+                        <span className="h-1 w-1 rounded-full bg-slate-700" />
+                        <span>Draft tersimpan {formatTime(draftSavedAt)}</span>
+                      </>
+                    )}
+                  </div>
                 </form>
               </div>
             </main>
@@ -813,6 +1305,26 @@ export default function UserCurhat() {
                       </div>
                     );
                   })}
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-5">
+                <div className="mb-3 flex items-center gap-2">
+                  <History className="h-5 w-5 text-cyan-300" aria-hidden="true" />
+                  <h2 className="text-base font-semibold tracking-normal text-white">Memori AI</h2>
+                </div>
+                <p className="text-sm leading-6 text-slate-400">{latestMemory}</p>
+                <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+                  {[
+                    { label: 'Riwayat', value: curhats.length },
+                    { label: 'Krisis', value: stats.crisisCount },
+                    { label: 'Aktif', value: stats.pending },
+                  ].map((item) => (
+                    <div key={item.label} className="rounded-lg border border-slate-800 bg-slate-950/70 p-3">
+                      <div className="text-lg font-semibold text-white">{item.value}</div>
+                      <div className="text-[11px] text-slate-500">{item.label}</div>
+                    </div>
+                  ))}
                 </div>
               </div>
             </aside>

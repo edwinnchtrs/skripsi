@@ -50,11 +50,14 @@ var curhatStressSignals = map[string]float64{
 	"stres": 0.85, "stress": 0.85, "tertekan": 0.82, "tekanan": 0.72,
 	"cemas": 0.72, "anxiety": 0.75, "khawatir": 0.62, "takut": 0.58,
 	"panik": 0.86, "gelisah": 0.72, "overthinking": 0.74, "kepikiran": 0.58,
-	"bingung": 0.46, "kacau": 0.70, "mumet": 0.64, "pusing mikirin": 0.72,
+	"kepikiran terus": 0.78, "pikiran penuh": 0.70, "pikiran berisik": 0.68,
+	"bingung": 0.46, "kacau": 0.70, "mumet": 0.64, "sumpek": 0.66, "pusing mikirin": 0.72,
 	"deadline": 0.52, "dikejar deadline": 0.76, "beban": 0.62, "berat": 0.48,
+	"mepet": 0.50, "overload": 0.78, "overwhelmed": 0.82, "ketekan": 0.72,
 	"sendirian": 0.58, "kesepian": 0.68, "diabaikan": 0.72, "tidak dihargai": 0.74,
 	"dimarahin": 0.62, "dimarahi": 0.62, "takut gagal": 0.78, "takut salah": 0.62,
-	"nangis": 0.72, "menangis": 0.72, "hancur": 0.84, "berantakan": 0.66,
+	"ditekan": 0.74, "dituntut": 0.64, "konflik": 0.58, "berantem": 0.60,
+	"nangis": 0.72, "menangis": 0.72, "hancur": 0.84, "berantakan": 0.66, "takut banget": 0.80,
 }
 
 var curhatBurnoutSignals = map[string]float64{
@@ -88,11 +91,26 @@ var curhatFunctionalSignals = map[string]float64{
 	"nilai turun": 0.58, "performa turun": 0.64, "sering salah": 0.52, "menghindar": 0.56,
 }
 
+var curhatAcuteStressSignals = map[string]float64{
+	"hari ini berat": 0.70, "hari ini kacau": 0.74, "dari pagi": 0.48, "seharian": 0.58,
+	"tidak bisa tenang": 0.78, "gak bisa tenang": 0.78, "nggak bisa tenang": 0.78,
+	"napas pendek": 0.76, "kepala penuh": 0.72, "pikiran muter": 0.72, "pikiran muter terus": 0.82,
+	"takut semuanya gagal": 0.84, "rasanya dikejar": 0.72, "semua numpuk": 0.76,
+	"ingin kabur": 0.70, "pengen kabur": 0.70, "tidak tahu harus apa": 0.74, "gak tahu harus apa": 0.74,
+}
+
+var curhatDurationSignals = map[string]float64{
+	"tiap hari": 0.72, "setiap hari": 0.72, "berhari hari": 0.68, "berminggu minggu": 0.76,
+	"udah lama": 0.58, "sudah lama": 0.58, "akhir akhir ini": 0.48, "belakangan ini": 0.48,
+	"terus menerus": 0.74, "gak berhenti": 0.70, "tidak berhenti": 0.70, "selalu": 0.54,
+}
+
 var curhatProtectiveSignals = map[string]float64{
 	"lebih baik": 0.72, "membaik": 0.72, "lega": 0.68, "tenang": 0.62,
 	"aman": 0.56, "terbantu": 0.64, "dibantu": 0.58, "ada dukungan": 0.64,
 	"bisa istirahat": 0.58, "sudah istirahat": 0.58, "bisa tidur": 0.58,
 	"masih bisa": 0.42, "mulai membaik": 0.76, "punya teman": 0.48,
+	"tidak separah": 0.52, "nggak separah": 0.52, "cuma cerita": 0.48, "sekadar cerita": 0.48,
 }
 
 var curhatCrisisSignals = []string{
@@ -107,19 +125,45 @@ type weightedSignalHit struct {
 	Weight float64
 }
 
+type CurhatKeywordInsight struct {
+	Phrase   string  `json:"phrase"`
+	Category string  `json:"category"`
+	Weight   float64 `json:"weight"`
+	Impact   string  `json:"impact"`
+}
+
+type CurhatAgentInsight struct {
+	Label  string `json:"label"`
+	Value  string `json:"value"`
+	Tone   string `json:"tone"`
+	Detail string `json:"detail"`
+}
+
 type CurhatClinicalAnalysis struct {
-	StressScore        float64  `json:"stress_score"`
-	BurnoutScore       float64  `json:"burnout_score"`
-	PsychosomaticScore float64  `json:"psychosomatic_score"`
-	RiskLevel          string   `json:"risk_level"`
-	Confidence         float64  `json:"confidence"`
-	CrisisFlag         bool     `json:"crisis_flag"`
-	AdminPriority      string   `json:"admin_priority"`
-	AdminSummary       string   `json:"admin_summary"`
-	RedFlags           []string `json:"red_flags"`
-	Recommendations    []string `json:"recommendations"`
-	UserNextSteps      []string `json:"user_next_steps"`
-	Source             string   `json:"source"`
+	StressScore        float64                `json:"stress_score"`
+	BurnoutScore       float64                `json:"burnout_score"`
+	PsychosomaticScore float64                `json:"psychosomatic_score"`
+	RiskLevel          string                 `json:"risk_level"`
+	Confidence         float64                `json:"confidence"`
+	CrisisFlag         bool                   `json:"crisis_flag"`
+	AdminPriority      string                 `json:"admin_priority"`
+	AdminSummary       string                 `json:"admin_summary"`
+	RedFlags           []string               `json:"red_flags"`
+	Recommendations    []string               `json:"recommendations"`
+	UserNextSteps      []string               `json:"user_next_steps"`
+	Source             string                 `json:"source"`
+	KeywordInsights    []CurhatKeywordInsight `json:"keyword_insights"`
+	AgentInsights      []CurhatAgentInsight   `json:"agent_insights"`
+}
+
+type aiProviderConfig struct {
+	Name        string
+	APIKey      string
+	BaseURL     string
+	Model       string
+	Referer     string
+	Title       string
+	Temperature float64
 }
 
 func analyzeStressLevel(text string) float64 {
@@ -143,6 +187,8 @@ func analyzeStressLevel(text string) float64 {
 	}
 
 	stressSignal, _ := weightedPhraseScoreDetailed(normalized, curhatStressSignals)
+	acuteSignal, _ := weightedPhraseScoreDetailed(normalized, curhatAcuteStressSignals)
+	durationSignal, _ := weightedPhraseScoreDetailed(normalized, curhatDurationSignals)
 	functionalSignal, _ := weightedPhraseScoreDetailed(normalized, curhatFunctionalSignals)
 	protectiveSignal, _ := weightedPhraseScoreDetailed(normalized, curhatProtectiveSignals)
 	totalWords := float64(len(words))
@@ -150,7 +196,7 @@ func analyzeStressLevel(text string) float64 {
 	positiveDensity := positiveWeight / totalWords
 
 	legacyScore := (stressDensity * 2.5) - positiveDensity
-	signalScore := stressSignal + functionalSignal*0.18 - protectiveSignal*0.20
+	signalScore := stressSignal + acuteSignal*0.38 + durationSignal*0.14 + functionalSignal*0.22 + contextDensityBoost(normalized) - protectiveSignal*0.24
 	return clampFloat(math.Max(legacyScore, signalScore), 0, 1)
 }
 
@@ -196,6 +242,8 @@ func signalIntensityMultiplier(text string) float64 {
 		" terus ": 0.10, " selalu ": 0.10, " tiap hari ": 0.16, " setiap hari ": 0.16,
 		" berhari hari ": 0.16, " berminggu minggu ": 0.18, " sampai ": 0.08,
 		" gak berhenti ": 0.12, " tidak berhenti ": 0.12, " makin ": 0.08,
+		" rasanya ": 0.04, " benar benar ": 0.10, " bener bener ": 0.10,
+		" hampir ": 0.06, " selalu kepikiran ": 0.14, " gak kuat ": 0.16,
 	}
 	for phrase, boost := range intensifiers {
 		if strings.Contains(text, phrase) {
@@ -203,6 +251,24 @@ func signalIntensityMultiplier(text string) float64 {
 		}
 	}
 	return clampFloat(multiplier, 0.85, 1.45)
+}
+
+func contextDensityBoost(text string) float64 {
+	normalized := normalizeSignalText(text)
+	boost := 0.0
+	if strings.Contains(normalized, " kuliah ") || strings.Contains(normalized, " kerja ") || strings.Contains(normalized, " skripsi ") || strings.Contains(normalized, " tugas ") || strings.Contains(normalized, " deadline ") {
+		boost += 0.04
+	}
+	if strings.Contains(normalized, " orang tua ") || strings.Contains(normalized, " keluarga ") || strings.Contains(normalized, " dosen ") || strings.Contains(normalized, " atasan ") || strings.Contains(normalized, " teman ") {
+		boost += 0.03
+	}
+	if strings.Contains(normalized, " tidur ") || strings.Contains(normalized, " makan ") || strings.Contains(normalized, " badan ") || strings.Contains(normalized, " dada ") || strings.Contains(normalized, " kepala ") {
+		boost += 0.04
+	}
+	if strings.Contains(normalized, " harus ") || strings.Contains(normalized, " wajib ") || strings.Contains(normalized, " takut ") {
+		boost += 0.03
+	}
+	return clampFloat(boost, 0, 0.16)
 }
 
 func isNegatedSignal(text string, phrase string) bool {
@@ -232,6 +298,159 @@ func topSignalPhrases(hits []weightedSignalHit, limit int) string {
 	return strings.Join(values, ", ")
 }
 
+func keywordInsightsFromHits(groups map[string][]weightedSignalHit, crisisHit string) []CurhatKeywordInsight {
+	insights := []CurhatKeywordInsight{}
+	seen := map[string]bool{}
+	for category, hits := range groups {
+		for _, hit := range hits {
+			phrase := strings.TrimSpace(hit.Phrase)
+			if phrase == "" || hit.Weight <= 0.08 {
+				continue
+			}
+			key := category + ":" + strings.ToLower(phrase)
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			impact := "risk"
+			if category == "protektif" {
+				impact = "protective"
+			}
+			insights = append(insights, CurhatKeywordInsight{
+				Phrase:   phrase,
+				Category: category,
+				Weight:   clampFloat(hit.Weight, 0, 1.5),
+				Impact:   impact,
+			})
+		}
+	}
+	if crisisHit != "" {
+		insights = append([]CurhatKeywordInsight{{
+			Phrase:   crisisHit,
+			Category: "krisis",
+			Weight:   1,
+			Impact:   "critical",
+		}}, insights...)
+	}
+	sort.SliceStable(insights, func(i, j int) bool {
+		return insights[i].Weight > insights[j].Weight
+	})
+	if len(insights) > 12 {
+		insights = insights[:12]
+	}
+	return insights
+}
+
+func buildCurhatMemorySummary(history []Curhat) string {
+	if len(history) == 0 {
+		return "Belum ada memori percakapan sebelumnya."
+	}
+	start := 0
+	if len(history) > 8 {
+		start = len(history) - 8
+	}
+	recent := history[start:]
+	parts := []string{}
+	highRisk := 0
+	for _, item := range recent {
+		if item.RiskLevel == "High" || item.RiskLevel == "Crisis" || item.CrisisFlag {
+			highRisk++
+		}
+		snippet := truncateString(strings.TrimSpace(item.Text), 110)
+		if snippet == "" {
+			continue
+		}
+		parts = append(parts, fmt.Sprintf("%s: %s (stres %.0f%%, burnout %.0f%%, psikosomatis %.0f%%)", strings.ToLower(firstNonEmpty(item.RiskLevel, "Low")), snippet, item.StressScore*100, item.BurnoutScore*100, item.PsychosomaticScore*100))
+	}
+	summary := strings.Join(parts, " | ")
+	if highRisk > 0 {
+		summary = fmt.Sprintf("Ada %d riwayat risiko tinggi/krisis. %s", highRisk, summary)
+	}
+	return truncateString(summary, 1200)
+}
+
+func buildAttachmentContext(attachmentName string, attachmentType string, attachmentText string, voiceTranscript string) string {
+	segments := []string{}
+	if strings.TrimSpace(attachmentName) != "" {
+		segments = append(segments, fmt.Sprintf("Lampiran: %s (%s)", strings.TrimSpace(attachmentName), strings.TrimSpace(attachmentType)))
+	}
+	if strings.TrimSpace(attachmentText) != "" {
+		segments = append(segments, "Isi file yang berhasil dibaca:\n"+truncateString(strings.TrimSpace(attachmentText), 12000))
+	}
+	if strings.TrimSpace(voiceTranscript) != "" {
+		segments = append(segments, "Transkrip suara: "+truncateString(strings.TrimSpace(voiceTranscript), 900))
+	}
+	if len(segments) == 0 {
+		return ""
+	}
+	return strings.Join(segments, "\n")
+}
+
+func detectCurhatAgentIntent(text string, attachmentContext string, systemContext string) string {
+	normalized := normalizeSignalText(text + "\n" + attachmentContext)
+	switch {
+	case strings.TrimSpace(attachmentContext) != "":
+		return "file_or_voice_analysis"
+	case strings.Contains(normalized, " data sistem ") || strings.Contains(normalized, " sistem ku ") || strings.Contains(normalized, " sistem gua ") || strings.Contains(normalized, " kondisiku ") || strings.Contains(normalized, " riwayatku "):
+		return "system_context_review"
+	case strings.Contains(normalized, " jadwal ") || strings.Contains(normalized, " rencana ") || strings.Contains(normalized, " prioritas ") || strings.Contains(normalized, " mulai dari mana "):
+		return "planning_and_prioritization"
+	case strings.Contains(normalized, " saran admin ") || strings.Contains(normalized, " terapi ") || strings.Contains(normalized, " recovery ") || strings.Contains(normalized, " tindak lanjut "):
+		return "therapy_followup"
+	case strings.Contains(normalized, " coding ") || strings.Contains(normalized, " error ") || strings.Contains(normalized, " bug ") || strings.Contains(normalized, " skripsi ") || strings.Contains(normalized, " belajar "):
+		return "practical_problem_solving"
+	case strings.Contains(systemContext, "\"latest_prediction\"") && (strings.Contains(normalized, " burnout ") || strings.Contains(normalized, " stres ") || strings.Contains(normalized, " psikosomatis ")):
+		return "condition_explanation"
+	default:
+		return "supportive_conversation"
+	}
+}
+
+func localAgentInsights(analysis CurhatClinicalAnalysis, intent string, systemContext string) []CurhatAgentInsight {
+	insights := []CurhatAgentInsight{
+		{
+			Label:  "Intent",
+			Value:  strings.ReplaceAll(intent, "_", " "),
+			Tone:   "info",
+			Detail: "Nexus membaca maksud utama pesan agar respons tidak berhenti di empati saja.",
+		},
+		{
+			Label: "Risiko aktif",
+			Value: analysis.RiskLevel,
+			Tone:  strings.ToLower(firstNonEmpty(analysis.AdminPriority, "low")),
+			Detail: fmt.Sprintf("Stres %.0f%%, burnout %.0f%%, psikosomatis %.0f%%.",
+				analysis.StressScore*100,
+				analysis.BurnoutScore*100,
+				analysis.PsychosomaticScore*100,
+			),
+		},
+	}
+	if strings.Contains(systemContext, "\"latest_prediction\"") && !strings.Contains(systemContext, "belum ada prediksi") {
+		insights = append(insights, CurhatAgentInsight{
+			Label:  "Data sistem",
+			Value:  "Terhubung",
+			Tone:   "success",
+			Detail: "Respons memakai konteks asesmen, prediksi, check-in, terapi, dan riwayat curhat yang tersedia.",
+		})
+	} else {
+		insights = append(insights, CurhatAgentInsight{
+			Label:  "Data sistem",
+			Value:  "Belum lengkap",
+			Tone:   "warning",
+			Detail: "Sebagian konteks seperti prediksi atau asesmen belum tersedia, jadi saran memakai pesan dan riwayat curhat.",
+		})
+	}
+	if analysis.CrisisFlag || analysis.RiskLevel == "Crisis" {
+		insights = append(insights, CurhatAgentInsight{
+			Label:  "Safeguard",
+			Value:  "Prioritas keselamatan",
+			Tone:   "urgent",
+			Detail: "Ada sinyal yang perlu dukungan manusia segera dan monitoring admin lebih aktif.",
+		})
+	}
+	return sanitizeAgentInsights(insights, 6)
+}
+
 func signalRedFlag(label string, detail string) string {
 	detail = strings.TrimSpace(detail)
 	if detail == "" {
@@ -242,6 +461,8 @@ func signalRedFlag(label string, detail string) string {
 
 func normalizeCurhatAIMode(mode string) string {
 	switch strings.ToLower(strings.TrimSpace(mode)) {
+	case "general", "assistant", "codex", "pro", "nexus":
+		return "general"
 	case "teacher", "guru":
 		return "teacher"
 	case "doctor", "dokter":
@@ -257,6 +478,8 @@ func normalizeCurhatAIMode(mode string) string {
 
 func curhatAIModeLabel(mode string) string {
 	switch normalizeCurhatAIMode(mode) {
+	case "general":
+		return "Nexus Pro"
 	case "teacher":
 		return "Guru"
 	case "doctor":
@@ -270,6 +493,8 @@ func curhatAIModeLabel(mode string) string {
 
 func curhatAIModeInstruction(mode string) string {
 	switch normalizeCurhatAIMode(mode) {
+	case "general":
+		return "Gaya bicara sebagai asisten serbaguna yang cerdas: bisa membantu belajar, coding, rencana kerja, analisis file, ide kreatif, keputusan praktis, dan percakapan umum. Tetap hangat, jelas, dan kritis. Jika topik bukan kesehatan mental, jawab substansi topiknya dulu, lalu beri catatan kondisi hanya bila relevan."
 	case "teacher":
 		return "Gaya bicara seperti guru pembimbing: terstruktur, jelas, memberi peta masalah, contoh langkah kecil, dan pertanyaan refleksi singkat. Hindari menggurui."
 	case "doctor":
@@ -281,11 +506,53 @@ func curhatAIModeInstruction(mode string) string {
 	}
 }
 
-func generateCurhatClinicalResponse(text string, history []Curhat, initialStressScore float64, mode string) (string, CurhatClinicalAnalysis) {
+func resolveCurhatAIProvider() (aiProviderConfig, bool) {
+	baseURL := strings.TrimRight(firstNonEmpty(
+		os.Getenv("XKIRO_API_BASE_URL"),
+		os.Getenv("AI_API_BASE_URL"),
+	), "/")
+	apiKey := firstNonEmpty(
+		os.Getenv("XKIRO_API_KEY"),
+		os.Getenv("AI_API_KEY"),
+	)
+	if apiKey != "" {
+		if baseURL == "" {
+			baseURL = "https://api.xkiro.com/v1"
+		}
+		return aiProviderConfig{
+			Name:        "xkiro",
+			APIKey:      apiKey,
+			BaseURL:     baseURL,
+			Model:       firstNonEmpty(os.Getenv("XKIRO_MODEL"), os.Getenv("AI_MODEL"), "deepseek/deepseek-v4-flash"),
+			Referer:     firstNonEmpty(os.Getenv("APP_PUBLIC_URL"), "http://localhost:5173"),
+			Title:       "NexusMind Curhat Analysis",
+			Temperature: 0.24,
+		}, true
+	}
+
+	openRouterKey := os.Getenv("OPENROUTER_API_KEY")
+	if openRouterKey == "" {
+		return aiProviderConfig{}, false
+	}
+	return aiProviderConfig{
+		Name:        "openrouter",
+		APIKey:      openRouterKey,
+		BaseURL:     "https://openrouter.ai/api/v1",
+		Model:       firstNonEmpty(os.Getenv("OPENROUTER_MODEL"), "openai/gpt-4o-mini"),
+		Referer:     firstNonEmpty(os.Getenv("APP_PUBLIC_URL"), "http://localhost:5173"),
+		Title:       "NexusMind Curhat Analysis",
+		Temperature: 0.30,
+	}, true
+}
+
+func generateCurhatClinicalResponse(text string, history []Curhat, initialStressScore float64, mode string, attachmentContext string, systemContext string, attachmentData string, attachmentType string) (string, CurhatClinicalAnalysis) {
 	mode = normalizeCurhatAIMode(mode)
-	local := analyzeCurhatClinicalSignals(text, history, initialStressScore)
-	apiKey := os.Getenv("OPENROUTER_API_KEY")
-	if apiKey == "" {
+	fullText := strings.TrimSpace(text + "\n" + attachmentContext)
+	local := analyzeCurhatClinicalSignals(fullText, history, initialStressScore)
+	agentIntent := detectCurhatAgentIntent(text, attachmentContext, systemContext)
+	local.AgentInsights = localAgentInsights(local, agentIntent, systemContext)
+	provider, ok := resolveCurhatAIProvider()
+	if !ok {
 		local.Source = "local"
 		return fallbackCurhatResponse(local, mode), local
 	}
@@ -300,30 +567,55 @@ func generateCurhatClinicalResponse(text string, history []Curhat, initialStress
 			"psychosomatic_score": item.PsychosomaticScore,
 			"risk_level":          item.RiskLevel,
 			"ai_response":         item.AIResponse,
+			"memory_summary":      item.MemorySummary,
 		})
 	}
+	memorySummary := buildCurhatMemorySummary(history)
 
 	payload, _ := json.Marshal(map[string]interface{}{
-		"message":        text,
-		"ai_mode":        mode,
-		"mode_label":     curhatAIModeLabel(mode),
-		"local_analysis": local,
-		"history":        historyPayload,
+		"message":            text,
+		"attachment_context": attachmentContext,
+		"system_context":     systemContext,
+		"agent_intent":       agentIntent,
+		"ai_mode":            mode,
+		"mode_label":         curhatAIModeLabel(mode),
+		"local_analysis":     local,
+		"memory_summary":     memorySummary,
+		"history":            historyPayload,
 	})
 
-	systemPrompt := fmt.Sprintf(`Kamu adalah Nexus AI untuk fitur curhat kesehatan mental. Tugasmu memberi respons empatik dan analisis operasional untuk monitoring admin.
+	systemPrompt := fmt.Sprintf(`Kamu adalah Nexus AI, asisten serbaguna di NexusMind. Kamu bisa membantu percakapan umum, belajar, coding, ringkasan file, ide, rencana kerja, dan dukungan kesehatan mental ringan.
 Mode respons saat ini: %s.
 %s
+Kamu menerima system_context berisi data internal NexusMind milik user yang sedang login: profil, asesmen terbaru, prediksi machine learning, MBTI, check-in recovery, rekomendasi terapi/admin, balasan terapi, notifikasi, dan ringkasan analisis curhat sebelumnya.
+Gunakan system_context untuk menjawab secara personal dan berbasis data sistem. Jika user bertanya "data sistemku", "kondisiku", "riwayatku", "saran admin", "hasil asesmen", "MBTI", "recovery", atau hal terkait NexusMind, jawab berdasarkan system_context dan sebut bukti ringkasnya.
+Jangan bilang kamu tidak bisa membaca sistem bila system_context berisi data. Jika bagian data tertentu tertulis belum ada, katakan jujur bahwa data itu belum tersedia di sistem. Jangan mengarang data baru, jangan membocorkan data user lain, dan jangan menampilkan JSON mentah kecuali diminta.
+Kamu juga menerima agent_intent. Bertindak seperti agent pendamping: pahami tujuan user, pilih data sistem yang relevan, jelaskan pola kondisi, beri prioritas tindakan, dan tawarkan langkah berikutnya yang bisa dilakukan di fitur NexusMind.
+Gunakan agent_brief di dalam system_context sebagai ringkasan operasional. Bila agent_brief menyebut data quality rendah, minta user mengisi asesmen/check-in agar rekomendasi makin presisi.
+Gunakan memory_summary dan history untuk mengingat percakapan sebelumnya, pola masalah berulang, preferensi user, dan saran yang sudah pernah diberikan.
+Jika attachment_context berisi isi file atau transkrip suara, baca dan gunakan isinya. Jika ada gambar yang dikirim sebagai image_url, analisis visualnya secara hati-hati. Jika file tidak bisa dibaca isinya, jelaskan keterbatasannya dan minta user mengirim teks/CSV/TXT/Markdown atau screenshot yang jelas.
+Untuk topik di luar kesehatan mental, jawab substansi topik tersebut secara langsung, praktis, dan cerdas. Tetap lakukan risk scoring internal, tetapi jangan memaksakan pembahasan stres bila user hanya bertanya hal umum.
+Format jawaban harus enak dibaca:
+- Buka dengan kesimpulan singkat yang terasa personal.
+- Jika ada data sistem relevan, buat bagian "Yang kubaca dari sistem" dengan 2-4 poin.
+- Buat bagian "Prioritas sekarang" dengan langkah paling penting.
+- Bila topik teknis atau file, jawab substansi teknisnya dulu lalu tambahkan sinyal kondisi hanya bila relevan.
 Jangan membuat diagnosis medis. Jangan menyuruh user menyakiti diri. Bila ada sinyal krisis, arahkan ke orang tepercaya/profesional dan bantuan darurat setempat.
 Bedakan dimensi penilaian secara tajam:
 - stress_score untuk tekanan emosional/kognitif akut, cemas, panik, konflik, deadline, dan kewalahan.
 - burnout_score untuk kelelahan berkepanjangan, sinisme, hilang motivasi, mati rasa, merasa tidak efektif, atau ingin menjauh dari kerja/kuliah.
 - psychosomatic_score untuk keluhan fisik yang muncul bersama tekanan, seperti pusing, mual, sesak, berdebar, sakit perut, nyeri, gemetar, dan gangguan tidur.
+Scoring harus tajam dan tidak asal rata:
+- Cerita singkat tapi eksplisit seperti "gak kuat", "kepikiran terus", "panik", "semua numpuk", atau "tidak bisa tenang" boleh diberi stres medium-high walau kata sedikit.
+- Burnout tinggi hanya jika ada durasi/kelelahan berkepanjangan, hilang motivasi, sinisme, tidak efektif, atau ingin menjauh dari kerja/kuliah.
+- Psikosomatis tinggi hanya jika ada keluhan tubuh jelas atau gangguan tidur yang terkait tekanan.
+- Jika user hanya marah ringan, bercanda, atau bertanya teknis tanpa distress, skor harus rendah.
 Perhatikan intensitas kata seperti banget, parah, terus, tiap hari, serta gangguan fungsi harian. Jangan menaikkan skor tinggi bila user jelas menyatakan membaik, aman, atau hanya cerita ringan.
+Analisis kata/frasa harus menjelaskan kenapa skor naik atau turun. Gunakan frasa yang benar-benar muncul pada message, attachment_context, atau ringkasan riwayat.
 
 Kembalikan JSON valid:
 {
-  "response": "jawaban empatik untuk user, 4-6 kalimat, Bahasa Indonesia",
+  "response": "jawaban utama untuk user, Bahasa Indonesia, boleh 4-8 kalimat atau poin ringkas bila topiknya teknis/file",
   "stress_score": 0.0,
   "burnout_score": 0.0,
   "psychosomatic_score": 0.0,
@@ -334,30 +626,45 @@ Kembalikan JSON valid:
   "admin_summary": "ringkasan 1 kalimat untuk admin",
   "red_flags": ["maksimal 4 sinyal"],
   "recommendations": ["maksimal 4 tindakan admin"],
-  "user_next_steps": ["maksimal 4 langkah aman untuk user"]
+  "user_next_steps": ["maksimal 4 langkah aman untuk user"],
+  "keyword_insights": [{"phrase":"kata/frasa", "category":"stres|burnout|psikosomatis|fungsi|protektif|krisis", "weight":0.0, "impact":"risk|protective|critical"}],
+  "agent_insights": [{"label":"Intent|Data sistem|Prioritas|Pola kondisi|Aksi berikutnya", "value":"nilai ringkas", "tone":"info|success|warning|danger|urgent", "detail":"alasan singkat berbasis data"}]
 }
-Skor harus 0.0-1.0. Gunakan local_analysis sebagai batas aman, jangan menurunkan risiko jika ada red flag krisis.`, curhatAIModeLabel(mode), curhatAIModeInstruction(mode))
+Skor harus 0.0-1.0. Untuk topik umum tanpa sinyal distress, gunakan skor rendah dan admin_priority low. Gunakan local_analysis sebagai batas aman, jangan menurunkan risiko jika ada red flag krisis.`, curhatAIModeLabel(mode), curhatAIModeInstruction(mode))
 
-	requestBody, _ := json.Marshal(map[string]interface{}{
-		"model": "openai/gpt-4o-mini",
-		"messages": []map[string]string{
+	userContent := []map[string]interface{}{
+		{"type": "text", "text": string(payload)},
+	}
+	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(attachmentType)), "image/") && strings.HasPrefix(strings.TrimSpace(attachmentData), "data:image/") {
+		userContent = append(userContent, map[string]interface{}{
+			"type": "image_url",
+			"image_url": map[string]string{
+				"url": attachmentData,
+			},
+		})
+	}
+
+	requestPayload := map[string]interface{}{
+		"model": provider.Model,
+		"messages": []map[string]interface{}{
 			{"role": "system", "content": systemPrompt},
-			{"role": "user", "content": string(payload)},
+			{"role": "user", "content": userContent},
 		},
-		"max_tokens":      850,
-		"temperature":     0.35,
+		"max_tokens":      1100,
+		"temperature":     provider.Temperature,
 		"response_format": map[string]string{"type": "json_object"},
-	})
+	}
+	requestBody, _ := json.Marshal(requestPayload)
 
-	req, err := http.NewRequest("POST", "https://openrouter.ai/api/v1/chat/completions", bytes.NewBuffer(requestBody))
+	req, err := http.NewRequest("POST", provider.BaseURL+"/chat/completions", bytes.NewBuffer(requestBody))
 	if err != nil {
 		local.Source = "local"
 		return fallbackCurhatResponse(local, mode), local
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+apiKey)
-	req.Header.Set("HTTP-Referer", "http://localhost:5173")
-	req.Header.Set("X-Title", "NexusMind Curhat Analysis")
+	req.Header.Set("Authorization", "Bearer "+provider.APIKey)
+	req.Header.Set("HTTP-Referer", provider.Referer)
+	req.Header.Set("X-Title", provider.Title)
 
 	client := &http.Client{Timeout: 18 * time.Second}
 	resp, err := client.Do(req)
@@ -369,8 +676,28 @@ Skor harus 0.0-1.0. Gunakan local_analysis sebagai batas aman, jangan menurunkan
 
 	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK {
-		local.Source = "local"
-		return fallbackCurhatResponse(local, mode), local
+		delete(requestPayload, "response_format")
+		retryBody, _ := json.Marshal(requestPayload)
+		retryReq, retryErr := http.NewRequest("POST", provider.BaseURL+"/chat/completions", bytes.NewBuffer(retryBody))
+		if retryErr != nil {
+			local.Source = "local"
+			return fallbackCurhatResponse(local, mode), local
+		}
+		retryReq.Header.Set("Content-Type", "application/json")
+		retryReq.Header.Set("Authorization", "Bearer "+provider.APIKey)
+		retryReq.Header.Set("HTTP-Referer", provider.Referer)
+		retryReq.Header.Set("X-Title", provider.Title)
+		retryResp, retryErr := client.Do(retryReq)
+		if retryErr != nil {
+			local.Source = "local"
+			return fallbackCurhatResponse(local, mode), local
+		}
+		defer retryResp.Body.Close()
+		body, _ = io.ReadAll(retryResp.Body)
+		if retryResp.StatusCode != http.StatusOK {
+			local.Source = "local"
+			return fallbackCurhatResponse(local, mode), local
+		}
 	}
 
 	var result struct {
@@ -386,20 +713,22 @@ Skor harus 0.0-1.0. Gunakan local_analysis sebagai batas aman, jangan menurunkan
 	}
 
 	var ai struct {
-		Response           string   `json:"response"`
-		StressScore        float64  `json:"stress_score"`
-		BurnoutScore       float64  `json:"burnout_score"`
-		PsychosomaticScore float64  `json:"psychosomatic_score"`
-		RiskLevel          string   `json:"risk_level"`
-		Confidence         float64  `json:"confidence"`
-		CrisisFlag         bool     `json:"crisis_flag"`
-		AdminPriority      string   `json:"admin_priority"`
-		AdminSummary       string   `json:"admin_summary"`
-		RedFlags           []string `json:"red_flags"`
-		Recommendations    []string `json:"recommendations"`
-		UserNextSteps      []string `json:"user_next_steps"`
+		Response           string                 `json:"response"`
+		StressScore        float64                `json:"stress_score"`
+		BurnoutScore       float64                `json:"burnout_score"`
+		PsychosomaticScore float64                `json:"psychosomatic_score"`
+		RiskLevel          string                 `json:"risk_level"`
+		Confidence         float64                `json:"confidence"`
+		CrisisFlag         bool                   `json:"crisis_flag"`
+		AdminPriority      string                 `json:"admin_priority"`
+		AdminSummary       string                 `json:"admin_summary"`
+		RedFlags           []string               `json:"red_flags"`
+		Recommendations    []string               `json:"recommendations"`
+		UserNextSteps      []string               `json:"user_next_steps"`
+		KeywordInsights    []CurhatKeywordInsight `json:"keyword_insights"`
+		AgentInsights      []CurhatAgentInsight   `json:"agent_insights"`
 	}
-	if err := json.Unmarshal([]byte(result.Choices[0].Message.Content), &ai); err != nil {
+	if err := unmarshalAIJSONObject(result.Choices[0].Message.Content, &ai); err != nil {
 		local.Source = "local"
 		return fallbackCurhatResponse(local, mode), local
 	}
@@ -416,7 +745,9 @@ Skor harus 0.0-1.0. Gunakan local_analysis sebagai batas aman, jangan menurunkan
 		RedFlags:           sanitizeStringSlice(append(local.RedFlags, ai.RedFlags...), 4),
 		Recommendations:    sanitizeStringSlice(append(ai.Recommendations, local.Recommendations...), 4),
 		UserNextSteps:      sanitizeStringSlice(append(ai.UserNextSteps, local.UserNextSteps...), 4),
-		Source:             "ai",
+		Source:             "ai:" + provider.Name,
+		KeywordInsights:    sanitizeKeywordInsights(append(local.KeywordInsights, ai.KeywordInsights...), 12),
+		AgentInsights:      sanitizeAgentInsights(append(local.AgentInsights, ai.AgentInsights...), 8),
 	}
 	analysis.RiskLevel = strongestRisk(analysis.RiskLevel, local.RiskLevel)
 	analysis.AdminPriority = priorityFromRisk(analysis.RiskLevel, analysis.CrisisFlag, analysis.AdminPriority)
@@ -432,10 +763,12 @@ func analyzeCurhatClinicalSignals(text string, history []Curhat, stress float64)
 	lower := normalizeSignalText(text)
 	wordCount := len(regexp.MustCompile(`\b\w+\b`).FindAllString(lower, -1))
 	stressTerms, stressHits := weightedPhraseScoreDetailed(lower, curhatStressSignals)
+	acuteStressTerms, acuteStressHits := weightedPhraseScoreDetailed(lower, curhatAcuteStressSignals)
+	durationTerms, durationHits := weightedPhraseScoreDetailed(lower, curhatDurationSignals)
 	burnoutTerms, burnoutHits := weightedPhraseScoreDetailed(lower, curhatBurnoutSignals)
 	psychosomaticTerms, psychosomaticHits := weightedPhraseScoreDetailed(lower, curhatPsychosomaticSignals)
 	functionalTerms, functionalHits := weightedPhraseScoreDetailed(lower, curhatFunctionalSignals)
-	protectiveTerms, _ := weightedPhraseScoreDetailed(lower, curhatProtectiveSignals)
+	protectiveTerms, protectiveHits := weightedPhraseScoreDetailed(lower, curhatProtectiveSignals)
 
 	redFlags := []string{}
 	crisisFlag := false
@@ -466,10 +799,17 @@ func analyzeCurhatClinicalSignals(text string, history []Curhat, stress float64)
 		historyPsychosomatic /= float64(len(history))
 	}
 
-	stress = clampFloat(math.Max(stress, 0.74*stressTerms+0.18*functionalTerms+0.12*historyStress-0.16*protectiveTerms), 0, 1)
-	burnout := clampFloat(0.50*burnoutTerms+0.22*stress+0.16*historyBurnout+0.12*functionalTerms-0.10*protectiveTerms, 0, 1)
-	psychosomatic := clampFloat(0.58*psychosomaticTerms+0.18*stress+0.12*historyPsychosomatic+0.08*functionalTerms, 0, 1)
+	contextBoost := contextDensityBoost(lower)
+	stress = clampFloat(math.Max(stress, 0.66*stressTerms+0.28*acuteStressTerms+0.12*durationTerms+0.20*functionalTerms+0.10*historyStress+contextBoost-0.18*protectiveTerms), 0, 1)
+	burnout := clampFloat(0.54*burnoutTerms+0.18*stress+0.18*historyBurnout+0.14*functionalTerms+0.12*durationTerms-0.12*protectiveTerms, 0, 1)
+	psychosomatic := clampFloat(0.62*psychosomaticTerms+0.14*stress+0.12*historyPsychosomatic+0.08*functionalTerms+0.06*acuteStressTerms, 0, 1)
 	aggregate := math.Max(stress, math.Max(burnout, psychosomatic))
+	if stress >= 0.55 && acuteStressTerms >= 0.20 {
+		aggregate += 0.04
+	}
+	if durationTerms >= 0.32 && (burnout >= 0.40 || stress >= 0.52) {
+		aggregate += 0.05
+	}
 	if functionalTerms >= 0.55 {
 		aggregate += 0.05
 	}
@@ -489,7 +829,7 @@ func analyzeCurhatClinicalSignals(text string, history []Curhat, stress float64)
 	}
 
 	if stress >= 0.66 {
-		detail := topSignalPhrases(stressHits, 3)
+		detail := topSignalPhrases(append(stressHits, acuteStressHits...), 3)
 		redFlags = append(redFlags, signalRedFlag("Stres tinggi dari bahasa curhat", detail))
 	}
 	if burnout >= 0.62 {
@@ -506,6 +846,10 @@ func analyzeCurhatClinicalSignals(text string, history []Curhat, stress float64)
 	}
 	if historyHighCount >= 2 {
 		redFlags = append(redFlags, "Riwayat curhat sebelumnya menunjukkan risiko berulang")
+	}
+	if durationTerms >= 0.32 {
+		detail := topSignalPhrases(durationHits, 2)
+		redFlags = append(redFlags, signalRedFlag("Durasi tekanan tampak berulang", detail))
 	}
 	if crisisHit != "" {
 		redFlags = append([]string{"Frasa krisis terdeteksi: " + crisisHit}, redFlags...)
@@ -530,6 +874,14 @@ func analyzeCurhatClinicalSignals(text string, history []Curhat, stress float64)
 		Recommendations:    adminRecommendationsForRisk(risk, crisisFlag),
 		UserNextSteps:      userNextStepsForRisk(risk, crisisFlag),
 		Source:             "local",
+		KeywordInsights: keywordInsightsFromHits(map[string][]weightedSignalHit{
+			"stres":        append(stressHits, acuteStressHits...),
+			"burnout":      burnoutHits,
+			"psikosomatis": psychosomaticHits,
+			"fungsi":       functionalHits,
+			"protektif":    protectiveHits,
+			"durasi":       durationHits,
+		}, crisisHit),
 	}
 }
 
@@ -555,17 +907,24 @@ func fallbackCurhatResponse(analysis CurhatClinicalAnalysis, mode string) string
 	default:
 		prefix = "Aku dengerin kamu. "
 	}
+	systemLine := ""
+	for _, insight := range analysis.AgentInsights {
+		if strings.EqualFold(insight.Label, "Data sistem") {
+			systemLine = " " + insight.Detail
+			break
+		}
+	}
 
 	if analysis.CrisisFlag || analysis.RiskLevel == "Crisis" {
-		return prefix + "Aku ikut khawatir membaca ini, dan kamu tidak harus menanggungnya sendirian. Tolong hubungi orang terdekat yang kamu percaya sekarang, atau cari bantuan profesional/darurat setempat bila ada risiko menyakiti diri. Untuk beberapa menit ini, jauhkan benda yang bisa membahayakan dan tetap berada di tempat yang aman. Aku akan tetap menemani kamu menuliskan langkah kecil berikutnya."
+		return prefix + "Aku ikut khawatir membaca ini, dan kamu tidak harus menanggungnya sendirian." + systemLine + " Prioritas sekarang adalah keselamatan: hubungi orang terdekat yang kamu percaya, atau cari bantuan profesional/darurat setempat bila ada risiko menyakiti diri. Untuk beberapa menit ini, jauhkan benda yang bisa membahayakan dan tetap berada di tempat yang aman. Aku akan tetap menemani kamu menuliskan langkah kecil berikutnya."
 	}
 	if analysis.RiskLevel == "High" {
-		return prefix + "Aku menangkap tekanan yang cukup kuat dari ceritamu. Ini bukan berarti kamu lemah, tapi sinyal bahwa tubuh dan pikiranmu sedang meminta jeda yang lebih serius. Coba pilih satu hal paling mendesak, turunkan bebannya, lalu beri tahu orang tepercaya bahwa kamu sedang kewalahan. Aku juga akan merangkum sinyal ini agar admin bisa memantau dan memberi tindak lanjut yang lebih tepat."
+		return prefix + "Aku menangkap tekanan yang cukup kuat dari ceritamu." + systemLine + " Pola utamanya perlu ditangani sebagai prioritas, bukan ditumpuk lagi. Coba pilih satu hal paling mendesak, turunkan bebannya, lalu beri tahu orang tepercaya bahwa kamu sedang kewalahan. Aku juga akan merangkum sinyal ini agar admin bisa memantau dan memberi tindak lanjut yang lebih tepat."
 	}
 	if analysis.RiskLevel == "Medium" {
-		return prefix + "Aku paham, rasanya beberapa hal sedang menumpuk dan mulai menguras energi. Mari kita buat lebih kecil dulu: ambil napas pelan, pilih satu tugas paling dekat, lalu beri jeda singkat setelahnya. Kalau kamu mau, ceritakan bagian mana yang paling berat supaya kita bisa pecah jadi langkah yang lebih jelas."
+		return prefix + "Aku paham, rasanya beberapa hal sedang menumpuk dan mulai menguras energi." + systemLine + " Prioritas sekarang adalah membuat masalahnya lebih kecil: ambil napas pelan, pilih satu tugas paling dekat, lalu beri jeda singkat setelahnya. Kalau kamu mau, ceritakan bagian mana yang paling berat supaya kita bisa pecah jadi langkah yang lebih jelas."
 	}
-	return prefix + "Terima kasih sudah cerita. Dari yang kamu tulis, tekanannya belum terlihat sangat tinggi, tapi tetap penting untuk menjaga ritme dan istirahat. Pertahankan hal yang membantu kamu merasa stabil, dan kalau ada bagian yang mengganjal, kamu bisa lanjut ceritakan di sini."
+	return prefix + "Terima kasih sudah cerita." + systemLine + " Dari yang kamu tulis, tekanannya belum terlihat sangat tinggi, tapi tetap penting untuk menjaga ritme, tidur, dan jeda. Pertahankan hal yang membantu kamu merasa stabil, lalu gunakan curhat ini sebagai check-in singkat kalau ada bagian yang mulai mengganjal."
 }
 
 func buildAdminSummary(risk string, stress float64, burnout float64, psycho float64, crisis bool) string {
@@ -663,6 +1022,98 @@ func sanitizeStringSlice(items []string, limit int) []string {
 		}
 		seen[key] = true
 		result = append(result, truncateString(item, 220))
+		if len(result) >= limit {
+			break
+		}
+	}
+	return result
+}
+
+func sanitizeKeywordInsights(items []CurhatKeywordInsight, limit int) []CurhatKeywordInsight {
+	result := []CurhatKeywordInsight{}
+	seen := map[string]bool{}
+	allowedCategory := map[string]bool{
+		"stres": true, "burnout": true, "psikosomatis": true, "fungsi": true, "protektif": true, "krisis": true, "durasi": true,
+	}
+	allowedImpact := map[string]bool{"risk": true, "protective": true, "critical": true}
+	for _, item := range items {
+		phrase := strings.TrimSpace(item.Phrase)
+		category := strings.ToLower(strings.TrimSpace(item.Category))
+		impact := strings.ToLower(strings.TrimSpace(item.Impact))
+		if phrase == "" {
+			continue
+		}
+		if !allowedCategory[category] {
+			category = "stres"
+		}
+		if !allowedImpact[impact] {
+			if category == "protektif" {
+				impact = "protective"
+			} else if category == "krisis" {
+				impact = "critical"
+			} else {
+				impact = "risk"
+			}
+		}
+		key := category + ":" + strings.ToLower(phrase)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		result = append(result, CurhatKeywordInsight{
+			Phrase:   truncateString(phrase, 80),
+			Category: category,
+			Weight:   clampFloat(item.Weight, 0, 1.5),
+			Impact:   impact,
+		})
+		if len(result) >= limit {
+			break
+		}
+	}
+	return result
+}
+
+func unmarshalAIJSONObject(content string, target interface{}) error {
+	content = strings.TrimSpace(content)
+	if err := json.Unmarshal([]byte(content), target); err == nil {
+		return nil
+	}
+	start := strings.Index(content, "{")
+	end := strings.LastIndex(content, "}")
+	if start >= 0 && end > start {
+		return json.Unmarshal([]byte(content[start:end+1]), target)
+	}
+	return fmt.Errorf("AI response did not contain a JSON object")
+}
+
+func sanitizeAgentInsights(items []CurhatAgentInsight, limit int) []CurhatAgentInsight {
+	result := []CurhatAgentInsight{}
+	seen := map[string]bool{}
+	allowedTone := map[string]bool{
+		"info": true, "success": true, "warning": true, "danger": true, "urgent": true, "low": true, "medium": true, "high": true,
+	}
+	for _, item := range items {
+		label := truncateString(strings.TrimSpace(item.Label), 48)
+		value := truncateString(strings.TrimSpace(item.Value), 80)
+		detail := truncateString(strings.TrimSpace(item.Detail), 220)
+		tone := strings.ToLower(strings.TrimSpace(item.Tone))
+		if label == "" || value == "" {
+			continue
+		}
+		if !allowedTone[tone] {
+			tone = "info"
+		}
+		key := strings.ToLower(label + ":" + value)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		result = append(result, CurhatAgentInsight{
+			Label:  label,
+			Value:  value,
+			Tone:   tone,
+			Detail: detail,
+		})
 		if len(result) >= limit {
 			break
 		}

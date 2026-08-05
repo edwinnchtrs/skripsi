@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Brain, Menu } from 'lucide-react';
 import AIAssistant from './AIAssistant';
 import Sidebar from './Sidebar';
+import SystemCommandCenter from './SystemCommandCenter';
 
 export default function DashboardLayout() {
   const [assistantOpen, setAssistantOpen] = useState(false);
@@ -35,6 +36,7 @@ export default function DashboardLayout() {
       <main className="app-main">
         <Outlet />
       </main>
+      <SystemCommandCenter role="admin" onOpenAssistant={() => setAssistantOpen(true)} />
       <AIAssistant role="admin" open={assistantOpen} onOpenChange={setAssistantOpen} />
     </div>
   );

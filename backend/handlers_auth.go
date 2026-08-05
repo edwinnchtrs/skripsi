@@ -6,10 +6,47 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
+	"time"
 	"unicode"
 
 	"github.com/gin-gonic/gin"
 )
+
+type authAttemptBucket struct {
+	Count      int
+	ResetTime  time.Time
+	BlockedTil time.Time
+}
+
+var authAttemptMu sync.Mutex
+var authAttempts = map[string]authAttemptBucket{}
+
+func checkAuthRateLimit(c *gin.Context, scope string, identity string, limit int) bool {
+	key := scope + ":" + c.ClientIP() + ":" + strings.ToLower(strings.TrimSpace(identity))
+	now := time.Now()
+	window := 10 * time.Minute
+	authAttemptMu.Lock()
+	defer authAttemptMu.Unlock()
+
+	bucket := authAttempts[key]
+	if !bucket.BlockedTil.IsZero() && now.Before(bucket.BlockedTil) {
+		c.JSON(http.StatusTooManyRequests, gin.H{"error": "Terlalu banyak percobaan. Tunggu beberapa menit lalu coba lagi."})
+		return false
+	}
+	if bucket.ResetTime.IsZero() || now.After(bucket.ResetTime) {
+		bucket = authAttemptBucket{ResetTime: now.Add(window)}
+	}
+	bucket.Count++
+	if bucket.Count > limit {
+		bucket.BlockedTil = now.Add(5 * time.Minute)
+		authAttempts[key] = bucket
+		c.JSON(http.StatusTooManyRequests, gin.H{"error": "Terlalu banyak percobaan. Akses sementara dibatasi untuk keamanan."})
+		return false
+	}
+	authAttempts[key] = bucket
+	return true
+}
 
 func normalizeUserType(value string) string {
 	normalized := strings.ToLower(strings.TrimSpace(value))
@@ -105,6 +142,9 @@ func RegisterHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Lengkapi username, nama lengkap, jenis akun, dan kata sandi"})
 		return
 	}
+	if !checkAuthRateLimit(c, "register", input.Username, 5) {
+		return
+	}
 
 	rawUserType := input.UserType
 	input.Username = strings.ToLower(strings.TrimSpace(input.Username))
@@ -152,6 +192,9 @@ func LoginHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Lengkapi username, nama lengkap, jenis akun, dan kata sandi baru"})
 		return
 	}
+	if !checkAuthRateLimit(c, "login", input.Username, 8) {
+		return
+	}
 	input.Username = strings.ToLower(strings.TrimSpace(input.Username))
 
 	var user User
@@ -182,6 +225,9 @@ func GoogleLoginHandler(c *gin.Context) {
 	}
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Access token is required"})
+		return
+	}
+	if !checkAuthRateLimit(c, "google", c.ClientIP(), 12) {
 		return
 	}
 
@@ -245,6 +291,9 @@ func ForgotPasswordHandler(c *gin.Context) {
 	}
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Lengkapi username, nama lengkap, jenis akun, dan kata sandi baru"})
+		return
+	}
+	if !checkAuthRateLimit(c, "forgot", input.Username, 5) {
 		return
 	}
 	input.Username = strings.ToLower(strings.TrimSpace(input.Username))

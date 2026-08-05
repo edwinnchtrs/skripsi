@@ -72,6 +72,14 @@ type Curhat struct {
 	IsAnonymous         bool `gorm:"default:true"`
 	Text                string
 	Image               string
+	AttachmentName      string `gorm:"size:191"`
+	AttachmentType      string `gorm:"size:64"`
+	AttachmentData      string `gorm:"type:longtext"`
+	AttachmentText      string `gorm:"type:longtext"`
+	VoiceTranscript     string `gorm:"type:text"`
+	MemorySummary       string `gorm:"type:text"`
+	KeywordAnalysisJSON string `gorm:"type:longtext"`
+	AgentInsightsJSON   string `gorm:"type:longtext"`
 	StressScore         float64
 	BurnoutScore        float64
 	PsychosomaticScore  float64
