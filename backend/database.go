@@ -32,6 +32,7 @@ func ConnectDatabase() {
 		&Assessment{},
 		&HappinessAssessment{},
 		&DpaNote{},
+		&DpaMessage{},
 		&MBTIResult{},
 		&Curhat{},
 		&CurhatReply{},
@@ -96,7 +97,6 @@ func SeedAdmin() {
 		DB.Model(&admin).Updates(map[string]interface{}{
 			"password_hash": hashedPassword,
 			"role":          RoleDPA,
-			"user_type":     "karyawan",
 		})
 		log.Println("DPA user updated to ensure login works (username: admin, password: admin123).")
 	}
@@ -112,7 +112,6 @@ func SeedSuperadmin() {
 			PasswordHash: hashedPassword,
 			Nama:         "Ketua Program Studi",
 			Role:         RoleSuperadmin,
-			UserType:     "karyawan",
 		}
 		DB.Create(&newKaprodi)
 		log.Println("Kaprodi user created successfully (username: kaprodi, password: kaprodi123).")
@@ -121,7 +120,6 @@ func SeedSuperadmin() {
 		DB.Model(&kaprodi).Updates(map[string]interface{}{
 			"password_hash": hashedPassword,
 			"role":          RoleSuperadmin,
-			"user_type":     "karyawan",
 		})
 		log.Println("Kaprodi user updated to ensure login works (username: kaprodi, password: kaprodi123).")
 	}

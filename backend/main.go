@@ -138,6 +138,13 @@ func main() {
 			dpa.GET("/dpa/warnings", DpaWarningsHandler)
 			dpa.GET("/dpa/students/:id/report", DpaStudentReportHandler)
 
+			// Grup chat bimbingan: satu grup per DPA, diakses DPA dan
+			// mahasiswa bimbingannya (handler bercabang berdasarkan role).
+			chat := protected.Group("/")
+			chat.Use(RequireRole(RoleStudent, RoleDPA))
+			chat.GET("/dpa/chat", DpaChatMessagesHandler)
+			chat.POST("/dpa/chat/send", DpaChatSendHandler)
+
 			// Superadmin / Kaprodi Routes (administratif + analytics prodi)
 			superadmin := protected.Group("/")
 			superadmin.Use(RequireRole(RoleSuperadmin))

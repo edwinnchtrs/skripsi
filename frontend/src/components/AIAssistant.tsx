@@ -525,7 +525,7 @@ export default function AIAssistant({ role, open, onOpenChange }: AIAssistantPro
 
   const topNeed = context?.needs?.[0];
   const headlineStats = useMemo(() => {
-    const entries = Object.entries(context?.stats || {}).filter(([key]) => !['role', 'name', 'user_type'].includes(key));
+    const entries = Object.entries(context?.stats || {}).filter(([key]) => !['role', 'name'].includes(key));
     const preferredKeys =
       role === 'admin'
         ? ['high_risk_respondents', 'unseen_replies', 'pending_treatments']
@@ -1105,7 +1105,7 @@ export default function AIAssistant({ role, open, onOpenChange }: AIAssistantPro
 
                 <div className="grid gap-3 sm:grid-cols-2">
                   {Object.entries(context?.stats || {})
-                    .filter(([key]) => !['role', 'name', 'user_type'].includes(key))
+                    .filter(([key]) => !['role', 'name'].includes(key))
                     .slice(0, 6)
                     .map(([key, value]) => (
                       <div key={key} className="rounded-xl border border-slate-800 bg-slate-900/70 p-4">

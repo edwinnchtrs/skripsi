@@ -21,7 +21,7 @@ import { Cell, Pie, PieChart, Tooltip } from 'recharts';
 import ChartShell from '../components/ChartShell';
 import api from '../api';
 
-type AccountFilter = 'all' | 'kaprodi' | 'dpa' | 'mahasiswa' | 'karyawan';
+type AccountFilter = 'all' | 'kaprodi' | 'dpa' | 'mahasiswa';
 type ModalMode = 'create' | 'edit';
 
 interface ManagedUser {
@@ -29,7 +29,6 @@ interface ManagedUser {
   username: string;
   nama: string;
   role: string;
-  user_type: string;
   bio: string;
   profile_pic: string;
   nim: string;
@@ -50,7 +49,6 @@ const emptyForm = {
   nama: '',
   username: '',
   role: 'student',
-  user_type: 'mahasiswa',
   password: '',
   bio: '',
   nim: '',
@@ -83,21 +81,15 @@ const accountMeta = {
     chip: 'border-cyan-300/25 bg-cyan-500/10 text-cyan-100',
     accent: '#67e8f9',
   },
-  karyawan: {
-    label: 'Karyawan',
-    icon: Users,
-    chip: 'border-emerald-300/25 bg-emerald-500/10 text-emerald-100',
-    accent: '#34d399',
-  },
 };
 
 type AccountType = keyof typeof accountMeta;
 
-const getAccountType = (user: Pick<ManagedUser, 'role' | 'user_type'>): AccountType => {
+const getAccountType = (user: Pick<ManagedUser, 'role'>): AccountType => {
   const role = (user.role || '').toLowerCase();
   if (role === 'superadmin' || role === 'admin' || role === 'kaprodi') return 'kaprodi';
   if (role === 'dpa') return 'dpa';
-  return user.user_type === 'karyawan' ? 'karyawan' : 'mahasiswa';
+  return 'mahasiswa';
 };
 
 const formatDate = (date: string) => {
@@ -148,8 +140,7 @@ export default function ManajemenUser() {
     const kaprodi = users.filter((user) => getAccountType(user) === 'kaprodi').length;
     const dpa = users.filter((user) => getAccountType(user) === 'dpa').length;
     const mahasiswa = users.filter((user) => getAccountType(user) === 'mahasiswa').length;
-    const karyawan = users.filter((user) => getAccountType(user) === 'karyawan').length;
-    return { total: users.length, kaprodi, dpa, mahasiswa, karyawan };
+    return { total: users.length, kaprodi, dpa, mahasiswa };
   }, [users]);
 
   const filteredUsers = useMemo(() => {
@@ -171,7 +162,6 @@ export default function ManajemenUser() {
     { name: 'Kaprodi', value: stats.kaprodi, color: accountMeta.kaprodi.accent },
     { name: 'DPA', value: stats.dpa, color: accountMeta.dpa.accent },
     { name: 'Mahasiswa', value: stats.mahasiswa, color: accountMeta.mahasiswa.accent },
-    { name: 'Karyawan', value: stats.karyawan, color: accountMeta.karyawan.accent },
   ];
 
   const openCreate = () => {
@@ -187,7 +177,6 @@ export default function ManajemenUser() {
       nama: user.nama,
       username: user.username,
       role: type === 'kaprodi' ? 'superadmin' : type === 'dpa' ? 'dpa' : 'student',
-      user_type: type === 'kaprodi' || type === 'dpa' ? 'karyawan' : type,
       password: '',
       bio: user.bio || '',
       nim: user.nim || '',
@@ -217,7 +206,6 @@ export default function ManajemenUser() {
       nama: form.nama.trim(),
       username: form.username.trim().toLowerCase(),
       role: form.role,
-      user_type: isStaffRole ? 'karyawan' : form.user_type,
       bio: form.bio,
     };
 
@@ -295,7 +283,7 @@ export default function ManajemenUser() {
               </div>
               <h1 className="text-2xl font-semibold tracking-normal text-white sm:text-3xl">Manajemen User</h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
-                Kelola akun kaprodi, DPA, mahasiswa, dan karyawan dari satu tempat. Tambah akun baru, ubah role, atur profil akademik, petakan mahasiswa ke DPA, atau hapus akun yang tidak digunakan.
+                Kelola akun kaprodi, DPA, dan mahasiswa dari satu tempat. Tambah akun baru, ubah role, atur profil akademik, petakan mahasiswa ke DPA, atau hapus akun yang tidak digunakan.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -329,13 +317,12 @@ export default function ManajemenUser() {
           </div>
         )}
 
-        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {[
             { key: 'all', label: 'Total Akun', value: stats.total, icon: Users, className: 'text-slate-100 bg-slate-700/30' },
             { key: 'kaprodi', label: 'Kaprodi', value: stats.kaprodi, icon: Shield, className: 'text-violet-100 bg-violet-500/10' },
             { key: 'dpa', label: 'DPA', value: stats.dpa, icon: Users, className: 'text-indigo-100 bg-indigo-500/10' },
             { key: 'mahasiswa', label: 'Mahasiswa', value: stats.mahasiswa, icon: UserCheck, className: 'text-cyan-100 bg-cyan-500/10' },
-            { key: 'karyawan', label: 'Karyawan', value: stats.karyawan, icon: Users, className: 'text-emerald-100 bg-emerald-500/10' },
           ].map((item) => {
             const Icon = item.icon;
             return (
@@ -532,7 +519,6 @@ export default function ManajemenUser() {
                   ['Kaprodi', 'Akses penuh: kelola mahasiswa, dosen, DPA, mapping bimbingan, analytics prodi, dan konfigurasi sistem.', accountMeta.kaprodi],
                   ['DPA', 'Memantau burnout & happiness mahasiswa bimbingan, catatan monitoring, early warning, dan laporan.', accountMeta.dpa],
                   ['Mahasiswa', 'Mengisi assessment burnout & happiness, melihat analitik pribadi, curhat, dan jaringan teman.', accountMeta.mahasiswa],
-                  ['Karyawan', 'Akses portal user dengan kategori karyawan untuk segmentasi analitik.', accountMeta.karyawan],
                 ].map(([title, desc, meta]) => {
                   const typedMeta = meta as typeof accountMeta.admin;
                   const Icon = typedMeta.icon;
@@ -559,7 +545,7 @@ export default function ManajemenUser() {
               <div>
                 <h2 className="text-lg font-semibold text-white">{modalMode === 'create' ? 'Tambah User' : 'Edit User'}</h2>
                 <p className="mt-1 text-xs text-slate-500">
-                  {modalMode === 'create' ? 'Buat akun kaprodi, DPA, mahasiswa, atau karyawan.' : 'Perbarui data akun, profil akademik, dan akses pengguna.'}
+                  {modalMode === 'create' ? 'Buat akun kaprodi, DPA, atau mahasiswa.' : 'Perbarui data akun, profil akademik, dan akses pengguna.'}
                 </p>
               </div>
               <button onClick={closeModal} className="flex h-9 w-9 items-center justify-center rounded-md border border-white/10 text-slate-400 hover:text-white">
@@ -595,8 +581,7 @@ export default function ManajemenUser() {
                   <select
                     value={form.role}
                     onChange={(event) => {
-                      const value = event.target.value;
-                      setForm({ ...form, role: value, user_type: value === 'student' ? 'mahasiswa' : 'karyawan' });
+                      setForm({ ...form, role: event.target.value });
                     }}
                     className="mt-1 h-10 w-full rounded-md border border-white/10 bg-slate-900 px-3 text-sm text-white outline-none focus:border-cyan-300/50"
                   >
@@ -605,19 +590,7 @@ export default function ManajemenUser() {
                     <option value="superadmin">Kaprodi (Superadmin)</option>
                   </select>
                 </label>
-                {form.role === 'student' && (
-                  <label className="block">
-                    <span className="text-xs font-semibold text-slate-400">Jenis akun</span>
-                    <select
-                      value={form.user_type}
-                      onChange={(event) => setForm({ ...form, user_type: event.target.value })}
-                      className="mt-1 h-10 w-full rounded-md border border-white/10 bg-slate-900 px-3 text-sm text-white outline-none focus:border-cyan-300/50"
-                    >
-                      <option value="mahasiswa">Mahasiswa</option>
-                      <option value="karyawan">Karyawan</option>
-                    </select>
-                  </label>
-                )}
+                {form.role !== 'student' && <div />}
                 <label className="block">
                   <span className="text-xs font-semibold text-slate-400">
                     {modalMode === 'create' ? 'Password' : 'Password baru'}

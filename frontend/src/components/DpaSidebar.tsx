@@ -4,6 +4,7 @@ import {
   Users,
   ShieldAlert,
   FileText,
+  MessagesSquare,
   User,
   LogOut,
   Sun,
@@ -16,6 +17,7 @@ import { useTheme } from '../hooks/useTheme';
 const navItems = [
   { label: 'Dashboard DPA', icon: LayoutDashboard, path: '/dpa/dashboard' },
   { label: 'Mahasiswa Bimbingan', icon: Users, path: '/dpa/mahasiswa' },
+  { label: 'Grup Chat Bimbingan', icon: MessagesSquare, path: '/dpa/chat' },
   { label: 'Early Warning', icon: ShieldAlert, path: '/dpa/warnings' },
   { label: 'Laporan', icon: FileText, path: '/dpa/laporan' },
 ];

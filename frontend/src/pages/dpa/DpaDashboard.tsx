@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Activity, ArrowRight, ClipboardX, Flame, Loader2, RefreshCw, ShieldAlert, Smile, TriangleAlert, Users } from 'lucide-react';
+import DpaPageHeader from '../../components/DpaPageHeader';
 import api from '../../api';
 import { burnoutCategoryMeta, categoryMeta, interpretationMeta } from '../userDashboard/happinessShared';
 
@@ -94,19 +95,12 @@ export default function DpaDashboard() {
 
   return (
     <div className="flex flex-col gap-5">
-      <header className="rounded-lg border border-white/10 bg-slate-950 p-5 shadow-xl shadow-black/20">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-          <div>
-            <div className="mb-3 inline-flex items-center gap-2 rounded-md border border-indigo-300/20 bg-indigo-300/10 px-3 py-1 text-xs font-semibold text-indigo-100">
-              <Users className="h-3.5 w-3.5" />
-              Portal DPA
-            </div>
-            <h1 className="text-2xl font-semibold tracking-normal text-white sm:text-3xl">Dashboard DPA</h1>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
-              {data?.dpa?.nama ? `Selamat datang, ${data.dpa.nama}. ` : ''}
-              Pantau burnout dan Happiness Index mahasiswa bimbingan Anda dari satu tempat.
-            </p>
-          </div>
+      <DpaPageHeader
+        eyebrow="Portal DPA"
+        title="Dashboard DPA"
+        description={`${data?.dpa?.nama ? `Selamat datang, ${data.dpa.nama}. ` : ''}Pantau burnout dan Happiness Index mahasiswa bimbingan Anda dari satu tempat.`}
+        icon={Users}
+        actions={
           <button
             onClick={fetchDashboard}
             disabled={loading}
@@ -115,8 +109,8 @@ export default function DpaDashboard() {
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             Refresh
           </button>
-        </div>
-      </header>
+        }
+      />
 
       {error && <div className="rounded-lg border border-rose-300/25 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">{error}</div>}
 

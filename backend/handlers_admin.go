@@ -44,7 +44,6 @@ func RespondenGetHandler(c *gin.Context) {
 		LatestRisk          string    `json:"latest_risk"`
 		LatestPsychosomatic float64   `json:"latest_psychosomatic"`
 		LastActivity        time.Time `json:"last_activity"`
-		UserType            string    `json:"user_type"`
 		LatestMBTIType      string    `json:"latest_mbti_type"`
 		LatestMBTITitle     string    `json:"latest_mbti_title"`
 		LatestMBTISummary   string    `json:"latest_mbti_summary"`
@@ -61,7 +60,6 @@ func RespondenGetHandler(c *gin.Context) {
 			ID:       u.ID,
 			Nama:     u.Nama,
 			Username: u.Username,
-			UserType: normalizeUserType(u.UserType),
 		}
 
 		if len(u.Predictions) > 0 {
@@ -155,7 +153,7 @@ func AdminUsersGetHandler(c *gin.Context) {
 	for _, u := range users {
 		result = append(result, UserDTO{
 			ID: u.ID, Username: u.Username, Nama: u.Nama,
-			Role: u.Role, Bio: u.Bio, ProfilePic: u.ProfilePic, UserType: normalizeUserType(u.UserType),
+			Role: u.Role, Bio: u.Bio, ProfilePic: u.ProfilePic,
 			Nim: u.Nim, Prodi: u.Prodi, Angkatan: u.Angkatan, Semester: u.Semester,
 			Ipk: u.Ipk, Ips: u.Ips, Sks: u.Sks, Kehadiran: u.Kehadiran,
 			DpaID: u.DpaID, DpaName: dpaNames[u.DpaID],
@@ -183,7 +181,7 @@ func AdminUsersGetByIDHandler(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"id": user.ID, "username": user.Username, "nama": user.Nama,
-		"role": user.Role, "bio": user.Bio, "profile_pic": user.ProfilePic, "user_type": normalizeUserType(user.UserType),
+		"role": user.Role, "bio": user.Bio, "profile_pic": user.ProfilePic,
 		"nim": user.Nim, "prodi": user.Prodi, "angkatan": user.Angkatan, "semester": user.Semester,
 		"ipk": user.Ipk, "ips": user.Ips, "sks": user.Sks, "kehadiran": user.Kehadiran,
 		"dpa_id": user.DpaID, "dpa_name": dpaName,
@@ -200,7 +198,6 @@ func AdminUsersCreateHandler(c *gin.Context) {
 		Username string `json:"username" binding:"required"`
 		Nama     string `json:"nama" binding:"required"`
 		Role     string `json:"role" binding:"required"`
-		UserType string `json:"user_type"`
 		Password string `json:"password" binding:"required"`
 		Bio      string `json:"bio"`
 		// Profil akademik mahasiswa
@@ -240,15 +237,6 @@ func AdminUsersCreateHandler(c *gin.Context) {
 		return
 	}
 
-	userType := normalizeUserType(input.UserType)
-	if input.Role == RoleStudent && !isValidUserType(input.UserType) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Pilih mahasiswa atau karyawan"})
-		return
-	}
-	if isAdminLevelRole(input.Role) {
-		userType = "karyawan"
-	}
-
 	var count int64
 	DB.Model(&User{}).Where("username = ?", input.Username).Count(&count)
 	if count > 0 {
@@ -262,7 +250,6 @@ func AdminUsersCreateHandler(c *gin.Context) {
 		PasswordHash: hashedPassword,
 		Nama:         input.Nama,
 		Role:         input.Role,
-		UserType:     userType,
 		Bio:          input.Bio,
 		Nim:          strings.TrimSpace(input.Nim),
 		Prodi:        strings.TrimSpace(input.Prodi),
@@ -289,7 +276,7 @@ func AdminUsersCreateHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "User created", "user": gin.H{
-		"id": user.ID, "username": user.Username, "nama": user.Nama, "role": user.Role, "user_type": normalizeUserType(user.UserType),
+		"id": user.ID, "username": user.Username, "nama": user.Nama, "role": user.Role,
 	}})
 }
 
@@ -309,7 +296,6 @@ func AdminUsersPutHandler(c *gin.Context) {
 		Role     string `json:"role"`
 		Bio      string `json:"bio"`
 		Password string `json:"password"`
-		UserType string `json:"user_type"`
 		// Profil akademik mahasiswa
 		Nim       string  `json:"nim"`
 		Prodi     string  `json:"prodi"`
@@ -348,13 +334,6 @@ func AdminUsersPutHandler(c *gin.Context) {
 	}
 	if input.Bio != "" {
 		updates["bio"] = input.Bio
-	}
-	if input.UserType != "" {
-		if !isValidUserType(input.UserType) {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Jenis pengguna tidak valid"})
-			return
-		}
-		updates["user_type"] = normalizeUserType(input.UserType)
 	}
 	if input.Nim != "" {
 		updates["nim"] = strings.TrimSpace(input.Nim)
@@ -710,20 +689,12 @@ func AdminAnalyticsHandler(c *gin.Context) {
 	type GroupedScores struct {
 		All       []float64
 		Mahasiswa []float64
-		Karyawan  []float64
 	}
 	dateGroups := make(map[string]*GroupedScores)
 	var orderedDates []string
-	var predictionUsers []struct {
-		Prediction
-		UserType string
-	}
-	DB.Table("predictions").
-		Select("predictions.*, users.user_type").
-		Joins("JOIN users ON users.id = predictions.user_id").
-		Order("predictions.timestamp ASC").
-		Scan(&predictionUsers)
-	for _, p := range predictionUsers {
+	var predictionsAll []Prediction
+	DB.Order("timestamp ASC").Find(&predictionsAll)
+	for _, p := range predictionsAll {
 		dateStr := p.Timestamp.Format("02 Jan")
 		if dateGroups[dateStr] == nil {
 			orderedDates = append(orderedDates, dateStr)
@@ -731,18 +702,13 @@ func AdminAnalyticsHandler(c *gin.Context) {
 		}
 		group := dateGroups[dateStr]
 		group.All = append(group.All, p.BurnoutScore)
-		if normalizeUserType(p.UserType) == "karyawan" {
-			group.Karyawan = append(group.Karyawan, p.BurnoutScore)
-		} else {
-			group.Mahasiswa = append(group.Mahasiswa, p.BurnoutScore)
-		}
+		group.Mahasiswa = append(group.Mahasiswa, p.BurnoutScore)
 	}
 
 	type TrendDay struct {
 		Date      string  `json:"date"`
 		Semua     float64 `json:"semua"`
 		Mahasiswa float64 `json:"mahasiswa"`
-		Karyawan  float64 `json:"karyawan"`
 	}
 	var trendData []TrendDay
 
@@ -753,7 +719,6 @@ func AdminAnalyticsHandler(c *gin.Context) {
 			Date:      d,
 			Semua:     mean(scores.All),
 			Mahasiswa: mean(scores.Mahasiswa),
-			Karyawan:  mean(scores.Karyawan),
 		})
 	}
 

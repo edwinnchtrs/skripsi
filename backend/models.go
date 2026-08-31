@@ -12,7 +12,6 @@ type User struct {
 	PasswordHash string
 	Nama         string
 	Role         string `gorm:"default:student"`
-	UserType     string `gorm:"size:32;default:mahasiswa"`
 	Bio          string
 	ProfilePic   string
 	// Profil akademik mahasiswa (diisi Kaprodi/superadmin)
@@ -289,6 +288,17 @@ type DpaNote struct {
 	StudentID uint `gorm:"index"`
 	Note      string `gorm:"type:text"`
 	Status    string `gorm:"size:32;default:normal;index"`
+	Timestamp time.Time `gorm:"autoCreateTime"`
+}
+
+// DpaMessage adalah pesan grup chat antara DPA dan mahasiswa bimbingannya.
+// Satu DPA = satu grup; SenderID menunjuk pengirim (DPA atau student).
+type DpaMessage struct {
+	gorm.Model
+	DpaID     uint `gorm:"index"`
+	SenderID  uint `gorm:"index"`
+	SenderRole string `gorm:"size:16"` // dpa | student
+	Body      string `gorm:"type:text"`
 	Timestamp time.Time `gorm:"autoCreateTime"`
 }
 

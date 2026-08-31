@@ -69,6 +69,7 @@ const navGroups: NavGroup[] = [
       { label: 'Burnout vs Happiness', icon: TrendingUp, path: '/user/well-being' },
       { label: 'Faktor Kondisi', icon: ClipboardList, path: '/user/faktor' },
       { label: 'Rekomendasi', icon: Sparkles, path: '/user/rekomendasi' },
+      { label: 'Grup Bimbingan', icon: Users, path: '/user/grup-bimbingan' },
     ],
   },
   {

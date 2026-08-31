@@ -59,7 +59,7 @@ export default function DashboardPage() {
   const filteredRespondents = useMemo(() => {
     if (groupFilter === 'all') return respondents;
     return respondents.filter((respondent: any) => {
-      const group = respondent.user_type || (respondent.id % 2 === 0 ? 'mahasiswa' : 'karyawan');
+      const group = 'mahasiswa';
       return group === groupFilter;
     });
   }, [respondents, groupFilter]);

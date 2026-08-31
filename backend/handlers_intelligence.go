@@ -185,7 +185,6 @@ func AdminCommandCenterHandler(c *gin.Context) {
 	var totalUsers int64
 	var admins int64
 	var mahasiswa int64
-	var karyawan int64
 	var pendingTreatments int64
 	var unreadReplies int64
 	var unreadNotifications int64
@@ -197,8 +196,7 @@ func AdminCommandCenterHandler(c *gin.Context) {
 
 	DB.Model(&User{}).Count(&totalUsers)
 	DB.Model(&User{}).Where("role = ?", RoleSuperadmin).Count(&admins)
-	DB.Model(&User{}).Where("role = ? AND user_type = ?", RoleStudent, "mahasiswa").Count(&mahasiswa)
-	DB.Model(&User{}).Where("role = ? AND user_type = ?", RoleStudent, "karyawan").Count(&karyawan)
+	DB.Model(&User{}).Where("role = ?", RoleStudent).Count(&mahasiswa)
 	DB.Model(&TherapyRecommendation{}).Where("status = ?", "pending").Count(&pendingTreatments)
 	DB.Model(&TreatmentReply{}).Where("admin_seen = ?", false).Count(&unreadReplies)
 	DB.Model(&Notification{}).Where("is_read = ?", false).Count(&unreadNotifications)
@@ -228,7 +226,6 @@ func AdminCommandCenterHandler(c *gin.Context) {
 			"total_users": totalUsers,
 			"admins":      admins,
 			"mahasiswa":   mahasiswa,
-			"karyawan":    karyawan,
 		},
 		"throughput": gin.H{
 			"assessments_7d": assessments7d,
@@ -337,7 +334,6 @@ func buildCommandUsers(users []User) []gin.H {
 			"nama":       user.Nama,
 			"username":   user.Username,
 			"role":       user.Role,
-			"user_type":  normalizeUserType(user.UserType),
 			"created_at": user.CreatedAt,
 		})
 	}
@@ -697,7 +693,7 @@ func buildCaseSummary(user User) gin.H {
 		factors = append(factors, "Belum ada faktor risiko tinggi yang menonjol")
 	}
 	return gin.H{
-		"user":                gin.H{"id": user.ID, "nama": user.Nama, "username": user.Username, "user_type": normalizeUserType(user.UserType)},
+		"user":                gin.H{"id": user.ID, "nama": user.Nama, "username": user.Username},
 		"risk_level":          risk,
 		"summary":             fmt.Sprintf("%s saat ini berada pada kategori %s berdasarkan timeline asesmen, curhat, check-in, dan tindak lanjut terapi.", user.Nama, strings.ToLower(risk)),
 		"key_factors":         factors,
@@ -1080,8 +1076,7 @@ func generateRecoveryPlan(user User, risk string, prediction Prediction, curhat 
 	}
 	payload, _ := json.Marshal(gin.H{
 		"user": gin.H{
-			"name":      user.Nama,
-			"user_type": normalizeUserType(user.UserType),
+			"name": user.Nama,
 		},
 		"risk_level": risk,
 		"latest_prediction": gin.H{

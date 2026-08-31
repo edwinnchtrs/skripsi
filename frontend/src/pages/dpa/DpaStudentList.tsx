@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Loader2, RefreshCw, Users } from 'lucide-react';
+import DpaPageHeader from '../../components/DpaPageHeader';
 import api from '../../api';
 import { burnoutCategoryMeta, categoryMeta, interpretationMeta } from '../userDashboard/happinessShared';
 
@@ -50,19 +51,13 @@ export default function DpaStudentList() {
 
   return (
     <div className="flex flex-col gap-5">
-      <header className="rounded-lg border border-white/10 bg-slate-950 p-5 shadow-xl shadow-black/20">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-          <div>
-            <div className="mb-3 inline-flex items-center gap-2 rounded-md border border-indigo-300/20 bg-indigo-300/10 px-3 py-1 text-xs font-semibold text-indigo-100">
-              <Users className="h-3.5 w-3.5" />
-              Mahasiswa Bimbingan
-            </div>
-            <h1 className="text-2xl font-semibold tracking-normal text-white sm:text-3xl">Daftar Mahasiswa Bimbingan</h1>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
-              Ringkasan burnout, Happiness Index, dan status monitoring setiap mahasiswa bimbingan Anda.
-            </p>
-          </div>
-          <div className="flex gap-2">
+      <DpaPageHeader
+        eyebrow="Mahasiswa Bimbingan"
+        title="Daftar Mahasiswa Bimbingan"
+        description="Ringkasan burnout, Happiness Index, dan status monitoring setiap mahasiswa bimbingan Anda."
+        icon={Users}
+        actions={
+          <>
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
@@ -76,9 +71,9 @@ export default function DpaStudentList() {
             >
               <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             </button>
-          </div>
-        </div>
-      </header>
+          </>
+        }
+      />
 
       {error && <div className="rounded-lg border border-rose-300/25 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">{error}</div>}
 

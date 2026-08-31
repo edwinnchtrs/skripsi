@@ -25,6 +25,7 @@ import DpaStudentList from './pages/dpa/DpaStudentList'
 import DpaStudentDetail from './pages/dpa/DpaStudentDetail'
 import DpaWarnings from './pages/dpa/DpaWarnings'
 import DpaLaporan from './pages/dpa/DpaLaporan'
+import DpaGroupChat from './pages/dpa/DpaGroupChat'
 import UserAsesmenHistory from './pages/UserAsesmenHistory'
 import UserCurhat from './pages/UserCurhat'
 import HappinessAssessment from './pages/userDashboard/HappinessAssessment'
@@ -34,6 +35,7 @@ import BurnoutHasil from './pages/userDashboard/BurnoutHasil'
 import WellBeingComparison from './pages/userDashboard/WellBeingComparison'
 import FaktorKondisi from './pages/userDashboard/FaktorKondisi'
 import Rekomendasi from './pages/userDashboard/Rekomendasi'
+import StudentGroupChat from './pages/userDashboard/StudentGroupChat'
 import UserProfileSettings from './pages/userDashboard/UserProfileSettings'
 import UserNetwork from './pages/userDashboard/UserNetwork'
 import UserProfilePage from './pages/userDashboard/UserProfilePage'
@@ -92,6 +94,7 @@ function App() {
             <Route path="/dpa/mahasiswa/:id" element={<DpaStudentDetail />} />
             <Route path="/dpa/warnings" element={<DpaWarnings />} />
             <Route path="/dpa/laporan" element={<DpaLaporan />} />
+            <Route path="/dpa/chat" element={<DpaGroupChat />} />
           </Route>
         </Route>
 
@@ -108,6 +111,7 @@ function App() {
             <Route path="/user/well-being" element={<WellBeingComparison />} />
             <Route path="/user/faktor" element={<FaktorKondisi />} />
             <Route path="/user/rekomendasi" element={<Rekomendasi />} />
+            <Route path="/user/grup-bimbingan" element={<StudentGroupChat />} />
             <Route path="/user/curhat" element={<UserCurhat />} />
             <Route path="/user/settings" element={<UserProfileSettings />} />
             <Route path="/user/network" element={<UserNetwork />} />
