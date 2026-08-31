@@ -244,6 +244,9 @@ func dpaAdviseeWarnings(dpa User, config SystemConfig, students []User) []WellBe
 			})
 		}
 		if hasBurnout && hasHappiness {
+			// Catat indeks awal agar penandaan nama hanya menyentuh
+			// warning milik mahasiswa ini (bukan warning sebelumnya).
+			start := len(warnings)
 			var prevBurnout Prediction
 			DB.Where("user_id = ? AND id < ?", student.ID, burnout.ID).Order("timestamp desc").First(&prevBurnout)
 			var prevHappiness HappinessAssessment
@@ -254,8 +257,7 @@ func dpaAdviseeWarnings(dpa User, config SystemConfig, students []User) []WellBe
 			if prevHappiness.ID != 0 {
 				warnings = append(warnings, detectWellbeingChange(0, 0, prevHappiness.HappinessIndex, happiness.HappinessIndex, config)...)
 			}
-			// Tambahkan konteks nama mahasiswa pada warning gabungan
-			for i := range warnings {
+			for i := start; i < len(warnings); i++ {
 				if warnings[i].Type == "combined" && !strings.Contains(warnings[i].Detail, student.Nama) {
 					warnings[i].Detail = student.Nama + ": " + warnings[i].Detail
 				}

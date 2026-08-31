@@ -34,6 +34,7 @@ func ConnectDatabase() {
 		&DpaNote{},
 		&DpaMessage{},
 		&DpaRating{},
+		&DpaReferral{},
 		&MBTIResult{},
 		&Curhat{},
 		&CurhatReply{},

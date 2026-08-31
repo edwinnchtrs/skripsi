@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { Area, AreaChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { ArrowLeft, FileDown, Flame, Loader2, Smile, StickyNote, TrendingUp, User } from 'lucide-react';
+import { ArrowLeft, FileDown, FileSignature, Flame, Loader2, Smile, StickyNote, TrendingUp, User } from 'lucide-react';
+import ReferralModal, { referralTypeLabel, type ReferralRecord } from './ReferralModal';
 import ChartShell from '../../components/ChartShell';
 import api from '../../api';
 import {
@@ -77,6 +78,17 @@ const NOTE_STATUS: { value: string; label: string }[] = [
   { value: 'perlu_tindak_lanjut', label: 'Perlu Tindak Lanjut' },
 ];
 
+const priorityChip: Record<string, string> = {
+  sedang: 'border-slate-300/25 bg-slate-500/15 text-slate-100',
+  penting: 'border-amber-300/30 bg-amber-500/15 text-amber-100',
+  mendesak: 'border-rose-300/30 bg-rose-500/15 text-rose-100',
+};
+
+const statusChip: Record<string, string> = {
+  diproses: 'border-amber-300/30 bg-amber-500/10 text-amber-100',
+  selesai: 'border-emerald-300/30 bg-emerald-500/10 text-emerald-100',
+};
+
 const noteStatusChip: Record<string, string> = {
   normal: 'border-emerald-300/30 bg-emerald-500/10 text-emerald-100',
   monitoring: 'border-amber-300/30 bg-amber-500/10 text-amber-100',
@@ -93,6 +105,18 @@ export default function DpaStudentDetail() {
   const [savingNote, setSavingNote] = useState(false);
   const [noteMessage, setNoteMessage] = useState('');
   const [downloading, setDownloading] = useState<string | null>(null);
+  const [referrals, setReferrals] = useState<ReferralRecord[]>([]);
+  const [referralOpen, setReferralOpen] = useState(false);
+
+  const fetchReferrals = useCallback(async () => {
+    if (!id) return;
+    try {
+      const res = await api.get(`/dpa/students/${id}/referrals`);
+      setReferrals(res.data.referrals ?? []);
+    } catch {
+      // Daftar rujukan kosong tidak menggagalkan halaman.
+    }
+  }, [id]);
 
   const fetchDetail = useCallback(async () => {
     setLoading(true);
@@ -108,8 +132,11 @@ export default function DpaStudentDetail() {
   }, [id]);
 
   useEffect(() => {
-    if (id) fetchDetail();
-  }, [id, fetchDetail]);
+    if (id) {
+      fetchDetail();
+      fetchReferrals();
+    }
+  }, [id, fetchDetail, fetchReferrals]);
 
   const submitNote = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -205,6 +232,13 @@ export default function DpaStudentDetail() {
                 <TrendingUp className="h-3.5 w-3.5" /> {combined.label}
               </span>
             )}
+            <button
+              onClick={() => setReferralOpen(true)}
+              className="inline-flex h-10 items-center gap-2 rounded-md bg-indigo-400 px-4 text-sm font-semibold text-slate-950 transition hover:bg-indigo-300"
+            >
+              <FileSignature className="h-4 w-4" />
+              Buat Rujukan
+            </button>
             <button
               onClick={() => downloadReport('pdf')}
               disabled={downloading !== null}
@@ -335,6 +369,52 @@ export default function DpaStudentDetail() {
         </section>
       )}
 
+      {/* Rujukan */}
+      <section className="rounded-lg border border-white/10 bg-slate-950 p-5 shadow-xl shadow-black/10">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-sm font-semibold text-white">
+            <FileSignature className="h-4 w-4 text-indigo-200" /> Riwayat Rujukan
+          </div>
+          <button
+            onClick={() => setReferralOpen(true)}
+            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-white/10 bg-white/[0.04] px-3 text-xs font-semibold text-slate-200 transition hover:border-indigo-300/40 hover:text-indigo-100"
+          >
+            <FileSignature className="h-3.5 w-3.5" />
+            Rujukan baru
+          </button>
+        </div>
+        <div className="mt-4 space-y-2">
+          {referrals.length === 0 ? (
+            <p className="py-4 text-center text-sm text-slate-500">Belum ada rujukan untuk mahasiswa ini.</p>
+          ) : (
+            referrals.map((referral) => (
+              <div key={referral.id} className="rounded-lg border border-white/10 bg-white/[0.03] px-4 py-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-semibold text-slate-100">{referral.type_label || referralTypeLabel(referral.referral_type)}</span>
+                    <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase ${priorityChip[referral.priority] || 'border-white/10 bg-white/[0.04] text-slate-300'}`}>
+                      {referral.priority}
+                    </span>
+                  </div>
+                  <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase ${statusChip[referral.status] || 'border-white/10 bg-white/[0.04] text-slate-300'}`}>
+                    {referral.status}
+                  </span>
+                </div>
+                <p className="mt-2 text-sm leading-6 text-slate-300">{referral.reason}</p>
+                {referral.recommendation && (
+                  <p className="mt-1.5 text-xs leading-5 text-slate-500">Tindak lanjut: {referral.recommendation}</p>
+                )}
+                <p className="mt-1.5 text-[10px] text-slate-600">
+                  {new Date(referral.timestamp).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  {referral.burnout_score ? ` · snapshot burnout ${referral.burnout_score.toFixed(1)}/10` : ''}
+                  {referral.happiness_index ? ` · HI ${Math.round(referral.happiness_index)}` : ''}
+                </p>
+              </div>
+            ))
+          )}
+        </div>
+      </section>
+
       {/* Monitoring & catatan */}
       <section className="rounded-lg border border-white/10 bg-slate-950 p-5 shadow-xl shadow-black/10">
         <div className="flex items-center gap-2 text-sm font-semibold text-white">
@@ -391,6 +471,18 @@ export default function DpaStudentDetail() {
           )}
         </div>
       </section>
+
+      {referralOpen && (
+        <ReferralModal
+          studentId={id!}
+          studentName={student.nama}
+          onClose={() => setReferralOpen(false)}
+          onCreated={() => {
+            setReferralOpen(false);
+            fetchReferrals();
+          }}
+        />
+      )}
     </div>
   );
 }

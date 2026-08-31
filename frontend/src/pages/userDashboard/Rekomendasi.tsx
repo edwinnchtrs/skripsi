@@ -1,8 +1,30 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ClipboardList, Loader2, Sparkles, TriangleAlert } from 'lucide-react';
+import { ClipboardList, FileSignature, Loader2, Sparkles, TriangleAlert } from 'lucide-react';
 import api from '../../api';
 import { interpretationMeta } from './happinessShared';
+
+interface DpaReferralItem {
+  id: number;
+  type_label: string;
+  destination: string;
+  priority: string;
+  reason: string;
+  recommendation: string;
+  status: string;
+  timestamp: string;
+}
+
+const priorityChip: Record<string, string> = {
+  sedang: 'border-slate-300/25 bg-slate-500/15 text-slate-100',
+  penting: 'border-amber-300/30 bg-amber-500/15 text-amber-100',
+  mendesak: 'border-rose-300/30 bg-rose-500/15 text-rose-100',
+};
+
+const referralStatusChip: Record<string, string> = {
+  diproses: 'border-amber-300/30 bg-amber-500/10 text-amber-100',
+  selesai: 'border-emerald-300/30 bg-emerald-500/10 text-emerald-100',
+};
 
 interface WellBeingResponse {
   status: string;
@@ -15,15 +37,37 @@ interface WellBeingResponse {
 
 export default function Rekomendasi() {
   const [data, setData] = useState<WellBeingResponse | null>(null);
+  const [referrals, setReferrals] = useState<DpaReferralItem[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const fetchAll = async () => {
+    setLoading(true);
+    try {
+      const [wellbeingRes, referralRes] = await Promise.all([
+        api.get('/well-being'),
+        api.get('/student/referrals').catch(() => ({ data: { referrals: [] } })),
+      ]);
+      setData(wellbeingRes.data);
+      setReferrals(referralRes.data.referrals ?? []);
+    } catch {
+      // Halaman tetap tampil dengan pesan kosong.
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    api
-      .get('/well-being')
-      .then((res) => setData(res.data))
-      .catch(() => undefined)
-      .finally(() => setLoading(false));
+    fetchAll();
   }, []);
+
+  const updateReferralStatus = async (referralId: number, status: string) => {
+    try {
+      await api.patch(`/student/referrals/${referralId}/status`, { status });
+      setReferrals((prev) => prev.map((item) => (item.id === referralId ? { ...item, status } : item)));
+    } catch {
+      // Perubahan status gagal diabaikan; mahasiswa dapat mencoba lagi.
+    }
+  };
 
   if (loading) {
     return (
@@ -92,6 +136,51 @@ export default function Rekomendasi() {
                   <p key={warning.type} className="text-sm leading-6 text-amber-50">
                     <span className="font-semibold">{warning.label}:</span> {warning.detail}
                   </p>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {referrals.length > 0 && (
+            <section className="rounded-2xl border border-indigo-300/25 bg-indigo-500/10 p-5 shadow-xl shadow-black/10">
+              <div className="flex items-center gap-2 text-sm font-semibold text-indigo-100">
+                <FileSignature className="h-4 w-4" /> Rujukan dari DPA Anda
+              </div>
+              <p className="mt-1 text-xs text-indigo-200/70">
+                Rujukan akademik yang dibuat DPA pembimbing berdasarkan kondisi terkini Anda. Ikuti tindak lanjutnya dan perbarui status setelah diselesaikan.
+              </p>
+              <div className="mt-3 space-y-2">
+                {referrals.map((referral) => (
+                  <div key={referral.id} className="rounded-xl border border-indigo-300/20 bg-slate-950/50 px-4 py-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-semibold text-white">{referral.type_label}</span>
+                        <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase ${priorityChip[referral.priority] || 'border-white/10 bg-white/[0.04] text-slate-300'}`}>
+                          {referral.priority}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase ${referralStatusChip[referral.status] || 'border-white/10 bg-white/[0.04] text-slate-300'}`}>
+                          {referral.status}
+                        </span>
+                        {referral.status === 'diproses' && (
+                          <button
+                            onClick={() => updateReferralStatus(referral.id, 'selesai')}
+                            className="inline-flex h-8 items-center rounded-md bg-emerald-400 px-3 text-xs font-semibold text-slate-950 transition hover:bg-emerald-300"
+                          >
+                            Tandai selesai
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-slate-200">{referral.reason}</p>
+                    {referral.recommendation && (
+                      <p className="mt-1 text-xs leading-5 text-slate-400">Tindak lanjut: {referral.recommendation}</p>
+                    )}
+                    {referral.destination && (
+                      <p className="mt-1 text-[11px] text-slate-500">Tujuan: {referral.destination}</p>
+                    )}
+                  </div>
                 ))}
               </div>
             </section>

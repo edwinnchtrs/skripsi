@@ -207,7 +207,7 @@ func DpaMyRatingHandler(c *gin.Context) {
 		return
 	}
 	var rating DpaRating
-	DB.Where("student_id = ?", student.ID).Order("updated_at DESC").First(&rating)
+	DB.Where("student_id = ? AND dpa_id = ?", student.ID, student.DpaID).First(&rating)
 	if rating.ID == 0 {
 		c.JSON(http.StatusOK, gin.H{"rating": nil})
 		return

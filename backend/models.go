@@ -315,6 +315,25 @@ type DpaRating struct {
 	Stars     int
 }
 
+// DpaReferral adalah rujukan akademik yang dibuat DPA berdasarkan
+// kondisi real-time mahasiswa (burnout, happiness, warning aktif).
+type DpaReferral struct {
+	gorm.Model
+	DpaID         uint `gorm:"index"`
+	StudentID     uint `gorm:"index"`
+	PredictionID  uint
+	ReferralType  string `gorm:"size:32"`
+	Destination   string `gorm:"size:191"`
+	Priority      string `gorm:"size:16;default:sedang"`
+	Reason        string `gorm:"type:text"`
+	Recommendation string `gorm:"type:text"`
+	Status        string `gorm:"size:16;default:diproses;index"`
+	FollowUpDate  *time.Time
+	BurnoutScore  float64
+	HappinessIndex float64
+	Timestamp     time.Time `gorm:"autoCreateTime"`
+}
+
 type SystemConfig struct {
 	gorm.Model
 	BurnoutThresholdLow    float64 `gorm:"default:4"`

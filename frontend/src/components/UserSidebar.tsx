@@ -6,7 +6,6 @@ import {
   Activity,
   User,
   Users,
-  Settings,
   LogOut,
   Sun,
   Moon,
@@ -81,7 +80,6 @@ const navGroups: NavGroup[] = [
       { label: 'Recovery Plan', icon: HeartPulse, path: '/user/recovery' },
       { label: 'Jaringan Teman', icon: Users, path: '/user/network' },
       { label: 'Ruang Film', icon: Clapperboard, path: '/user/film' },
-      { label: 'Pengaturan Akun', icon: Settings, path: '/user/settings' },
     ],
   },
 ];

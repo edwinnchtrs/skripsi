@@ -126,6 +126,8 @@ func main() {
 			student.GET("/happiness/history", HappinessHistoryHandler)
 			student.GET("/happiness/trend", HappinessTrendHandler)
 			student.GET("/well-being", WellBeingHandler)
+			student.GET("/student/referrals", StudentReferralsHandler)
+			student.PATCH("/student/referrals/:id/status", StudentReferralStatusHandler)
 			student.GET("/dpa/directory", DpaDirectoryHandler)
 			student.POST("/student/join-dpa/:id", StudentJoinDpaHandler)
 			student.POST("/dpa/ratings/:dpaId", DpaRateHandler)
@@ -139,6 +141,8 @@ func main() {
 			dpa.GET("/dpa/students/:id", DpaStudentDetailHandler)
 			dpa.GET("/dpa/students/:id/notes", DpaStudentNotesHandler)
 			dpa.POST("/dpa/students/:id/notes", DpaStudentNotesHandler)
+			dpa.GET("/dpa/students/:id/referrals", DpaListReferralsHandler)
+			dpa.POST("/dpa/students/:id/referrals", DpaCreateReferralHandler)
 			dpa.GET("/dpa/warnings", DpaWarningsHandler)
 			dpa.GET("/dpa/students/:id/report", DpaStudentReportHandler)
 
