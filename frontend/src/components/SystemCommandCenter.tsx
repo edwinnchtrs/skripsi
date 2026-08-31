@@ -38,7 +38,7 @@ const adminActions = [
   { label: 'Dashboard', path: '/dashboard', keywords: 'ringkasan admin overview', icon: Home },
   { label: 'Command Center', path: '/command-center', keywords: 'pusat komando prioritas', icon: Command },
   { label: 'Pusat Risiko', path: '/risk-center', keywords: 'triage risiko krisis monitoring', icon: ShieldCheck },
-  { label: 'Data Responden', path: '/responden', keywords: 'mahasiswa karyawan responden user', icon: Activity },
+  { label: 'Data Responden', path: '/responden', keywords: 'mahasiswa responden user', icon: Activity },
   { label: 'Laporan', path: '/laporan', keywords: 'export pdf excel dokumen', icon: FileText },
   { label: 'Model Evaluasi', path: '/model', keywords: 'machine learning validasi akurasi', icon: Sparkles },
   { label: 'Pengaturan Sistem', path: '/settings', keywords: 'security konfigurasi dark mode', icon: Lock },
