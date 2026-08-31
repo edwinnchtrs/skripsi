@@ -21,7 +21,7 @@ import { Cell, Pie, PieChart, Tooltip } from 'recharts';
 import ChartShell from '../components/ChartShell';
 import api from '../api';
 
-type AccountFilter = 'all' | 'admin' | 'mahasiswa' | 'karyawan';
+type AccountFilter = 'all' | 'kaprodi' | 'dpa' | 'mahasiswa' | 'karyawan';
 type ModalMode = 'create' | 'edit';
 
 interface ManagedUser {
@@ -32,6 +32,16 @@ interface ManagedUser {
   user_type: string;
   bio: string;
   profile_pic: string;
+  nim: string;
+  prodi: string;
+  angkatan: string;
+  semester: number;
+  ipk: number;
+  ips: number;
+  sks: number;
+  kehadiran: number;
+  dpa_id: number;
+  dpa_name: string;
   created_at: string;
   updated_at: string;
 }
@@ -39,18 +49,33 @@ interface ManagedUser {
 const emptyForm = {
   nama: '',
   username: '',
-  role: 'user',
+  role: 'student',
   user_type: 'mahasiswa',
   password: '',
   bio: '',
+  nim: '',
+  prodi: '',
+  angkatan: '',
+  semester: '',
+  ipk: '',
+  ips: '',
+  sks: '',
+  kehadiran: '',
+  dpa_id: '',
 };
 
 const accountMeta = {
-  admin: {
-    label: 'Admin',
+  kaprodi: {
+    label: 'Kaprodi',
     icon: Shield,
     chip: 'border-violet-300/25 bg-violet-500/10 text-violet-100',
     accent: '#a78bfa',
+  },
+  dpa: {
+    label: 'DPA',
+    icon: Users,
+    chip: 'border-indigo-300/25 bg-indigo-500/10 text-indigo-100',
+    accent: '#818cf8',
   },
   mahasiswa: {
     label: 'Mahasiswa',
@@ -66,8 +91,12 @@ const accountMeta = {
   },
 };
 
-const getAccountType = (user: Pick<ManagedUser, 'role' | 'user_type'>): 'admin' | 'mahasiswa' | 'karyawan' => {
-  if (user.role === 'admin') return 'admin';
+type AccountType = keyof typeof accountMeta;
+
+const getAccountType = (user: Pick<ManagedUser, 'role' | 'user_type'>): AccountType => {
+  const role = (user.role || '').toLowerCase();
+  if (role === 'superadmin' || role === 'admin' || role === 'kaprodi') return 'kaprodi';
+  if (role === 'dpa') return 'dpa';
   return user.user_type === 'karyawan' ? 'karyawan' : 'mahasiswa';
 };
 
@@ -116,10 +145,11 @@ export default function ManajemenUser() {
   }, [message]);
 
   const stats = useMemo(() => {
-    const admin = users.filter((user) => getAccountType(user) === 'admin').length;
+    const kaprodi = users.filter((user) => getAccountType(user) === 'kaprodi').length;
+    const dpa = users.filter((user) => getAccountType(user) === 'dpa').length;
     const mahasiswa = users.filter((user) => getAccountType(user) === 'mahasiswa').length;
     const karyawan = users.filter((user) => getAccountType(user) === 'karyawan').length;
-    return { total: users.length, admin, mahasiswa, karyawan };
+    return { total: users.length, kaprodi, dpa, mahasiswa, karyawan };
   }, [users]);
 
   const filteredUsers = useMemo(() => {
@@ -128,12 +158,18 @@ export default function ManajemenUser() {
       const type = getAccountType(user);
       if (filter !== 'all' && type !== filter) return false;
       if (!keyword) return true;
-      return `${user.nama} ${user.username} ${type} ${user.bio || ''}`.toLowerCase().includes(keyword);
+      return `${user.nama} ${user.username} ${type} ${user.nim || ''} ${user.prodi || ''} ${user.bio || ''}`.toLowerCase().includes(keyword);
     });
   }, [filter, search, users]);
 
+  const dpaOptions = useMemo(
+    () => users.filter((user) => getAccountType(user) === 'dpa'),
+    [users],
+  );
+
   const pieData = [
-    { name: 'Admin', value: stats.admin, color: accountMeta.admin.accent },
+    { name: 'Kaprodi', value: stats.kaprodi, color: accountMeta.kaprodi.accent },
+    { name: 'DPA', value: stats.dpa, color: accountMeta.dpa.accent },
     { name: 'Mahasiswa', value: stats.mahasiswa, color: accountMeta.mahasiswa.accent },
     { name: 'Karyawan', value: stats.karyawan, color: accountMeta.karyawan.accent },
   ];
@@ -150,10 +186,19 @@ export default function ManajemenUser() {
     setForm({
       nama: user.nama,
       username: user.username,
-      role: user.role,
-      user_type: type === 'admin' ? 'karyawan' : type,
+      role: type === 'kaprodi' ? 'superadmin' : type === 'dpa' ? 'dpa' : 'student',
+      user_type: type === 'kaprodi' || type === 'dpa' ? 'karyawan' : type,
       password: '',
       bio: user.bio || '',
+      nim: user.nim || '',
+      prodi: user.prodi || '',
+      angkatan: user.angkatan || '',
+      semester: user.semester ? String(user.semester) : '',
+      ipk: user.ipk ? String(user.ipk) : '',
+      ips: user.ips ? String(user.ips) : '',
+      sks: user.sks ? String(user.sks) : '',
+      kehadiran: user.kehadiran ? String(user.kehadiran) : '',
+      dpa_id: user.dpa_id ? String(user.dpa_id) : '',
     });
     setModalMode('edit');
   };
@@ -164,14 +209,29 @@ export default function ManajemenUser() {
     setForm(emptyForm);
   };
 
+  const isStaffRole = form.role === 'superadmin' || form.role === 'dpa';
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    const cleanForm = {
-      ...form,
+    const cleanForm: Record<string, unknown> = {
       nama: form.nama.trim(),
       username: form.username.trim().toLowerCase(),
-      user_type: form.role === 'admin' ? 'karyawan' : form.user_type,
+      role: form.role,
+      user_type: isStaffRole ? 'karyawan' : form.user_type,
+      bio: form.bio,
     };
+
+    if (form.role === 'student') {
+      cleanForm.nim = form.nim.trim();
+      cleanForm.prodi = form.prodi.trim();
+      cleanForm.angkatan = form.angkatan.trim();
+      cleanForm.semester = form.semester === '' ? 0 : Number(form.semester);
+      cleanForm.ipk = form.ipk === '' ? 0 : Number(form.ipk);
+      cleanForm.ips = form.ips === '' ? 0 : Number(form.ips);
+      cleanForm.sks = form.sks === '' ? 0 : Number(form.sks);
+      cleanForm.kehadiran = form.kehadiran === '' ? 0 : Number(form.kehadiran);
+      cleanForm.dpa_id = form.dpa_id === '' ? 0 : Number(form.dpa_id);
+    }
 
     if (cleanForm.nama.length < 3) {
       setMessage({ type: 'error', text: 'Nama minimal 3 karakter' });
@@ -235,7 +295,7 @@ export default function ManajemenUser() {
               </div>
               <h1 className="text-2xl font-semibold tracking-normal text-white sm:text-3xl">Manajemen User</h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
-                Kelola akun admin, mahasiswa, dan karyawan dari satu tempat. Tambah akun baru, ubah role, perbarui profil, atau hapus akun yang tidak digunakan.
+                Kelola akun kaprodi, DPA, mahasiswa, dan karyawan dari satu tempat. Tambah akun baru, ubah role, atur profil akademik, petakan mahasiswa ke DPA, atau hapus akun yang tidak digunakan.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -269,10 +329,11 @@ export default function ManajemenUser() {
           </div>
         )}
 
-        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
           {[
             { key: 'all', label: 'Total Akun', value: stats.total, icon: Users, className: 'text-slate-100 bg-slate-700/30' },
-            { key: 'admin', label: 'Admin', value: stats.admin, icon: Shield, className: 'text-violet-100 bg-violet-500/10' },
+            { key: 'kaprodi', label: 'Kaprodi', value: stats.kaprodi, icon: Shield, className: 'text-violet-100 bg-violet-500/10' },
+            { key: 'dpa', label: 'DPA', value: stats.dpa, icon: Users, className: 'text-indigo-100 bg-indigo-500/10' },
             { key: 'mahasiswa', label: 'Mahasiswa', value: stats.mahasiswa, icon: UserCheck, className: 'text-cyan-100 bg-cyan-500/10' },
             { key: 'karyawan', label: 'Karyawan', value: stats.karyawan, icon: Users, className: 'text-emerald-100 bg-emerald-500/10' },
           ].map((item) => {
@@ -334,21 +395,23 @@ export default function ManajemenUser() {
                 </div>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="min-w-[980px] table-fixed border-collapse text-sm">
+                  <table className="min-w-[1080px] table-fixed border-collapse text-sm">
                     <colgroup>
                       <col className="w-16" />
-                      <col className="w-72" />
+                      <col className="w-64" />
+                      <col className="w-44" />
                       <col className="w-40" />
-                      <col className="w-52" />
+                      <col className="w-44" />
+                      <col className="w-32" />
+                      <col className="w-32" />
                       <col className="w-36" />
-                      <col className="w-36" />
-                      <col className="w-40" />
                     </colgroup>
                     <thead className="bg-white/[0.03]">
                       <tr className="border-b border-white/10 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
                         <th className="px-4 py-3">No</th>
                         <th className="px-4 py-3">Nama / Username</th>
-                        <th className="px-4 py-3">Kategori</th>
+                        <th className="px-4 py-3">Role</th>
+                        <th className="px-4 py-3">NIM / Prodi</th>
                         <th className="px-4 py-3">Bio</th>
                         <th className="px-4 py-3">Dibuat</th>
                         <th className="px-4 py-3">Update</th>
@@ -382,6 +445,21 @@ export default function ManajemenUser() {
                                 <Icon className="h-3.5 w-3.5" />
                                 {meta.label}
                               </span>
+                              {type === 'mahasiswa' && user.dpa_name && (
+                                <p className="mt-1.5 truncate text-[10px] text-slate-500" title={`DPA: ${user.dpa_name}`}>
+                                  DPA: {user.dpa_name}
+                                </p>
+                              )}
+                            </td>
+                            <td className="px-4 py-4">
+                              {type === 'mahasiswa' ? (
+                                <div className="text-xs">
+                                  <p className="font-semibold text-slate-200">{user.nim || '-'}</p>
+                                  <p className="mt-1 text-slate-500">{user.prodi || '-'}{user.semester ? ` · Smt ${user.semester}` : ''}</p>
+                                </div>
+                              ) : (
+                                <span className="text-xs text-slate-500">—</span>
+                              )}
                             </td>
                             <td className="px-4 py-4">
                               <p className="truncate text-xs text-slate-400" title={user.bio || '-'}>{user.bio || '-'}</p>
@@ -451,8 +529,9 @@ export default function ManajemenUser() {
               <div className="text-sm font-semibold text-white">Akses Sistem</div>
               <div className="mt-4 space-y-3">
                 {[
-                  ['Admin', 'Akses penuh dashboard, responden, laporan, model, konfigurasi, dan manajemen user.', accountMeta.admin],
-                  ['Mahasiswa', 'Akses portal user, kuisioner, riwayat asesmen, curhat, dan jaringan teman.', accountMeta.mahasiswa],
+                  ['Kaprodi', 'Akses penuh: kelola mahasiswa, dosen, DPA, mapping bimbingan, analytics prodi, dan konfigurasi sistem.', accountMeta.kaprodi],
+                  ['DPA', 'Memantau burnout & happiness mahasiswa bimbingan, catatan monitoring, early warning, dan laporan.', accountMeta.dpa],
+                  ['Mahasiswa', 'Mengisi assessment burnout & happiness, melihat analitik pribadi, curhat, dan jaringan teman.', accountMeta.mahasiswa],
                   ['Karyawan', 'Akses portal user dengan kategori karyawan untuk segmentasi analitik.', accountMeta.karyawan],
                 ].map(([title, desc, meta]) => {
                   const typedMeta = meta as typeof accountMeta.admin;
@@ -480,7 +559,7 @@ export default function ManajemenUser() {
               <div>
                 <h2 className="text-lg font-semibold text-white">{modalMode === 'create' ? 'Tambah User' : 'Edit User'}</h2>
                 <p className="mt-1 text-xs text-slate-500">
-                  {modalMode === 'create' ? 'Buat akun admin, mahasiswa, atau karyawan.' : 'Perbarui data akun dan akses pengguna.'}
+                  {modalMode === 'create' ? 'Buat akun kaprodi, DPA, mahasiswa, atau karyawan.' : 'Perbarui data akun, profil akademik, dan akses pengguna.'}
                 </p>
               </div>
               <button onClick={closeModal} className="flex h-9 w-9 items-center justify-center rounded-md border border-white/10 text-slate-400 hover:text-white">
@@ -512,24 +591,33 @@ export default function ManajemenUser() {
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="block">
-                  <span className="text-xs font-semibold text-slate-400">Kategori akun</span>
+                  <span className="text-xs font-semibold text-slate-400">Role akun</span>
                   <select
-                    value={form.role === 'admin' ? 'admin' : form.user_type}
+                    value={form.role}
                     onChange={(event) => {
-                      const value = event.target.value as AccountFilter;
-                      if (value === 'admin') {
-                        setForm({ ...form, role: 'admin', user_type: 'karyawan' });
-                      } else {
-                        setForm({ ...form, role: 'user', user_type: value });
-                      }
+                      const value = event.target.value;
+                      setForm({ ...form, role: value, user_type: value === 'student' ? 'mahasiswa' : 'karyawan' });
                     }}
                     className="mt-1 h-10 w-full rounded-md border border-white/10 bg-slate-900 px-3 text-sm text-white outline-none focus:border-cyan-300/50"
                   >
-                    <option value="admin">Admin</option>
-                    <option value="mahasiswa">Mahasiswa</option>
-                    <option value="karyawan">Karyawan</option>
+                    <option value="student">Mahasiswa (Student)</option>
+                    <option value="dpa">Dosen Pembimbing Akademik (DPA)</option>
+                    <option value="superadmin">Kaprodi (Superadmin)</option>
                   </select>
                 </label>
+                {form.role === 'student' && (
+                  <label className="block">
+                    <span className="text-xs font-semibold text-slate-400">Jenis akun</span>
+                    <select
+                      value={form.user_type}
+                      onChange={(event) => setForm({ ...form, user_type: event.target.value })}
+                      className="mt-1 h-10 w-full rounded-md border border-white/10 bg-slate-900 px-3 text-sm text-white outline-none focus:border-cyan-300/50"
+                    >
+                      <option value="mahasiswa">Mahasiswa</option>
+                      <option value="karyawan">Karyawan</option>
+                    </select>
+                  </label>
+                )}
                 <label className="block">
                   <span className="text-xs font-semibold text-slate-400">
                     {modalMode === 'create' ? 'Password' : 'Password baru'}
@@ -544,6 +632,101 @@ export default function ManajemenUser() {
                   />
                 </label>
               </div>
+
+              {form.role === 'student' && (
+                <>
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <label className="block">
+                      <span className="text-xs font-semibold text-slate-400">NIM</span>
+                      <input
+                        value={form.nim}
+                        onChange={(event) => setForm({ ...form, nim: event.target.value })}
+                        className="mt-1 h-10 w-full rounded-md border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none focus:border-cyan-300/50"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-xs font-semibold text-slate-400">Program Studi</span>
+                      <input
+                        value={form.prodi}
+                        onChange={(event) => setForm({ ...form, prodi: event.target.value })}
+                        placeholder="cth. Informatika"
+                        className="mt-1 h-10 w-full rounded-md border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/50"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-xs font-semibold text-slate-400">Angkatan</span>
+                      <input
+                        value={form.angkatan}
+                        onChange={(event) => setForm({ ...form, angkatan: event.target.value })}
+                        placeholder="cth. 2023"
+                        className="mt-1 h-10 w-full rounded-md border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/50"
+                      />
+                    </label>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-4">
+                    <label className="block">
+                      <span className="text-xs font-semibold text-slate-400">Semester</span>
+                      <input
+                        type="number" min={0} max={14}
+                        value={form.semester}
+                        onChange={(event) => setForm({ ...form, semester: event.target.value })}
+                        className="mt-1 h-10 w-full rounded-md border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none focus:border-cyan-300/50"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-xs font-semibold text-slate-400">IPK</span>
+                      <input
+                        type="number" min={0} max={4} step="0.01"
+                        value={form.ipk}
+                        onChange={(event) => setForm({ ...form, ipk: event.target.value })}
+                        className="mt-1 h-10 w-full rounded-md border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none focus:border-cyan-300/50"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-xs font-semibold text-slate-400">IPS</span>
+                      <input
+                        type="number" min={0} max={4} step="0.01"
+                        value={form.ips}
+                        onChange={(event) => setForm({ ...form, ips: event.target.value })}
+                        className="mt-1 h-10 w-full rounded-md border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none focus:border-cyan-300/50"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-xs font-semibold text-slate-400">SKS</span>
+                      <input
+                        type="number" min={0} max={160}
+                        value={form.sks}
+                        onChange={(event) => setForm({ ...form, sks: event.target.value })}
+                        className="mt-1 h-10 w-full rounded-md border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none focus:border-cyan-300/50"
+                      />
+                    </label>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="block">
+                      <span className="text-xs font-semibold text-slate-400">Kehadiran (%)</span>
+                      <input
+                        type="number" min={0} max={100} step="0.1"
+                        value={form.kehadiran}
+                        onChange={(event) => setForm({ ...form, kehadiran: event.target.value })}
+                        className="mt-1 h-10 w-full rounded-md border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none focus:border-cyan-300/50"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-xs font-semibold text-slate-400">DPA Pembimbing</span>
+                      <select
+                        value={form.dpa_id}
+                        onChange={(event) => setForm({ ...form, dpa_id: event.target.value })}
+                        className="mt-1 h-10 w-full rounded-md border border-white/10 bg-slate-900 px-3 text-sm text-white outline-none focus:border-cyan-300/50"
+                      >
+                        <option value="">— Belum dipetakan —</option>
+                        {dpaOptions.map((dpa) => (
+                          <option key={dpa.id} value={dpa.id}>{dpa.nama} ({dpa.username})</option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                </>
+              )}
 
               <div className="rounded-md border border-white/10 bg-white/[0.03] p-3 text-xs text-slate-500">
                 Password minimal 8 karakter dan wajib mengandung huruf besar, huruf kecil, serta angka.

@@ -1,41 +1,26 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
-  User,
   Users,
-  BarChart2,
-  Brain,
-  FlaskConical,
+  ShieldAlert,
   FileText,
-  Settings,
+  User,
   LogOut,
   Sun,
   Moon,
   Bot,
-  ShieldAlert,
-  Command,
   X,
-  HeartPulse,
 } from 'lucide-react';
-import { useMemo } from 'react';
 import { useTheme } from '../hooks/useTheme';
 
 const navItems = [
-  { label: 'Command Center', icon: Command, path: '/command-center' },
-  { label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
-  { label: 'Prediksi Individu', icon: User, path: '/prediksi' },
-  { label: 'Data Responden', icon: Users, path: '/responden' },
-  { label: 'Pusat Risiko', icon: ShieldAlert, path: '/risk-center' },
-  { label: 'Analitik & Insight', icon: BarChart2, path: '/analitik' },
-  { label: 'Analitik Well-Being', icon: HeartPulse, path: '/wellbeing-analitik' },
-  { label: 'Quantum Cognition', icon: Brain, path: '/quantum' },
-  { label: 'Model & Evaluasi', icon: FlaskConical, path: '/model' },
-  { label: 'Laporan', icon: FileText, path: '/laporan' },
-  { label: 'Manajemen User', icon: Users, path: '/users' },
-  { label: 'Pengaturan Sistem', icon: Settings, path: '/settings' },
+  { label: 'Dashboard DPA', icon: LayoutDashboard, path: '/dpa/dashboard' },
+  { label: 'Mahasiswa Bimbingan', icon: Users, path: '/dpa/mahasiswa' },
+  { label: 'Early Warning', icon: ShieldAlert, path: '/dpa/warnings' },
+  { label: 'Laporan', icon: FileText, path: '/dpa/laporan' },
 ];
 
-export default function Sidebar({
+export default function DpaSidebar({
   open = false,
   onClose,
   onOpenAssistant,
@@ -47,13 +32,12 @@ export default function Sidebar({
   const location = useLocation();
   const navigate = useNavigate();
   const { dark, setDark } = useTheme();
-  const admin = useMemo(() => {
-    try {
-      return JSON.parse(localStorage.getItem('user') || '{}');
-    } catch {
-      return {};
-    }
-  }, []);
+  let dpa: any = {};
+  try {
+    dpa = JSON.parse(localStorage.getItem('user') || '{}');
+  } catch {
+    dpa = {};
+  }
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -93,15 +77,15 @@ export default function Sidebar({
               justifyContent: 'center',
             }}
           >
-            <Brain size={20} color="#fff" />
+            <User size={20} color="#fff" />
           </div>
           <div>
             <div style={{ color: 'var(--theme-text-primary)', fontWeight: 700, fontSize: 14, lineHeight: 1.2 }}>
               QC Analytics
             </div>
-            <div style={{ color: 'var(--theme-text-muted)', fontSize: 10 }}>Kesejahteraan Mahasiswa UMCI</div>
+            <div style={{ color: 'var(--theme-text-muted)', fontSize: 10 }}>Portal DPA</div>
           </div>
-          <button type="button" className="mobile-sidebar-close" onClick={onClose} aria-label="Tutup menu admin">
+          <button type="button" className="mobile-sidebar-close" onClick={onClose} aria-label="Tutup menu DPA">
             <X size={17} />
           </button>
         </div>
@@ -178,9 +162,9 @@ export default function Sidebar({
           </div>
           <div style={{ flex: 1, overflow: 'hidden' }}>
             <div style={{ color: 'var(--theme-text-primary)', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {admin.nama || admin.username || 'Admin QC'}
+              {dpa.nama || dpa.username || 'DPA'}
             </div>
-            <div style={{ color: 'var(--theme-text-muted)', fontSize: 11 }}>Administrator</div>
+            <div style={{ color: 'var(--theme-text-muted)', fontSize: 11 }}>Dosen Pembimbing Akademik</div>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -238,7 +222,6 @@ export default function Sidebar({
         </button>
         <div style={{ color: 'var(--theme-text-muted)', fontSize: 10, textAlign: 'center', marginTop: 10 }}>
           Sistem Analitik Kesejahteraan Mahasiswa UMCI
-          <br />Burnout &amp; Happiness Analytics
         </div>
       </div>
     </aside>

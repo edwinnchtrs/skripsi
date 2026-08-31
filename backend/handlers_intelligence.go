@@ -120,7 +120,7 @@ func UserCheckInCreateHandler(c *gin.Context) {
 
 	if checkin.StressScore >= 4 || checkin.MoodScore <= 2 || checkin.EnergyScore <= 2 || checkin.SleepHours < 4 {
 		var admins []User
-		DB.Where("role = ?", "admin").Find(&admins)
+		DB.Where("role = ?", RoleSuperadmin).Find(&admins)
 		for _, admin := range admins {
 			DB.Create(&Notification{
 				UserID:  admin.ID,
@@ -196,9 +196,9 @@ func AdminCommandCenterHandler(c *gin.Context) {
 	var activity24h int64
 
 	DB.Model(&User{}).Count(&totalUsers)
-	DB.Model(&User{}).Where("role = ?", "admin").Count(&admins)
-	DB.Model(&User{}).Where("role = ? AND user_type = ?", "user", "mahasiswa").Count(&mahasiswa)
-	DB.Model(&User{}).Where("role = ? AND user_type = ?", "user", "karyawan").Count(&karyawan)
+	DB.Model(&User{}).Where("role = ?", RoleSuperadmin).Count(&admins)
+	DB.Model(&User{}).Where("role = ? AND user_type = ?", RoleStudent, "mahasiswa").Count(&mahasiswa)
+	DB.Model(&User{}).Where("role = ? AND user_type = ?", RoleStudent, "karyawan").Count(&karyawan)
 	DB.Model(&TherapyRecommendation{}).Where("status = ?", "pending").Count(&pendingTreatments)
 	DB.Model(&TreatmentReply{}).Where("admin_seen = ?", false).Count(&unreadReplies)
 	DB.Model(&Notification{}).Where("is_read = ?", false).Count(&unreadNotifications)

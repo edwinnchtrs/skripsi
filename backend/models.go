@@ -8,14 +8,26 @@ import (
 
 type User struct {
 	gorm.Model
-	Username               string `gorm:"uniqueIndex;size:191"`
-	PasswordHash           string
-	Nama                   string
-	Role                   string `gorm:"default:user"`
-	UserType               string `gorm:"size:32;default:mahasiswa"`
-	Bio                    string
-	ProfilePic             string
+	Username     string `gorm:"uniqueIndex;size:191"`
+	PasswordHash string
+	Nama         string
+	Role         string `gorm:"default:student"`
+	UserType     string `gorm:"size:32;default:mahasiswa"`
+	Bio          string
+	ProfilePic   string
+	// Profil akademik mahasiswa (diisi Kaprodi/superadmin)
+	Nim       string  `gorm:"size:32;index"`
+	Prodi     string  `gorm:"size:128;index"`
+	Angkatan  string  `gorm:"size:8;index"`
+	Semester  int     `gorm:"default:0"`
+	Ipk       float64 `gorm:"default:0"`
+	Ips       float64 `gorm:"default:0"`
+	Sks       int     `gorm:"default:0"`
+	Kehadiran float64 `gorm:"default:0"`
+	// Mapping mahasiswa ke DPA bimbingannya
+	DpaID uint `gorm:"index;default:0"`
 	Assessments            []Assessment
+	HappinessAssessments   []HappinessAssessment
 	MBTIResults            []MBTIResult
 	Curhats                []Curhat
 	Predictions            []Prediction
@@ -254,6 +266,32 @@ type ActivityLog struct {
 	Metadata   string `gorm:"type:longtext"`
 }
 
+type HappinessAssessment struct {
+	gorm.Model
+	UserID             uint `gorm:"index"`
+	ResponsesJSON      string `gorm:"type:longtext"`
+	AcademicScore      float64
+	MotivationScore    float64
+	SocialScore        float64
+	LecturerScore      float64
+	EnvironmentScore   float64
+	FacilitiesScore    float64
+	HappinessIndex     float64
+	Category           string `gorm:"size:32;index"`
+	Timestamp          time.Time `gorm:"autoCreateTime"`
+}
+
+// DpaNote adalah catatan monitoring akademik yang dibuat DPA
+// untuk mahasiswa bimbingannya.
+type DpaNote struct {
+	gorm.Model
+	DpaID     uint `gorm:"index"`
+	StudentID uint `gorm:"index"`
+	Note      string `gorm:"type:text"`
+	Status    string `gorm:"size:32;default:normal;index"`
+	Timestamp time.Time `gorm:"autoCreateTime"`
+}
+
 type SystemConfig struct {
 	gorm.Model
 	BurnoutThresholdLow    float64 `gorm:"default:4"`
@@ -270,4 +308,14 @@ type SystemConfig struct {
 	DataRetentionDays      int     `gorm:"default:365"`
 	ModelVersion           string  `gorm:"default:1.0.0"`
 	AppName                string  `gorm:"default:QC Analytics"`
+	// Bobot Happiness Index (total = 1.0)
+	HiWeightAcademic   float64 `gorm:"default:0.25"`
+	HiWeightMotivation float64 `gorm:"default:0.20"`
+	HiWeightSocial     float64 `gorm:"default:0.20"`
+	HiWeightEnvironment float64 `gorm:"default:0.15"`
+	HiWeightLecturer   float64 `gorm:"default:0.10"`
+	HiWeightFacilities float64 `gorm:"default:0.10"`
+	// Ambang early warning well-being
+	WellbeingWarnBurnoutRise  float64 `gorm:"default:1.0"`
+	WellbeingWarnHappinessDrop float64 `gorm:"default:10"`
 }

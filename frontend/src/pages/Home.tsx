@@ -25,6 +25,7 @@ import {
   Zap,
 } from 'lucide-react';
 import api from '../api';
+import { normalizeRole } from '../components/RequireRole';
 
 interface PublicOverview {
   total_users: number;
@@ -144,7 +145,9 @@ function readSessionTarget() {
     const token = localStorage.getItem('token');
     const role = JSON.parse(localStorage.getItem('user') || '{}')?.role;
     if (!token) return '/register';
-    if (role === 'admin') return '/dashboard';
+    const normalized = normalizeRole(role);
+    if (normalized === 'superadmin') return '/dashboard';
+    if (normalized === 'dpa') return '/dpa/dashboard';
     return '/user/kuisioner';
   } catch {
     return '/register';

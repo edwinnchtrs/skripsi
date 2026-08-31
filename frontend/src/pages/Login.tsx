@@ -4,6 +4,7 @@ import { Brain, TrendingUp, RefreshCw, ShieldCheck, Users, Database, BarChart2, 
 import api from '../api';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import GoogleAccountButton, { getAuthErrorMessage, getGoogleOriginNotice } from '../components/auth/GoogleAccountButton';
+import { homePathForRole, normalizeRole } from '../components/RequireRole';
 
 const features = [
   { Icon: Brain, t: 'Quantum Cognition', d: 'Memodelkan ketidakpastian dan pengambilan keputusan manusia secara probabilistik.' },
@@ -51,7 +52,7 @@ export default function Login() {
       const r = await api.post('/login', { username: u, password: p });
       localStorage.setItem('token', r.data.token);
       localStorage.setItem('user', JSON.stringify(r.data.user));
-      nav(r.data.user.role === 'admin' ? '/dashboard' : '/user/dashboard');
+      nav(homePathForRole(normalizeRole(r.data.user?.role)));
     } catch (x: unknown) { setErr(getAuthErrorMessage(x, 'Username atau kata sandi salah')); }
     finally { setBusy(false); }
   };

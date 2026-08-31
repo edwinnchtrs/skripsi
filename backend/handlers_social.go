@@ -114,8 +114,8 @@ func UserProfilePutHandler(c *gin.Context) {
 func NetworkUsersHandler(c *gin.Context) {
 	user := c.MustGet("user").(User)
 	var users []User
-	// Exclude current user and admins
-	DB.Where("id != ? AND role != ?", user.ID, "admin").Find(&users)
+	// Hanya tampilkan mahasiswa/karyawan (student) di jejaring
+	DB.Where("id != ? AND role = ?", user.ID, RoleStudent).Find(&users)
 
 	type NetworkUserDTO struct {
 		ID         uint   `json:"id"`

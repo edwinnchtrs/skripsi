@@ -542,7 +542,7 @@ func notifyAdminsForCurhatAnalysis(user User, curhat Curhat, analysis CurhatClin
 		return
 	}
 	var admins []User
-	DB.Where("role = ?", "admin").Find(&admins)
+	DB.Where("role = ?", RoleSuperadmin).Find(&admins)
 	for _, admin := range admins {
 		DB.Create(&Notification{
 			UserID:  admin.ID,

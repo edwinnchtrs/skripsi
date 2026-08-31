@@ -175,8 +175,8 @@ func RegisterHandler(c *gin.Context) {
 		return
 	}
 
-	hashedPassword, _ := HashPassword(input.Password)
-	user := User{Username: input.Username, PasswordHash: hashedPassword, Nama: input.Nama, UserType: input.UserType}
+		hashedPassword, _ := HashPassword(input.Password)
+	user := User{Username: input.Username, PasswordHash: hashedPassword, Nama: input.Nama, Role: RoleStudent, UserType: input.UserType}
 	DB.Create(&user)
 	recordActivity(c, &user, "auth_register", "user", fmt.Sprintf("%d", user.ID), gin.H{"user_type": user.UserType})
 
@@ -265,7 +265,7 @@ func GoogleLoginHandler(c *gin.Context) {
 			return
 		}
 		// Create user if not exists
-		user = User{Username: googleUser.Email, Nama: googleUser.Name, PasswordHash: "google-oauth-dummy", Role: "user", UserType: normalizeUserType(input.UserType)}
+		user = User{Username: googleUser.Email, Nama: googleUser.Name, PasswordHash: "google-oauth-dummy", Role: RoleStudent, UserType: normalizeUserType(input.UserType)}
 		DB.Create(&user)
 	} else if user.UserType == "" && isValidUserType(input.UserType) {
 		user.UserType = normalizeUserType(input.UserType)
