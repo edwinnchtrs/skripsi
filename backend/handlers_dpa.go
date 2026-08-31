@@ -163,6 +163,36 @@ func DpaDashboardHandler(c *gin.Context) {
 	var activeNotes int64
 	DB.Model(&DpaNote{}).Where("dpa_id = ? AND status IN ?", dpa.ID, []string{"monitoring", "perlu_tindak_lanjut"}).Count(&activeNotes)
 
+	// Panel onboarding: mahasiswa yang datanya belum lengkap.
+	type OnboardingItem struct {
+		ID      uint   `json:"id"`
+		Nama    string `json:"nama"`
+		Missing string `json:"missing"`
+	}
+	onboarding := []OnboardingItem{}
+	for _, student := range students {
+		missing := []string{}
+		if student.Nim == "" {
+			missing = append(missing, "NIM")
+		}
+		if student.Prodi == "" {
+			missing = append(missing, "prodi")
+		}
+		if _, hasBurnout := latestBurnoutFor(student.ID); !hasBurnout {
+			missing = append(missing, "assessment burnout")
+		}
+		if _, hasHappiness := latestHappinessFor(student.ID); !hasHappiness {
+			missing = append(missing, "assessment happiness")
+		}
+		if len(missing) > 0 {
+			onboarding = append(onboarding, OnboardingItem{
+				ID:      student.ID,
+				Nama:    student.Nama,
+				Missing: strings.Join(missing, ", "),
+			})
+		}
+	}
+
 	avgBurnout := 0.0
 	if burnoutCount > 0 {
 		avgBurnout = round2(sumBurnout / float64(burnoutCount))
@@ -190,6 +220,8 @@ func DpaDashboardHandler(c *gin.Context) {
 		"belum_isi":           belumIsi,
 		"active_notes":        activeNotes,
 		"warning_count":       len(warnings),
+		"onboarding":          onboarding,
+		"onboarding_count":    len(onboarding),
 		"students":            rows,
 		"warnings":            warnings,
 		"generated_at":        time.Now(),

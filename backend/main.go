@@ -149,6 +149,13 @@ func main() {
 			chat.GET("/dpa/chat", DpaChatMessagesHandler)
 			chat.POST("/dpa/chat/send", DpaChatSendHandler)
 
+			// Stream SSE realtime (token via query-param karena EventSource
+			// tidak dapat mengirim header Authorization).
+			sse := api.Group("/")
+			sse.Use(SSEAuthMiddleware())
+			sse.Use(RequireRole(RoleStudent, RoleDPA))
+			sse.GET("/dpa/chat/stream", DpaChatStreamHandler)
+
 			// Superadmin / Kaprodi Routes (administratif + analytics prodi)
 			superadmin := protected.Group("/")
 			superadmin.Use(RequireRole(RoleSuperadmin))
@@ -157,6 +164,7 @@ func main() {
 
 			superadmin.GET("/admin/users", AdminUsersGetHandler)
 			superadmin.POST("/admin/users", AdminUsersCreateHandler)
+			superadmin.POST("/admin/users/bulk-dpa", AdminBulkDpaHandler)
 			superadmin.GET("/admin/users/:id", AdminUsersGetByIDHandler)
 			superadmin.PUT("/admin/users/:id", AdminUsersPutHandler)
 			superadmin.DELETE("/admin/users/:id", AdminUsersDeleteHandler)

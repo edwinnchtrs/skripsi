@@ -398,7 +398,83 @@ func AdminUsersPutHandler(c *gin.Context) {
 	if len(updates) > 0 {
 		DB.Model(&target).Updates(updates)
 	}
+	// Notifikasi mapping: mahasiswa tahu siapa DPA-nya, DPA tahu bimbingan baru.
+	if newDpaID, ok := updates["dpa_id"].(uint); ok && newDpaID != 0 && newDpaID != target.DpaID {
+		var dpa User
+		if err := DB.First(&dpa, newDpaID).Error; err == nil {
+			DB.Create(&Notification{
+				UserID:  dpa.ID,
+				Type:    "student_wellbeing",
+				Message: fmt.Sprintf("Mahasiswa %s dipetakan sebagai bimbingan Anda.", target.Nama),
+			})
+			DB.Create(&Notification{
+				UserID:  target.ID,
+				Type:    "student_wellbeing",
+				Message: fmt.Sprintf("DPA pembimbing Anda adalah %s. Buka menu DPA Saya untuk melihat profil dan grup bimbingan.", dpa.Nama),
+			})
+		}
+	}
 	c.JSON(http.StatusOK, gin.H{"status": "success", "message": "User updated"})
+}
+
+// AdminBulkDpaHandler memetakan banyak mahasiswa ke satu DPA sekaligus.
+// Body: {dpa_id, student_ids: []}. Hanya user role student yang diproses.
+func AdminBulkDpaHandler(c *gin.Context) {
+	if !AdminGuard(c) {
+		return
+	}
+	var input struct {
+		DpaID      uint   `json:"dpa_id" binding:"required"`
+		StudentIDs []uint `json:"student_ids" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "dpa_id dan student_ids wajib diisi"})
+		return
+	}
+	var dpa User
+	if err := DB.Where("id = ? AND role = ?", input.DpaID, RoleDPA).First(&dpa).Error; err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "DPA tidak ditemukan"})
+		return
+	}
+
+	updated := 0
+	skipped := 0
+	for _, studentID := range input.StudentIDs {
+		var student User
+		if err := DB.Where("id = ? AND role = ?", studentID, RoleStudent).First(&student).Error; err != nil {
+			skipped++
+			continue
+		}
+		if student.DpaID == input.DpaID {
+			skipped++
+			continue
+		}
+		if err := DB.Model(&student).Update("dpa_id", input.DpaID).Error; err != nil {
+			skipped++
+			continue
+		}
+		updated++
+		DB.Create(&Notification{
+			UserID:  student.ID,
+			Type:    "student_wellbeing",
+			Message: fmt.Sprintf("DPA pembimbing Anda adalah %s. Buka menu DPA Saya untuk melihat profil dan grup bimbingan.", dpa.Nama),
+		})
+	}
+
+	if updated > 0 {
+		DB.Create(&Notification{
+			UserID:  dpa.ID,
+			Type:    "student_wellbeing",
+			Message: fmt.Sprintf("%d mahasiswa baru dipetakan sebagai bimbingan Anda.", updated),
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":   "success",
+		"message":  fmt.Sprintf("%d mahasiswa dipetakan ke %s.", updated, dpa.Nama),
+		"updated":  updated,
+		"skipped":  skipped,
+	})
 }
 
 func AdminUsersDeleteHandler(c *gin.Context) {

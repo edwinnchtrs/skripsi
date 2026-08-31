@@ -1,9 +1,11 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -14,9 +16,63 @@ import (
 // mahasiswa bimbingannya. Proteksi scope ketat:
 //   - DPA hanya melihat grup miliknya sendiri.
 //   - Student hanya melihat grup DPA pembimbingnya.
+// Pengiriman pesan realtime via SSE broker di bawah; polling
+// tetap tersedia sebagai fallback.
 // ============================================================
 
 const dpaMessageLimit = 200
+
+// ---- SSE broker (in-memory, satu set subscriber per grup DPA) ----
+
+type chatSubscriber struct {
+	ID       uint
+	Messages chan DpaMessage
+	Done     chan struct{}
+}
+
+var chatMu sync.RWMutex
+var chatSubscribers = map[uint]map[*chatSubscriber]struct{}{}
+
+func subscribeChat(dpaID uint) *chatSubscriber {
+	sub := &chatSubscriber{
+		ID:       dpaID,
+		Messages: make(chan DpaMessage, 16),
+		Done:     make(chan struct{}),
+	}
+	chatMu.Lock()
+	defer chatMu.Unlock()
+	if chatSubscribers[dpaID] == nil {
+		chatSubscribers[dpaID] = map[*chatSubscriber]struct{}{}
+	}
+	chatSubscribers[dpaID][sub] = struct{}{}
+	return sub
+}
+
+func unsubscribeChat(sub *chatSubscriber) {
+	chatMu.Lock()
+	defer chatMu.Unlock()
+	if group, ok := chatSubscribers[sub.ID]; ok {
+		delete(group, sub)
+		if len(group) == 0 {
+			delete(chatSubscribers, sub.ID)
+		}
+	}
+	close(sub.Done)
+}
+
+// publishChatMessage fan-out pesan baru ke semua subscriber grup.
+// Channel penuh → pesan di-drop untuk subscriber itu; client
+// menyusul lewat fetch awal/polling.
+func publishChatMessage(dpaID uint, message DpaMessage) {
+	chatMu.RLock()
+	defer chatMu.RUnlock()
+	for sub := range chatSubscribers[dpaID] {
+		select {
+		case sub.Messages <- message:
+		default:
+		}
+	}
+}
 
 func DpaChatMessagesHandler(c *gin.Context) {
 	user := c.MustGet("user").(User)
@@ -166,6 +222,7 @@ func DpaChatSendHandler(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengirim pesan"})
 		return
 	}
+	publishChatMessage(dpaID, message)
 
 	// Notifikasi: pesan DPA → semua mahasiswa bimbingan;
 	// pesan student → DPA-nya.
@@ -196,4 +253,108 @@ func DpaChatSendHandler(c *gin.Context) {
 			"timestamp":   message.Timestamp,
 		},
 	})
+}
+
+// SSEAuthMiddleware memvalidasi JWT dari query-param `token`.
+// Diperlukan karena EventSource tidak dapat mengirim header Authorization.
+func SSEAuthMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		tokenString := c.Query("token")
+		if tokenString == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Token diperlukan untuk streaming"})
+			c.Abort()
+			return
+		}
+		claims, err := ValidateJWT(tokenString)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Token tidak valid"})
+			c.Abort()
+			return
+		}
+		var user User
+		if err := DB.Where("username = ?", claims.Username).First(&user).Error; err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "User not found"})
+			c.Abort()
+			return
+		}
+		c.Set("user", user)
+		c.Next()
+	}
+}
+
+// DpaChatStreamHandler: SSE endpoint untuk pesan grup chat realtime.
+// Event: message (payload JSON pesan), heartbeat tiap 25 detik.
+func DpaChatStreamHandler(c *gin.Context) {
+	user := c.MustGet("user").(User)
+
+	var dpaID uint
+	switch normalizeRole(user.Role) {
+	case RoleDPA:
+		dpaID = user.ID
+	case RoleStudent:
+		if user.DpaID == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Anda belum tergabung di grup bimbingan"})
+			return
+		}
+		dpaID = user.DpaID
+	default:
+		c.JSON(http.StatusForbidden, gin.H{"error": "Grup chat hanya untuk DPA dan mahasiswa bimbingannya"})
+		return
+	}
+
+	// Peta nama pengirim untuk payload SSE (DPA + seluruh bimbingan).
+	var dpa User
+	if err := DB.First(&dpa, dpaID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Grup bimbingan tidak ditemukan"})
+		return
+	}
+	senderNames := map[uint]string{dpa.ID: dpa.Nama}
+	for _, student := range dpaAdvisees(dpaID) {
+		senderNames[student.ID] = student.Nama
+	}
+
+	flusher, ok := c.Writer.(http.Flusher)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Streaming tidak didukung"})
+		return
+	}
+
+	c.Writer.Header().Set("Content-Type", "text/event-stream")
+	c.Writer.Header().Set("Cache-Control", "no-cache")
+	c.Writer.Header().Set("Connection", "keep-alive")
+	c.Writer.Header().Set("X-Accel-Buffering", "no")
+
+	sub := subscribeChat(dpaID)
+	defer unsubscribeChat(sub)
+
+	// Event awal agar client tahu stream siap.
+	fmt.Fprint(c.Writer, "event: ready\ndata: {}\n\n")
+	flusher.Flush()
+
+	heartbeat := time.NewTicker(25 * time.Second)
+	defer heartbeat.Stop()
+
+	for {
+		select {
+		case message := <-sub.Messages:
+			payload, err := json.Marshal(gin.H{
+				"id":          message.ID,
+				"sender_id":   message.SenderID,
+				"sender_name": senderNames[message.SenderID],
+				"sender_role": message.SenderRole,
+				"body":        message.Body,
+				"timestamp":   message.Timestamp,
+			})
+			if err != nil {
+				continue
+			}
+			fmt.Fprintf(c.Writer, "event: message\ndata: %s\n\n", payload)
+			flusher.Flush()
+		case <-heartbeat.C:
+			fmt.Fprint(c.Writer, ": ping\n\n")
+			flusher.Flush()
+		case <-c.Request.Context().Done():
+			return
+		}
+	}
 }

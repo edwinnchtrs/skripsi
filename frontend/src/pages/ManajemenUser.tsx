@@ -256,6 +256,45 @@ export default function ManajemenUser() {
     }
   };
 
+  // ---- Mapping massal mahasiswa -> DPA ----
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkDpaId, setBulkDpaId] = useState('');
+  const [bulkProdi, setBulkProdi] = useState('');
+  const [bulkAngkatan, setBulkAngkatan] = useState('');
+  const [bulkSemester, setBulkSemester] = useState('');
+  const [bulkSaving, setBulkSaving] = useState(false);
+
+  const bulkTargets = useMemo(
+    () =>
+      users.filter((user) => {
+        if (getAccountType(user) !== 'mahasiswa') return false;
+        if (bulkProdi.trim() && !(user.prodi || '').toLowerCase().includes(bulkProdi.trim().toLowerCase())) return false;
+        if (bulkAngkatan.trim() && (user.angkatan || '') !== bulkAngkatan.trim()) return false;
+        if (bulkSemester.trim() && String(user.semester) !== bulkSemester.trim()) return false;
+        return true;
+      }),
+    [users, bulkProdi, bulkAngkatan, bulkSemester],
+  );
+
+  const submitBulk = async () => {
+    if (!bulkDpaId || bulkTargets.length === 0) return;
+    setBulkSaving(true);
+    try {
+      const res = await api.post('/admin/users/bulk-dpa', {
+        dpa_id: Number(bulkDpaId),
+        student_ids: bulkTargets.map((user) => user.id),
+      });
+      setMessage({ type: 'success', text: res.data.message || 'Mapping massal tersimpan' });
+      setBulkOpen(false);
+      setBulkDpaId('');
+      fetchUsers();
+    } catch (error: any) {
+      setMessage({ type: 'error', text: error.response?.data?.error || 'Mapping massal gagal' });
+    } finally {
+      setBulkSaving(false);
+    }
+  };
+
   const handleDelete = async () => {
     if (!deleteTarget) return;
     setActionLoading(true);
@@ -294,6 +333,13 @@ export default function ManajemenUser() {
               >
                 <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                 Refresh
+              </button>
+              <button
+                onClick={() => setBulkOpen(true)}
+                className="inline-flex h-10 items-center gap-2 rounded-md border border-indigo-300/30 bg-indigo-400/10 px-3 text-sm font-semibold text-indigo-100 transition hover:bg-indigo-400/20"
+              >
+                <UserCheck className="h-4 w-4" />
+                Mapping Massal
               </button>
               <button
                 onClick={openCreate}
@@ -733,6 +779,78 @@ export default function ManajemenUser() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {bulkOpen && (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm" onClick={() => setBulkOpen(false)}>
+          <div className="w-full max-w-lg rounded-lg border border-white/10 bg-slate-950 p-5 shadow-2xl" onClick={(event) => event.stopPropagation()}>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold text-white">Mapping Massal ke DPA</h2>
+                <p className="mt-1 text-xs text-slate-500">Terapkan satu DPA ke banyak mahasiswa sekaligus berdasarkan filter.</p>
+              </div>
+              <button onClick={() => setBulkOpen(false)} className="flex h-9 w-9 items-center justify-center rounded-md border border-white/10 text-slate-400 hover:text-white">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="mt-5 space-y-4">
+              <label className="block">
+                <span className="text-xs font-semibold text-slate-400">DPA tujuan</span>
+                <select
+                  value={bulkDpaId}
+                  onChange={(event) => setBulkDpaId(event.target.value)}
+                  className="mt-1 h-10 w-full rounded-md border border-white/10 bg-slate-900 px-3 text-sm text-white outline-none focus:border-cyan-300/50"
+                >
+                  <option value="">— Pilih DPA —</option>
+                  {dpaOptions.map((dpa) => (
+                    <option key={dpa.id} value={dpa.id}>{dpa.nama} ({dpa.username})</option>
+                  ))}
+                </select>
+              </label>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <label className="block">
+                  <span className="text-xs font-semibold text-slate-400">Prodi mengandung</span>
+                  <input value={bulkProdi} onChange={(e) => setBulkProdi(e.target.value)} placeholder="cth. Informatika" className="mt-1 h-10 w-full rounded-md border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/50" />
+                </label>
+                <label className="block">
+                  <span className="text-xs font-semibold text-slate-400">Angkatan</span>
+                  <input value={bulkAngkatan} onChange={(e) => setBulkAngkatan(e.target.value)} placeholder="cth. 2023" className="mt-1 h-10 w-full rounded-md border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/50" />
+                </label>
+                <label className="block">
+                  <span className="text-xs font-semibold text-slate-400">Semester</span>
+                  <input type="number" min={1} max={14} value={bulkSemester} onChange={(e) => setBulkSemester(e.target.value)} placeholder="cth. 5" className="mt-1 h-10 w-full rounded-md border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/50" />
+                </label>
+              </div>
+
+              <div className="rounded-md border border-white/10 bg-white/[0.03] p-3 text-xs text-slate-400">
+                <span className="font-semibold text-slate-200">{bulkTargets.length}</span> mahasiswa akan dipetakan ke DPA terpilih.
+                {bulkTargets.length > 0 && bulkTargets.length <= 12 && (
+                  <p className="mt-1 text-slate-500">{bulkTargets.map((u) => u.nama).join(', ')}</p>
+                )}
+              </div>
+
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setBulkOpen(false)}
+                  className="inline-flex h-10 flex-1 items-center justify-center rounded-md border border-white/10 bg-white/[0.04] text-sm font-semibold text-slate-300 transition hover:bg-white/[0.07]"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={submitBulk}
+                  disabled={!bulkDpaId || bulkTargets.length === 0 || bulkSaving}
+                  className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-md bg-indigo-400 text-sm font-semibold text-slate-950 transition hover:bg-indigo-300 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {bulkSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserCheck className="h-4 w-4" />}
+                  Terapkan Mapping
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

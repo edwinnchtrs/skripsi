@@ -40,6 +40,8 @@ interface DashboardData {
   belum_isi: number;
   active_notes: number;
   warning_count: number;
+  onboarding: { id: number; nama: string; missing: string }[];
+  onboarding_count: number;
   students: StudentRow[];
   warnings: Warning[];
 }
@@ -132,6 +134,35 @@ export default function DpaDashboard() {
           );
         })}
       </section>
+
+      {data && data.onboarding_count > 0 && (
+        <section className="rounded-lg border border-indigo-300/25 bg-indigo-500/10 p-5 shadow-xl shadow-black/10">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-sm font-semibold text-indigo-100">
+              <ClipboardX className="h-4 w-4" />
+              Onboarding Bimbingan ({data.onboarding_count})
+            </div>
+            <Link to="/dpa/mahasiswa" className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-200 hover:text-indigo-100">
+              Kelengkapan data di daftar mahasiswa <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          </div>
+          <p className="mt-1 text-xs text-indigo-200/70">
+            Mahasiswa berikut perlu dilengkapi datanya agar analitik dan pemantauan berjalan optimal.
+          </p>
+          <div className="mt-3 space-y-2">
+            {data.onboarding.slice(0, 6).map((item) => (
+              <Link
+                key={item.id}
+                to={`/dpa/mahasiswa/${item.id}`}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-indigo-300/20 bg-slate-950/50 px-4 py-2.5 text-sm transition hover:bg-slate-900"
+              >
+                <span className="font-semibold text-slate-100">{item.nama}</span>
+                <span className="text-xs text-amber-200/90">Belum ada: {item.missing}</span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       {data && data.warnings.length > 0 && (
         <section className="rounded-lg border border-amber-300/25 bg-amber-500/10 p-5 shadow-xl shadow-black/10">

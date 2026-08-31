@@ -105,10 +105,42 @@ export default function DpaGroupChat() {
     fetchChat(true);
   }, [fetchChat]);
 
+  // Realtime via SSE; bila gagal, kembali ke polling 3 detik.
   useEffect(() => {
-    const interval = setInterval(() => fetchChat(false), 3000);
-    return () => clearInterval(interval);
-  }, [fetchChat]);
+    let pollInterval: number | null = null;
+    const startPolling = () => {
+      if (pollInterval !== null) return;
+      pollInterval = window.setInterval(() => fetchChat(false), 3000);
+    };
+    const stopPolling = () => {
+      if (pollInterval !== null) {
+        window.clearInterval(pollInterval);
+        pollInterval = null;
+      }
+    };
+
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    const source = new EventSource(`${api.defaults.baseURL}/dpa/chat/stream?token=${encodeURIComponent(token)}`);
+
+    source.addEventListener('open', () => stopPolling());
+    source.addEventListener('message', (event) => {
+      try {
+        const message = JSON.parse((event as MessageEvent).data);
+        mergeMessages([{ ...message, sender_name: message.sender_name ?? '', sender_role: message.sender_role ?? 'student' }]);
+      } catch {
+        // Payload rusak diabaikan; polling fallback tetap berjalan bila diperlukan.
+      }
+    });
+    source.addEventListener('error', () => {
+      startPolling();
+    });
+
+    return () => {
+      source.close();
+      stopPolling();
+    };
+  }, [fetchChat, mergeMessages]);
 
   // Auto-scroll hanya bila pengguna memang berada di dasar daftar.
   useEffect(() => {

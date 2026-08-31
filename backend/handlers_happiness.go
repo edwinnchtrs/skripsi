@@ -186,6 +186,8 @@ func notifyDpaForStudentWellbeing(student User, domain string, message string, i
 		if domain != "" {
 			notifType = "student_" + strings.ToLower(domain) + "_priority"
 		}
+		// Early warning prioritas juga dikirim sebagai WhatsApp (env-gated).
+		notifyDpaWhatsApp(dpa, student.Nama, message)
 	} else if domain != "" {
 		notifType = "student_" + strings.ToLower(domain) + "_update"
 	}

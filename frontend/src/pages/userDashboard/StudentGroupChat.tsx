@@ -83,9 +83,45 @@ export default function StudentGroupChat() {
     fetchChat(true);
   }, [fetchChat]);
 
+  // Realtime via SSE; bila gagal, kembali ke polling 3 detik.
   useEffect(() => {
-    const interval = setInterval(() => fetchChat(false), 3000);
-    return () => clearInterval(interval);
+    let pollInterval: number | null = null;
+    const startPolling = () => {
+      if (pollInterval !== null) return;
+      pollInterval = window.setInterval(() => fetchChat(false), 3000);
+    };
+    const stopPolling = () => {
+      if (pollInterval !== null) {
+        window.clearInterval(pollInterval);
+        pollInterval = null;
+      }
+    };
+
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    const source = new EventSource(`${api.defaults.baseURL}/dpa/chat/stream?token=${encodeURIComponent(token)}`);
+
+    source.addEventListener('open', () => stopPolling());
+    source.addEventListener('message', (event) => {
+      try {
+        const message = JSON.parse((event as MessageEvent).data);
+        setMessages((prev) => {
+          if (prev.some((m) => m.id === message.id)) return prev;
+          lastIdRef.current = Math.max(lastIdRef.current, message.id);
+          return [...prev, { ...message, sender_name: message.sender_name ?? '', sender_role: message.sender_role ?? 'dpa' }];
+        });
+      } catch {
+        // Payload rusak diabaikan; polling fallback tetap berjalan bila diperlukan.
+      }
+    });
+    source.addEventListener('error', () => {
+      startPolling();
+    });
+
+    return () => {
+      source.close();
+      stopPolling();
+    };
   }, [fetchChat]);
 
   useEffect(() => {
