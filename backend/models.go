@@ -23,6 +23,9 @@ type User struct {
 	Ips       float64 `gorm:"default:0"`
 	Sks       int     `gorm:"default:0"`
 	Kehadiran float64 `gorm:"default:0"`
+	// Profil dosen (DPA), diisi sendiri oleh DPA
+	Nip   string `gorm:"size:32"`
+	Phone string `gorm:"size:32"`
 	// Mapping mahasiswa ke DPA bimbingannya
 	DpaID uint `gorm:"index;default:0"`
 	Assessments            []Assessment
@@ -300,6 +303,16 @@ type DpaMessage struct {
 	SenderRole string `gorm:"size:16"` // dpa | student
 	Body      string `gorm:"type:text"`
 	Timestamp time.Time `gorm:"autoCreateTime"`
+}
+
+// DpaRating adalah penilaian bintang (1-5) mahasiswa terhadap performa
+// DPA pembimbingnya. Satu mahasiswa = satu rating per DPA (upsert).
+// Rating TIDAK PERNAH dikembalikan ke role dpa.
+type DpaRating struct {
+	gorm.Model
+	DpaID     uint `gorm:"uniqueIndex:idx_dpa_rating_dpa_student;index"`
+	StudentID uint `gorm:"uniqueIndex:idx_dpa_rating_dpa_student;index"`
+	Stars     int
 }
 
 type SystemConfig struct {

@@ -2,6 +2,7 @@ package main
 
 import (
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -39,24 +40,30 @@ func UserProfileGetHandler(c *gin.Context) {
 	var followingCount int64
 	DB.Model(&Follow{}).Where("follower_id = ?", user.ID).Count(&followingCount)
 
-	c.JSON(http.StatusOK, gin.H{
+	response := gin.H{
 		"id":              user.ID,
 		"username":        user.Username,
 		"nama":            user.Nama,
 		"bio":             user.Bio,
 		"profile_pic":     user.ProfilePic,
+		"nip":             user.Nip,
+		"phone":           user.Phone,
 		"follower_count":  followerCount,
 		"following_count": followingCount,
-	})
+	}
+	c.JSON(http.StatusOK, response)
 }
 
 func UserProfilePutHandler(c *gin.Context) {
 	user := c.MustGet("user").(User)
 	var input struct {
 		Username   string `json:"username"`
+		Nama       string `json:"nama"`
 		Password   string `json:"password"`
 		Bio        string `json:"bio"`
 		ProfilePic string `json:"profile_pic"`
+		Nip        string `json:"nip"`
+		Phone      string `json:"phone"`
 	}
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -71,6 +78,27 @@ func UserProfilePutHandler(c *gin.Context) {
 		updates["profile_pic"] = input.ProfilePic
 	}
 
+	if input.Nama != "" {
+		updates["nama"] = strings.TrimSpace(input.Nama)
+	}
+
+	// Profil dosen: NIP dan nomor telepon (karakter terbatas agar aman ditampilkan).
+	if input.Nip != "" {
+		nip := strings.TrimSpace(input.Nip)
+		if len(nip) > 32 || !isValidContact(nip) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "NIP/NIDN hanya boleh berisi angka, huruf, titik, atau strip"})
+			return
+		}
+		updates["nip"] = nip
+	}
+	if input.Phone != "" {
+		phone := strings.TrimSpace(input.Phone)
+		if len(phone) > 32 || !isValidContact(phone) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Nomor telepon hanya boleh berisi angka, spasi, tanda +, atau strip"})
+			return
+		}
+		updates["phone"] = phone
+	}
 
 	authChanged := false
 
@@ -96,11 +124,36 @@ func UserProfilePutHandler(c *gin.Context) {
 		return
 	}
 
+	var updated User
+	DB.First(&updated, user.ID)
+
 	c.JSON(http.StatusOK, gin.H{
 		"status":       "success",
 		"message":      "Profile updated",
 		"auth_changed": authChanged,
+		"user": gin.H{
+			"id":          updated.ID,
+			"username":    updated.Username,
+			"nama":        updated.Nama,
+			"role":        updated.Role,
+			"bio":         updated.Bio,
+			"profile_pic": updated.ProfilePic,
+			"nip":         updated.Nip,
+			"phone":       updated.Phone,
+		},
 	})
+}
+
+// isValidContact membatasi karakter NIP/NIDN dan nomor telepon.
+func isValidContact(value string) bool {
+	for _, char := range value {
+		if (char >= '0' && char <= '9') || (char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z') ||
+			char == '+' || char == '-' || char == '.' || char == ' ' || char == '(' || char == ')' {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func NetworkUsersHandler(c *gin.Context) {

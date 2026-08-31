@@ -5,7 +5,7 @@ import {
   ShieldAlert,
   FileText,
   MessagesSquare,
-  User,
+  UserRound,
   LogOut,
   Sun,
   Moon,
@@ -20,6 +20,7 @@ const navItems = [
   { label: 'Grup Chat Bimbingan', icon: MessagesSquare, path: '/dpa/chat' },
   { label: 'Early Warning', icon: ShieldAlert, path: '/dpa/warnings' },
   { label: 'Laporan', icon: FileText, path: '/dpa/laporan' },
+  { label: 'Profil Saya', icon: UserRound, path: '/dpa/profil' },
 ];
 
 export default function DpaSidebar({
@@ -79,7 +80,7 @@ export default function DpaSidebar({
               justifyContent: 'center',
             }}
           >
-            <User size={20} color="#fff" />
+            <UserRound size={20} color="#fff" />
           </div>
           <div>
             <div style={{ color: 'var(--theme-text-primary)', fontWeight: 700, fontSize: 14, lineHeight: 1.2 }}>
@@ -160,7 +161,7 @@ export default function DpaSidebar({
               justifyContent: 'center',
             }}
           >
-            <User size={16} color="#fff" />
+            <UserRound size={16} color="#fff" />
           </div>
           <div style={{ flex: 1, overflow: 'hidden' }}>
             <div style={{ color: 'var(--theme-text-primary)', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>

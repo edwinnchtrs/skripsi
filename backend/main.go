@@ -126,6 +126,10 @@ func main() {
 			student.GET("/happiness/history", HappinessHistoryHandler)
 			student.GET("/happiness/trend", HappinessTrendHandler)
 			student.GET("/well-being", WellBeingHandler)
+			student.GET("/dpa/directory", DpaDirectoryHandler)
+			student.POST("/student/join-dpa/:id", StudentJoinDpaHandler)
+			student.POST("/dpa/ratings/:dpaId", DpaRateHandler)
+			student.GET("/dpa/ratings/me", DpaMyRatingHandler)
 
 			// DPA Routes (dosen pembimbing akademik, scope mahasiswa bimbingan)
 			dpa := protected.Group("/")
@@ -172,6 +176,7 @@ func main() {
 
 			superadmin.GET("/admin/analytics", AdminAnalyticsHandler)
 			superadmin.GET("/admin/happiness", AdminHappinessAnalyticsHandler)
+			superadmin.GET("/superadmin/dpa-ratings", SuperadminDpaRatingsHandler)
 			superadmin.GET("/admin/config", AdminConfigGetHandler)
 			superadmin.PUT("/admin/config", AdminConfigPutHandler)
 			superadmin.GET("/admin/quantum", AdminQuantumHandler)
