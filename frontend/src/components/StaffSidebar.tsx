@@ -1,31 +1,22 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
-  LayoutDashboard,
-  Users,
-  ShieldAlert,
-  FileText,
-  MessagesSquare,
-  ClipboardCheck,
-  UserRound,
-  LogOut,
-  Sun,
-  Moon,
   Bot,
+  FileText,
+  LayoutDashboard,
+  LogOut,
+  Moon,
+  Sun,
+  UserRound,
   X,
 } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 
 const navItems = [
-  { label: 'Dashboard DPA', icon: LayoutDashboard, path: '/dpa/dashboard' },
-  { label: 'Mahasiswa Bimbingan', icon: Users, path: '/dpa/mahasiswa' },
-  { label: 'Grup Chat Bimbingan', icon: MessagesSquare, path: '/dpa/chat' },
-  { label: 'Bimbingan Akademik', icon: ClipboardCheck, path: '/dpa/bimbingan' },
-  { label: 'Early Warning', icon: ShieldAlert, path: '/dpa/warnings' },
-  { label: 'Laporan', icon: FileText, path: '/dpa/laporan' },
-  { label: 'Profil Saya', icon: UserRound, path: '/dpa/profil' },
+  { label: 'Dashboard Staf', icon: LayoutDashboard, path: '/staff/dashboard' },
+  { label: 'Proses Laporan', icon: FileText, path: '/staff/dashboard' },
 ];
 
-export default function DpaSidebar({
+export default function StaffSidebar({
   open = false,
   onClose,
   onOpenAssistant,
@@ -37,11 +28,11 @@ export default function DpaSidebar({
   const location = useLocation();
   const navigate = useNavigate();
   const { dark, setDark } = useTheme();
-  let dpa: any = {};
+  let staff: any = {};
   try {
-    dpa = JSON.parse(localStorage.getItem('user') || '{}');
+    staff = JSON.parse(localStorage.getItem('user') || '{}');
   } catch {
-    dpa = {};
+    staff = {};
   }
 
   const handleLogout = () => {
@@ -88,9 +79,9 @@ export default function DpaSidebar({
             <div style={{ color: 'var(--theme-text-primary)', fontWeight: 700, fontSize: 14, lineHeight: 1.2 }}>
               QC Analytics
             </div>
-            <div style={{ color: 'var(--theme-text-muted)', fontSize: 10 }}>Portal DPA</div>
+            <div style={{ color: 'var(--theme-text-muted)', fontSize: 10 }}>Portal Staf Kampus</div>
           </div>
-          <button type="button" className="mobile-sidebar-close" onClick={onClose} aria-label="Tutup menu DPA">
+          <button type="button" className="mobile-sidebar-close" onClick={onClose} aria-label="Tutup menu staf">
             <X size={17} />
           </button>
         </div>
@@ -103,7 +94,7 @@ export default function DpaSidebar({
           const active = location.pathname === item.path;
           return (
             <Link
-              key={item.path}
+              key={item.path + item.label}
               to={item.path}
               onClick={onClose}
               style={{
@@ -167,9 +158,9 @@ export default function DpaSidebar({
           </div>
           <div style={{ flex: 1, overflow: 'hidden' }}>
             <div style={{ color: 'var(--theme-text-primary)', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {dpa.nama || dpa.username || 'DPA'}
+              {staff.nama || staff.username || 'Staf'}
             </div>
-            <div style={{ color: 'var(--theme-text-muted)', fontSize: 11 }}>Dosen Pembimbing Akademik</div>
+            <div style={{ color: 'var(--theme-text-muted)', fontSize: 11 }}>Staf Kampus</div>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -183,22 +174,22 @@ export default function DpaSidebar({
                 height: 18,
                 borderRadius: 9,
                 background: dark ? '#6c63ff' : '#2a2e42',
-                border: 'none',
-                cursor: 'pointer',
+                border: '1px solid var(--theme-sidebar-border)',
                 position: 'relative',
-                transition: 'background 0.2s',
+                cursor: 'pointer',
               }}
+              aria-label="Ganti tema"
             >
               <span
                 style={{
                   position: 'absolute',
                   top: 2,
                   left: dark ? 16 : 2,
-                  width: 14,
-                  height: 14,
+                  width: 12,
+                  height: 12,
                   borderRadius: '50%',
                   background: '#fff',
-                  transition: 'left 0.2s',
+                  transition: 'left 0.15s',
                 }}
               />
             </button>
@@ -208,26 +199,23 @@ export default function DpaSidebar({
         <button
           onClick={handleLogout}
           style={{
-            marginTop: 12,
-            width: '100%',
             display: 'flex',
             alignItems: 'center',
-            gap: 8,
-            padding: '7px 10px',
-            borderRadius: 7,
-            background: 'transparent',
-            border: '1px solid var(--theme-btn-secondary-border)',
-            color: 'var(--theme-text-muted)',
-            fontSize: 12,
+            gap: 10,
+            width: '100%',
+            marginTop: 12,
+            padding: '8px 12px',
+            borderRadius: 8,
+            background: 'rgba(244,63,94,0.10)',
+            color: '#fda4af',
+            fontSize: 13,
+            fontWeight: 600,
             cursor: 'pointer',
           }}
         >
-          <LogOut size={14} />
-          Sign Out
+          <LogOut size={15} />
+          Keluar
         </button>
-        <div style={{ color: 'var(--theme-text-muted)', fontSize: 10, textAlign: 'center', marginTop: 10 }}>
-          Sistem Analitik Kesejahteraan Mahasiswa UMCI
-        </div>
       </div>
     </aside>
   );

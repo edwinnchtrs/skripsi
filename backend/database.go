@@ -33,8 +33,13 @@ func ConnectDatabase() {
 		&HappinessAssessment{},
 		&DpaNote{},
 		&DpaMessage{},
+		&DpaPoll{},
+		&DpaPollOption{},
+		&DpaPollVote{},
 		&DpaRating{},
 		&DpaReferral{},
+		&Bimbingan{},
+		&BimbinganReport{},
 		&MBTIResult{},
 		&Curhat{},
 		&CurhatReply{},
@@ -65,6 +70,7 @@ func ConnectDatabase() {
 	migrateRoles()
 	SeedAdmin()
 	SeedSuperadmin()
+	SeedStaff()
 	NormalizeSystemConfig()
 	backfillLegacyQuantumMetrics()
 }
@@ -124,6 +130,25 @@ func SeedSuperadmin() {
 			"role":          RoleSuperadmin,
 		})
 		log.Println("Kaprodi user updated to ensure login works (username: kaprodi, password: kaprodi123).")
+	}
+}
+
+// SeedStaff membuat akun staf kampus pemroses laporan bimbingan.
+func SeedStaff() {
+	var staff User
+	if err := DB.Where("username = ?", "staff").First(&staff).Error; err != nil {
+		hashedPassword, _ := HashPassword("staff123")
+		newStaff := User{
+			Username:     "staff",
+			PasswordHash: hashedPassword,
+			Nama:         "Staf Kampus",
+			Role:         RoleStaff,
+		}
+		DB.Create(&newStaff)
+		log.Println("Staff user created successfully (username: staff, password: staff123).")
+	} else if !isStaffRole(staff.Role) {
+		DB.Model(&staff).Update("role", RoleStaff)
+		log.Println("Staff user role normalized (username: staff).")
 	}
 }
 

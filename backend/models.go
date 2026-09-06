@@ -298,11 +298,84 @@ type DpaNote struct {
 // Satu DPA = satu grup; SenderID menunjuk pengirim (DPA atau student).
 type DpaMessage struct {
 	gorm.Model
-	DpaID     uint `gorm:"index"`
-	SenderID  uint `gorm:"index"`
-	SenderRole string `gorm:"size:16"` // dpa | student
-	Body      string `gorm:"type:text"`
+	DpaID          uint `gorm:"index"`
+	SenderID       uint `gorm:"index"`
+	SenderRole     string `gorm:"size:16"` // dpa | student
+	MsgType        string `gorm:"size:16;default:text;index"` // text | image | file | poll
+	Body           string `gorm:"type:text"`
+	AttachmentName string `gorm:"size:255"`
+	AttachmentType string `gorm:"size:100"`
+	AttachmentData string `gorm:"type:longtext"` // base64, dibaca via endpoint lampiran
+	PollID         uint   `gorm:"index"`         // terisi bila MsgType = poll
+	Timestamp      time.Time `gorm:"autoCreateTime"`
+}
+
+// DpaPoll adalah voting di dalam grup chat bimbingan.
+type DpaPoll struct {
+	gorm.Model
+	DpaID     uint   `gorm:"index"`
+	Question  string `gorm:"size:255"`
+	Multi     bool
+	CreatedBy uint
 	Timestamp time.Time `gorm:"autoCreateTime"`
+}
+
+// DpaPollOption adalah pilihan jawaban sebuah polling.
+type DpaPollOption struct {
+	gorm.Model
+	PollID uint   `gorm:"index"`
+	Label  string `gorm:"size:255"`
+	Sort   int
+}
+
+// DpaPollVote adalah suara anggota grup pada sebuah polling.
+// Satu user boleh satu suara per opsi; aturan single-choice
+// ditegakkan di handler.
+type DpaPollVote struct {
+	gorm.Model
+	PollID   uint `gorm:"uniqueIndex:idx_poll_vote;index"`
+	OptionID uint `gorm:"uniqueIndex:idx_poll_vote"`
+	UserID   uint `gorm:"uniqueIndex:idx_poll_vote"`
+}
+
+// Bimbingan adalah catatan satu sesi bimbingan akademik mahasiswa
+// dengan DPA-nya. Sesi dicatat mahasiswa (pending) atau DPA
+// (langsung verified); hanya sesi verified yang dihitung sebagai
+// syarat UTS/UAS. Saat mencatat, mahasiswa ikut mengirim data
+// akademik terkini (IPK/IPS/SKS/kehadiran) dan keluhan.
+type Bimbingan struct {
+	gorm.Model
+	DpaID      uint   `gorm:"index"`
+	StudentID  uint   `gorm:"index"`
+	Semester   string `gorm:"size:32;index"` // mis. "Ganjil 2026/2027"
+	Topic      string `gorm:"size:255"`
+	Notes      string `gorm:"type:text"`
+	Ipk        float64
+	Ips        float64
+	Sks        int
+	Kehadiran  float64
+	Keluhan    string `gorm:"type:text"`
+	Status     string `gorm:"size:16;default:pending;index"` // pending | verified | rejected
+	RecordedBy string `gorm:"size:16"`                       // student | dpa
+	Timestamp  time.Time `gorm:"autoCreateTime"`
+}
+
+// BimbinganReport adalah laporan DPA ke staf kampus yang
+// menyatakan mahasiswa telah memenuhi syarat UTS/UAS untuk
+// diproses staf (diproses | selesai | ditolak).
+type BimbinganReport struct {
+	gorm.Model
+	DpaID        uint   `gorm:"index"`
+	StudentID    uint   `gorm:"index"`
+	Semester     string `gorm:"size:32;index"`
+	ExamType     string `gorm:"size:8"` // UTS | UAS
+	SessionCount int
+	Threshold    int
+	Status       string `gorm:"size:16;default:diproses;index"` // diproses | selesai | ditolak
+	Note         string `gorm:"type:text"`                      // catatan DPA
+	StaffNote    string `gorm:"type:text"`                      // catatan staf
+	SubmittedAt  time.Time
+	ProcessedAt  *time.Time
 }
 
 // DpaRating adalah penilaian bintang (1-5) mahasiswa terhadap performa
@@ -350,6 +423,10 @@ type SystemConfig struct {
 	DataRetentionDays      int     `gorm:"default:365"`
 	ModelVersion           string  `gorm:"default:1.0.0"`
 	AppName                string  `gorm:"default:QC Analytics"`
+	// Minimum sesi bimbingan terverifikasi per semester sebagai
+	// syarat mengikuti UTS/UAS.
+	BimbinganMinUTS int `gorm:"default:4"`
+	BimbinganMinUAS int `gorm:"default:8"`
 	// Bobot Happiness Index (total = 1.0)
 	HiWeightAcademic   float64 `gorm:"default:0.25"`
 	HiWeightMotivation float64 `gorm:"default:0.20"`

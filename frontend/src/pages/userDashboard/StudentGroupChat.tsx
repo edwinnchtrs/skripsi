@@ -1,24 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { GraduationCap, Loader2, SendHorizonal, ShieldCheck } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { ArrowRight, GraduationCap, Loader2, ShieldCheck, Users } from 'lucide-react';
 import api from '../../api';
-
-interface ChatMessage {
-  id: number;
-  sender_id: number;
-  sender_name: string;
-  sender_role: string;
-  body: string;
-  timestamp: string;
-}
-
-function initials(nama?: string): string {
-  if (!nama) return '?';
-  return nama
-    .split(' ')
-    .slice(0, 2)
-    .map((part) => part.charAt(0).toUpperCase())
-    .join('');
-}
+import { ChatComposer, MessageBody } from './chatShared';
+import type { ChatMessage, ChatSendPayload } from './chatShared';
 
 function formatTime(value: string): string {
   const date = new Date(value);
@@ -37,14 +22,21 @@ function formatDay(value: string): string {
   return date.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
 }
 
+function initials(nama?: string): string {
+  if (!nama) return '?';
+  return nama
+    .split(' ')
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join('');
+}
+
 export default function StudentGroupChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [dpa, setDpa] = useState<{ id: number; nama: string } | null>(null);
-  const [me, setMe] = useState<{ id: number } | null>(null);
   const [members, setMembers] = useState<Array<{ id: number; nama: string; role: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -57,7 +49,6 @@ export default function StudentGroupChat() {
       const res = await api.get('/dpa/chat', { params });
       const incoming: ChatMessage[] = res.data.messages ?? [];
       setDpa(res.data.dpa ?? null);
-      setMe(res.data.me ?? null);
       setMembers(res.data.members ?? []);
       if (initial) {
         setMessages(incoming);
@@ -105,6 +96,11 @@ export default function StudentGroupChat() {
     source.addEventListener('message', (event) => {
       try {
         const message = JSON.parse((event as MessageEvent).data);
+        if (message.msg_type === 'poll') {
+          // Polling butuh opsi + hasil lengkap → muat ulang data chat.
+          fetchChat(true);
+          return;
+        }
         setMessages((prev) => {
           if (prev.some((m) => m.id === message.id)) return prev;
           lastIdRef.current = Math.max(lastIdRef.current, message.id);
@@ -113,6 +109,9 @@ export default function StudentGroupChat() {
       } catch {
         // Payload rusak diabaikan; polling fallback tetap berjalan bila diperlukan.
       }
+    });
+    source.addEventListener('refresh', () => {
+      fetchChat(true);
     });
     source.addEventListener('error', () => {
       startPolling();
@@ -130,25 +129,60 @@ export default function StudentGroupChat() {
     container.scrollTop = container.scrollHeight;
   }, [messages]);
 
-  const send = async (event: React.FormEvent) => {
-    event.preventDefault();
-    const body = draft.trim();
-    if (!body || sending) return;
-    setSending(true);
-    try {
-      const res = await api.post('/dpa/chat/send', { body });
-      const message: ChatMessage = res.data.message;
-      lastIdRef.current = Math.max(lastIdRef.current, message.id);
-      setMessages((prev) => [...prev, message]);
-      setDraft('');
-      nearBottomRef.current = true;
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Pesan gagal terkirim. Coba lagi.');
-    } finally {
-      setSending(false);
-    }
-  };
+  const sendPayload = useCallback(
+    async (payload: ChatSendPayload): Promise<boolean> => {
+      setSending(true);
+      try {
+        const res = await api.post('/dpa/chat/send', payload);
+        const message: ChatMessage = res.data.message;
+        lastIdRef.current = Math.max(lastIdRef.current, message.id);
+        // SSE juga mengirim balik pesan ini; jangan tambah dua kali.
+        setMessages((prev) => (prev.some((m) => m.id === message.id) ? prev : [...prev, message]));
+        nearBottomRef.current = true;
+        if (message.msg_type === 'poll') await fetchChat(true);
+        return true;
+      } catch (err: any) {
+        setError(err.response?.data?.error || 'Pesan gagal terkirim. Coba lagi.');
+        return false;
+      } finally {
+        setSending(false);
+      }
+    },
+    [fetchChat],
+  );
 
+  const votePoll = useCallback(
+    async (pollId: number, optionId: number) => {
+      try {
+        await api.post(`/dpa/chat/polls/${pollId}/vote`, { option_id: optionId });
+        await fetchChat(true);
+      } catch (err: any) {
+        setError(err.response?.data?.error || 'Gagal menyimpan suara polling.');
+      }
+    },
+    [fetchChat],
+  );
+
+  // Mahasiswa belum dipetakan ke DPA → arahkan ke Direktori DPA.
+  if (!loading && !dpa) {
+    return (
+      <div className="rounded-2xl border border-white/10 bg-slate-950/70 p-8 text-center shadow-xl shadow-black/10">
+        <Users className="mx-auto h-12 w-12 text-slate-600" />
+        <h1 className="mt-3 text-lg font-semibold text-white">Anda belum tergabung di grup bimbingan</h1>
+        <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-400">
+          Grup chat bimbingan aktif setelah Anda memilih DPA pembimbing. Buka Direktori DPA untuk melihat daftar dosen dan bergabung ke grup bimbingannya.
+        </p>
+        <Link
+          to="/user/dpa"
+          className="mt-4 inline-flex items-center gap-2 rounded-xl bg-emerald-400 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-emerald-300"
+        >
+          Buka Direktori DPA <ArrowRight className="h-4 w-4" />
+        </Link>
+      </div>
+    );
+  }
+
+  // Kelompokkan pesan berurutan dari pengirim yang sama per hari.
   const grouped: Array<{ day: string; blocks: Array<{ sender: ChatMessage; items: ChatMessage[] }> }> = [];
   let currentDay = '';
   let currentBlock: { sender: ChatMessage; items: ChatMessage[] } | null = null;
@@ -249,7 +283,7 @@ export default function StudentGroupChat() {
                                 ? 'rounded-tr-sm border border-emerald-300/25 bg-emerald-400/10 text-emerald-50'
                                 : 'rounded-tl-sm border border-white/10 bg-white/[0.05] text-slate-200'}`}
                             >
-                              {message.body}
+                              <MessageBody message={message} onVote={votePoll} />
                             </div>
                           ))}
                         </div>
@@ -262,29 +296,13 @@ export default function StudentGroupChat() {
           )}
         </div>
 
-        <form onSubmit={send} className="flex items-end gap-2 border-t border-white/10 p-4">
-          <textarea
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' && !event.shiftKey) {
-                event.preventDefault();
-                send(event);
-              }
-            }}
-            rows={1}
-            placeholder="Tulis pesan ke grup bimbingan..."
-            className="max-h-28 min-h-[44px] flex-1 resize-none rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-sm text-white outline-none placeholder:text-slate-600 focus:border-emerald-300/50"
-          />
-          <button
-            type="submit"
-            disabled={sending || !draft.trim()}
-            className="inline-flex h-11 items-center gap-2 rounded-xl bg-emerald-400 px-4 text-sm font-semibold text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <SendHorizonal className="h-4 w-4" />}
-            Kirim
-          </button>
-        </form>
+        <ChatComposer
+          accent="emerald"
+          sending={sending}
+          placeholder="Tulis pesan ke grup bimbingan..."
+          onSend={sendPayload}
+          onError={setError}
+        />
       </section>
 
       <div className="flex items-start gap-2 rounded-2xl border border-white/10 bg-white/[0.04] p-4">

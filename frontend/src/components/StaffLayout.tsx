@@ -2,17 +2,17 @@ import { Outlet } from 'react-router-dom';
 import { useState } from 'react';
 import { Brain, Menu } from 'lucide-react';
 import AIAssistant from './AIAssistant';
-import DpaSidebar from './DpaSidebar';
+import StaffSidebar from './StaffSidebar';
 import SystemCommandCenter from './SystemCommandCenter';
 
-export default function DpaDashboardLayout() {
+export default function StaffLayout() {
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
     <div className="app-shell dashboard-theme">
       <header className="mobile-topbar">
-        <button type="button" className="mobile-menu-button" onClick={() => setSidebarOpen(true)} aria-label="Buka menu DPA">
+        <button type="button" className="mobile-menu-button" onClick={() => setSidebarOpen(true)} aria-label="Buka menu staf kampus">
           <Menu size={19} />
         </button>
         <div className="mobile-brand">
@@ -23,7 +23,7 @@ export default function DpaDashboardLayout() {
         </div>
       </header>
 
-      <DpaSidebar
+      <StaffSidebar
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         onOpenAssistant={() => {
@@ -36,8 +36,8 @@ export default function DpaDashboardLayout() {
       <main className="app-main">
         <Outlet />
       </main>
-      <SystemCommandCenter role="dpa" onOpenAssistant={() => setAssistantOpen(true)} />
-      <AIAssistant role="dpa" open={assistantOpen} onOpenChange={setAssistantOpen} />
+      <SystemCommandCenter role="staff" onOpenAssistant={() => setAssistantOpen(true)} />
+      <AIAssistant role="staff" open={assistantOpen} onOpenChange={setAssistantOpen} />
     </div>
   );
 }

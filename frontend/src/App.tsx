@@ -27,6 +27,9 @@ import DpaWarnings from './pages/dpa/DpaWarnings'
 import DpaLaporan from './pages/dpa/DpaLaporan'
 import DpaGroupChat from './pages/dpa/DpaGroupChat'
 import DpaProfil from './pages/dpa/DpaProfil'
+import DpaBimbingan from './pages/dpa/DpaBimbingan'
+import StaffLayout from './components/StaffLayout'
+import StaffDashboard from './pages/staff/StaffDashboard'
 import UserAsesmenHistory from './pages/UserAsesmenHistory'
 import UserCurhat from './pages/UserCurhat'
 import HappinessAssessment from './pages/userDashboard/HappinessAssessment'
@@ -38,6 +41,7 @@ import FaktorKondisi from './pages/userDashboard/FaktorKondisi'
 import Rekomendasi from './pages/userDashboard/Rekomendasi'
 import StudentGroupChat from './pages/userDashboard/StudentGroupChat'
 import DpaDirectory from './pages/userDashboard/DpaDirectory'
+import BimbinganAkademik from './pages/userDashboard/BimbinganAkademik'
 import UserProfileSettings from './pages/userDashboard/UserProfileSettings'
 import UserNetwork from './pages/userDashboard/UserNetwork'
 import UserProfilePage from './pages/userDashboard/UserProfilePage'
@@ -97,6 +101,7 @@ function App() {
             <Route path="/dpa/warnings" element={<DpaWarnings />} />
             <Route path="/dpa/laporan" element={<DpaLaporan />} />
             <Route path="/dpa/chat" element={<DpaGroupChat />} />
+            <Route path="/dpa/bimbingan" element={<DpaBimbingan />} />
             <Route path="/dpa/profil" element={<DpaProfil />} />
           </Route>
         </Route>
@@ -115,6 +120,7 @@ function App() {
             <Route path="/user/faktor" element={<FaktorKondisi />} />
             <Route path="/user/rekomendasi" element={<Rekomendasi />} />
             <Route path="/user/grup-bimbingan" element={<StudentGroupChat />} />
+            <Route path="/user/bimbingan" element={<BimbinganAkademik />} />
             <Route path="/user/dpa" element={<DpaDirectory />} />
             <Route path="/user/curhat" element={<UserCurhat />} />
             <Route path="/user/settings" element={<UserProfileSettings />} />
@@ -122,6 +128,13 @@ function App() {
             <Route path="/user/film" element={<UserCinema />} />
             <Route path="/user/recovery" element={<UserRecoveryPlan />} />
             <Route path="/user/profile/:username" element={<UserProfilePage />} />
+          </Route>
+        </Route>
+
+        {/* Dashboard Staf Kampus (pemrosesan laporan syarat UTS/UAS) */}
+        <Route element={<RequireRole allow={['staff']} />}>
+          <Route element={<StaffLayout />}>
+            <Route path="/staff/dashboard" element={<StaffDashboard />} />
           </Route>
         </Route>
 

@@ -221,7 +221,7 @@ func AdminUsersCreateHandler(c *gin.Context) {
 	input.Role = strings.ToLower(strings.TrimSpace(input.Role))
 
 	if !isValidRole(input.Role) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Role harus student, dpa, atau superadmin"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Role harus student, dpa, staff, atau superadmin"})
 		return
 	}
 	if input.Nama == "" || len(input.Nama) < 3 {
@@ -327,7 +327,7 @@ func AdminUsersPutHandler(c *gin.Context) {
 	if input.Role != "" {
 		normalized := strings.ToLower(strings.TrimSpace(input.Role))
 		if !isValidRole(normalized) {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Role harus student, dpa, atau superadmin"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Role harus student, dpa, staff, atau superadmin"})
 			return
 		}
 		updates["role"] = normalized

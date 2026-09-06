@@ -130,6 +130,8 @@ func main() {
 			student.PATCH("/student/referrals/:id/status", StudentReferralStatusHandler)
 			student.GET("/dpa/directory", DpaDirectoryHandler)
 			student.POST("/student/join-dpa/:id", StudentJoinDpaHandler)
+			student.GET("/student/bimbingan", StudentBimbinganHandler)
+			student.POST("/student/bimbingan", StudentCreateBimbinganHandler)
 			student.POST("/dpa/ratings/:dpaId", DpaRateHandler)
 			student.GET("/dpa/ratings/me", DpaMyRatingHandler)
 
@@ -145,6 +147,12 @@ func main() {
 			dpa.POST("/dpa/students/:id/referrals", DpaCreateReferralHandler)
 			dpa.GET("/dpa/warnings", DpaWarningsHandler)
 			dpa.GET("/dpa/students/:id/report", DpaStudentReportHandler)
+			dpa.POST("/dpa/students/:id/remove-group", DpaRemoveStudentGroupHandler)
+			dpa.GET("/dpa/bimbingan", DpaBimbinganHandler)
+			dpa.POST("/dpa/bimbingan", DpaCreateBimbinganHandler)
+			dpa.PATCH("/dpa/bimbingan/:id/status", DpaBimbinganStatusHandler)
+			dpa.POST("/dpa/bimbingan/report", DpaBimbinganReportHandler)
+			dpa.GET("/dpa/bimbingan/reports", DpaBimbinganReportsHandler)
 
 			// Grup chat bimbingan: satu grup per DPA, diakses DPA dan
 			// mahasiswa bimbingannya (handler bercabang berdasarkan role).
@@ -152,6 +160,7 @@ func main() {
 			chat.Use(RequireRole(RoleStudent, RoleDPA))
 			chat.GET("/dpa/chat", DpaChatMessagesHandler)
 			chat.POST("/dpa/chat/send", DpaChatSendHandler)
+			chat.POST("/dpa/chat/polls/:id/vote", DpaChatVoteHandler)
 
 			// Stream SSE realtime (token via query-param karena EventSource
 			// tidak dapat mengirim header Authorization).
@@ -159,6 +168,22 @@ func main() {
 			sse.Use(SSEAuthMiddleware())
 			sse.Use(RequireRole(RoleStudent, RoleDPA))
 			sse.GET("/dpa/chat/stream", DpaChatStreamHandler)
+			sse.GET("/dpa/chat/attachments/:id", DpaChatAttachmentHandler)
+
+
+			// Akses token query-param untuk staf (unduh dokumen laporan
+			// lewat elemen a yang tidak bisa mengirim header Authorization).
+			tokenAPI := api.Group("/")
+			tokenAPI.Use(SSEAuthMiddleware())
+			tokenAPI.Use(RequireRole(RoleStaff, RoleSuperadmin))
+			tokenAPI.GET("/staff/bimbingan/reports/:id/report", StaffBimbinganReportDocHandler)
+
+			// Staf Kampus: pemrosesan laporan syarat UTS/UAS
+			staff := protected.Group("/")
+			staff.Use(RequireRole(RoleStaff, RoleSuperadmin))
+			staff.GET("/staff/bimbingan/reports", StaffBimbinganReportsHandler)
+			staff.GET("/staff/bimbingan/reports/:id", StaffBimbinganReportDetailHandler)
+			staff.PATCH("/staff/bimbingan/reports/:id/status", StaffBimbinganReportStatusHandler)
 
 			// Superadmin / Kaprodi Routes (administratif + analytics prodi)
 			superadmin := protected.Group("/")

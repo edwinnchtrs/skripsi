@@ -4,6 +4,7 @@ import {
   Calendar,
   CheckCircle2,
   Edit3,
+  FileText,
   Loader2,
   Mail,
   PieChart as PieIcon,
@@ -21,7 +22,7 @@ import { Cell, Pie, PieChart, Tooltip } from 'recharts';
 import ChartShell from '../components/ChartShell';
 import api from '../api';
 
-type AccountFilter = 'all' | 'kaprodi' | 'dpa' | 'mahasiswa';
+type AccountFilter = 'all' | 'kaprodi' | 'dpa' | 'staff' | 'mahasiswa';
 type ModalMode = 'create' | 'edit';
 
 interface ManagedUser {
@@ -75,6 +76,12 @@ const accountMeta = {
     chip: 'border-indigo-300/25 bg-indigo-500/10 text-indigo-100',
     accent: '#818cf8',
   },
+  staff: {
+    label: 'Staf Kampus',
+    icon: FileText,
+    chip: 'border-amber-300/25 bg-amber-500/10 text-amber-100',
+    accent: '#fbbf24',
+  },
   mahasiswa: {
     label: 'Mahasiswa',
     icon: UserCheck,
@@ -89,6 +96,7 @@ const getAccountType = (user: Pick<ManagedUser, 'role'>): AccountType => {
   const role = (user.role || '').toLowerCase();
   if (role === 'superadmin' || role === 'admin' || role === 'kaprodi') return 'kaprodi';
   if (role === 'dpa') return 'dpa';
+  if (role === 'staff' || role === 'staf') return 'staff';
   return 'mahasiswa';
 };
 
@@ -139,8 +147,9 @@ export default function ManajemenUser() {
   const stats = useMemo(() => {
     const kaprodi = users.filter((user) => getAccountType(user) === 'kaprodi').length;
     const dpa = users.filter((user) => getAccountType(user) === 'dpa').length;
+    const staff = users.filter((user) => getAccountType(user) === 'staff').length;
     const mahasiswa = users.filter((user) => getAccountType(user) === 'mahasiswa').length;
-    return { total: users.length, kaprodi, dpa, mahasiswa };
+    return { total: users.length, kaprodi, dpa, staff, mahasiswa };
   }, [users]);
 
   const filteredUsers = useMemo(() => {
@@ -161,6 +170,7 @@ export default function ManajemenUser() {
   const pieData = [
     { name: 'Kaprodi', value: stats.kaprodi, color: accountMeta.kaprodi.accent },
     { name: 'DPA', value: stats.dpa, color: accountMeta.dpa.accent },
+    { name: 'Staf Kampus', value: stats.staff, color: accountMeta.staff.accent },
     { name: 'Mahasiswa', value: stats.mahasiswa, color: accountMeta.mahasiswa.accent },
   ];
 
@@ -197,8 +207,6 @@ export default function ManajemenUser() {
     setSelected(null);
     setForm(emptyForm);
   };
-
-  const isStaffRole = form.role === 'superadmin' || form.role === 'dpa';
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -369,6 +377,7 @@ export default function ManajemenUser() {
             { key: 'kaprodi', label: 'Kaprodi', value: stats.kaprodi, icon: Shield, className: 'text-violet-100 bg-violet-500/10' },
             { key: 'dpa', label: 'DPA', value: stats.dpa, icon: Users, className: 'text-indigo-100 bg-indigo-500/10' },
             { key: 'mahasiswa', label: 'Mahasiswa', value: stats.mahasiswa, icon: UserCheck, className: 'text-cyan-100 bg-cyan-500/10' },
+            { key: 'staff', label: 'Staf Kampus', value: stats.staff, icon: FileText, className: 'text-amber-100 bg-amber-500/10' },
           ].map((item) => {
             const Icon = item.icon;
             return (
@@ -563,10 +572,11 @@ export default function ManajemenUser() {
               <div className="mt-4 space-y-3">
                 {[
                   ['Kaprodi', 'Akses penuh: kelola mahasiswa, dosen, DPA, mapping bimbingan, analytics prodi, dan konfigurasi sistem.', accountMeta.kaprodi],
+                  ['Staf Kampus', 'Memproses laporan bimbingan akademik (syarat UTS/UAS) dan mengunduh dokumen arsip.', accountMeta.staff],
                   ['DPA', 'Memantau burnout & happiness mahasiswa bimbingan, catatan monitoring, early warning, dan laporan.', accountMeta.dpa],
                   ['Mahasiswa', 'Mengisi assessment burnout & happiness, melihat analitik pribadi, curhat, dan jaringan teman.', accountMeta.mahasiswa],
                 ].map(([title, desc, meta]) => {
-                  const typedMeta = meta as typeof accountMeta.admin;
+                  const typedMeta = meta as typeof accountMeta.kaprodi;
                   const Icon = typedMeta.icon;
                   return (
                     <div key={title as string} className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
@@ -633,6 +643,7 @@ export default function ManajemenUser() {
                   >
                     <option value="student">Mahasiswa (Student)</option>
                     <option value="dpa">Dosen Pembimbing Akademik (DPA)</option>
+                    <option value="staff">Staf Kampus (Staff)</option>
                     <option value="superadmin">Kaprodi (Superadmin)</option>
                   </select>
                 </label>

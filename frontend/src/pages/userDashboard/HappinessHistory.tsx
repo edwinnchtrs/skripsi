@@ -55,7 +55,7 @@ export default function HappinessHistory() {
     <div className="flex flex-col gap-5">
       <section className="rounded-2xl border border-white/10 bg-slate-950 p-5 shadow-xl shadow-black/10">
         <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-amber-300/25 bg-amber-300/10 px-3 py-1 text-xs font-semibold text-amber-100">
-          <ChartLine className="h-3.5 w-3.5" />
+          <LineChart className="h-3.5 w-3.5" />
           Trend Happiness
         </div>
         {trend.length === 0 ? (

@@ -19,6 +19,7 @@ import {
   TrendingUp,
   Sparkles,
   GraduationCap,
+  NotebookPen,
   History,
   FileBarChart,
   X,
@@ -71,6 +72,7 @@ const navGroups: NavGroup[] = [
       { label: 'Rekomendasi', icon: Sparkles, path: '/user/rekomendasi' },
       { label: 'DPA Saya', icon: GraduationCap, path: '/user/dpa' },
       { label: 'Grup Bimbingan', icon: Users, path: '/user/grup-bimbingan' },
+      { label: 'Bimbingan Akademik', icon: NotebookPen, path: '/user/bimbingan' },
     ],
   },
   {

@@ -1,6 +1,6 @@
 import { Navigate, Outlet } from 'react-router-dom';
 
-export type Role = 'student' | 'dpa' | 'superadmin';
+export type Role = 'student' | 'dpa' | 'superadmin' | 'staff';
 
 // Alias role lama sebelum migrasi (admin->dpa, user->student)
 const ROLE_ALIASES: Record<string, Role> = {
@@ -12,6 +12,7 @@ export function normalizeRole(role?: string | null): Role {
   const raw = (role || '').toLowerCase().trim();
   if (raw === 'superadmin' || raw === 'kaprodi') return 'superadmin';
   if (raw === 'dpa' || raw === 'dosen') return 'dpa';
+  if (raw === 'staff' || raw === 'staf') return 'staff';
   if (raw === 'student') return 'student';
   return ROLE_ALIASES[raw] || 'student';
 }
@@ -22,6 +23,8 @@ export function homePathForRole(role: Role): string {
       return '/dashboard';
     case 'dpa':
       return '/dpa/dashboard';
+    case 'staff':
+      return '/staff/dashboard';
     default:
       return '/user/dashboard';
   }

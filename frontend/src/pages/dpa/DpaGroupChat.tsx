@@ -1,17 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { MessagesSquare, Loader2, SendHorizonal, Users, X, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, Loader2, MessagesSquare, ShieldCheck, UserX, Users, X } from 'lucide-react';
 import DpaPageHeader from '../../components/DpaPageHeader';
 import api from '../../api';
 import { burnoutCategoryMeta, categoryMeta } from '../userDashboard/happinessShared';
-
-interface ChatMessage {
-  id: number;
-  sender_id: number;
-  sender_name: string;
-  sender_role: string;
-  body: string;
-  timestamp: string;
-}
+import { ChatComposer, MessageBody } from '../userDashboard/chatShared';
+import type { ChatMessage, ChatSendPayload } from '../userDashboard/chatShared';
 
 interface Member {
   id: number;
@@ -59,9 +52,10 @@ export default function DpaGroupChat() {
   const [me, setMe] = useState<{ id: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const [filter, setFilter] = useState<number | null>(null);
+  const [removeTarget, setRemoveTarget] = useState<Member | null>(null);
+  const [removing, setRemoving] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastIdRef = useRef(0);
@@ -127,10 +121,19 @@ export default function DpaGroupChat() {
     source.addEventListener('message', (event) => {
       try {
         const message = JSON.parse((event as MessageEvent).data);
+        if (message.msg_type === 'poll') {
+          // Polling butuh opsi + hasil lengkap → muat ulang data chat.
+          fetchChat(true);
+          return;
+        }
         mergeMessages([{ ...message, sender_name: message.sender_name ?? '', sender_role: message.sender_role ?? 'student' }]);
       } catch {
         // Payload rusak diabaikan; polling fallback tetap berjalan bila diperlukan.
       }
+    });
+    source.addEventListener('refresh', () => {
+      // Hasil polling berubah → muat ulang untuk hitungan terbaru.
+      fetchChat(true);
     });
     source.addEventListener('error', () => {
       startPolling();
@@ -149,26 +152,60 @@ export default function DpaGroupChat() {
     container.scrollTop = container.scrollHeight;
   }, [messages]);
 
-  const send = async (event: React.FormEvent) => {
-    event.preventDefault();
-    const body = draft.trim();
-    if (!body || sending) return;
-    setSending(true);
-    try {
-      const res = await api.post('/dpa/chat/send', { body });
-      mergeMessages([res.data.message]);
-      setDraft('');
-      nearBottomRef.current = true;
-      requestAnimationFrame(() => {
-        const container = scrollRef.current;
-        if (container) container.scrollTop = container.scrollHeight;
-      });
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Pesan gagal terkirim. Coba lagi.');
-    } finally {
-      setSending(false);
-    }
-  };
+  const sendPayload = useCallback(
+    async (payload: ChatSendPayload): Promise<boolean> => {
+      setSending(true);
+      try {
+        const res = await api.post('/dpa/chat/send', payload);
+        const message: ChatMessage = res.data.message;
+        mergeMessages([message]);
+        nearBottomRef.current = true;
+        requestAnimationFrame(() => {
+          const container = scrollRef.current;
+          if (container) container.scrollTop = container.scrollHeight;
+        });
+        if (message.msg_type === 'poll') await fetchChat(true);
+        return true;
+      } catch (err: any) {
+        setError(err.response?.data?.error || 'Pesan gagal terkirim. Coba lagi.');
+        return false;
+      } finally {
+        setSending(false);
+      }
+    },
+    [fetchChat, mergeMessages],
+  );
+
+  const votePoll = useCallback(
+    async (pollId: number, optionId: number) => {
+      try {
+        await api.post(`/dpa/chat/polls/${pollId}/vote`, { option_id: optionId });
+        await fetchChat(true);
+      } catch (err: any) {
+        setError(err.response?.data?.error || 'Gagal menyimpan suara polling.');
+      }
+    },
+    [fetchChat],
+  );
+
+  const removeStudent = useCallback(
+    async (member: Member) => {
+      setRemoving(true);
+      try {
+        await api.post(`/dpa/students/${member.id}/remove-group`);
+        setFilter(null);
+        setRemoveTarget(null);
+        setError('');
+        await fetchChat(true);
+      } catch (err: any) {
+        setError(err.response?.data?.error || 'Gagal mengeluarkan mahasiswa dari grup.');
+        setRemoveTarget(null);
+      } finally {
+        setRemoving(false);
+      }
+    },
+    [fetchChat],
+  );
 
   const roster = useMemo(() => {
     const students = members.filter((member) => member.role === 'student');
@@ -219,7 +256,7 @@ export default function DpaGroupChat() {
       <DpaPageHeader
         eyebrow="Grup Chat Bimbingan"
         title="Ruang Bimbingan Bersama"
-        description="Percakapan satu grup dengan seluruh mahasiswa bimbingan Anda — tanya kabar, umumkan jadwal, atau beri arahan akademik."
+        description="Percakapan satu grup dengan seluruh mahasiswa bimbingan Anda — tanya kabar, umumkan jadwal, atau beri arahan akademik. Kirim foto, berkas, dan polling untuk diskusi lebih hidup."
         icon={MessagesSquare}
         aside={members.length > 0 ? (
           <div className="mt-4 flex items-center gap-3 border-t border-white/10 pt-4">
@@ -317,7 +354,7 @@ export default function DpaGroupChat() {
                                   ? 'rounded-tr-sm border border-indigo-300/25 bg-indigo-400/10 text-indigo-50'
                                   : 'rounded-tl-sm border border-white/10 bg-white/[0.05] text-slate-200'}`}
                               >
-                                {message.body}
+                                <MessageBody message={message} onVote={votePoll} />
                               </div>
                             ))}
                           </div>
@@ -330,29 +367,13 @@ export default function DpaGroupChat() {
             )}
           </div>
 
-          <form onSubmit={send} className="flex items-end gap-2 border-t border-white/10 p-4">
-            <textarea
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' && !event.shiftKey) {
-                  event.preventDefault();
-                  send(event);
-                }
-              }}
-              rows={1}
-              placeholder="Tulis pesan untuk grup bimbingan..."
-              className="max-h-28 min-h-[44px] flex-1 resize-none rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-sm text-white outline-none placeholder:text-slate-600 focus:border-indigo-300/50"
-            />
-            <button
-              type="submit"
-              disabled={sending || !draft.trim()}
-              className="inline-flex h-11 items-center gap-2 rounded-xl bg-indigo-400 px-4 text-sm font-semibold text-slate-950 transition hover:bg-indigo-300 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <SendHorizonal className="h-4 w-4" />}
-              Kirim
-            </button>
-          </form>
+          <ChatComposer
+            accent="indigo"
+            sending={sending}
+            placeholder="Tulis pesan untuk grup bimbingan..."
+            onSend={sendPayload}
+            onError={setError}
+          />
         </div>
 
         {/* Rail anggota: mahasiswa yang perlu perhatian muncul paling atas */}
@@ -361,7 +382,7 @@ export default function DpaGroupChat() {
             <Users className="h-4 w-4" style={{ color: DPA_ACCENT }} />
             Anggota Grup
           </div>
-          <p className="mt-1 text-[10px] leading-4 text-slate-500">Mahasiswa dengan sinyal well-being terlemah tampil di atas. Klik untuk memfilter pesannya.</p>
+          <p className="mt-1 text-[10px] leading-4 text-slate-500">Klik untuk memfilter pesannya; ikon keluarkan untuk mengeluarkan mahasiswa dari grup.</p>
 
           {dpa && me?.id === dpa.id && (
             <button
@@ -388,20 +409,30 @@ export default function DpaGroupChat() {
                 const happinessMeta = categoryMeta(snap?.happiness_category as string | undefined);
                 const needsAttention = snap && (snap.burnout_category === 'Tinggi' || ['Rendah', 'Sangat Rendah'].includes(String(snap.happiness_category)));
                 return (
-                  <button
+                  <div
                     key={member.id}
-                    onClick={() => setFilter(filter === member.id ? null : member.id)}
-                    className={`w-full rounded-lg border px-3 py-2.5 text-left transition ${filter === member.id ? 'border-indigo-300/40 bg-indigo-400/10' : 'border-white/10 bg-white/[0.03] hover:bg-white/[0.06]'} ${needsAttention ? 'border-l-2 border-l-amber-300/60' : ''}`}
+                    className={`relative rounded-lg border px-3 py-2.5 transition ${filter === member.id ? 'border-indigo-300/40 bg-indigo-400/10' : 'border-white/10 bg-white/[0.03] hover:bg-white/[0.06]'} ${needsAttention ? 'border-l-2 border-l-amber-300/60' : ''}`}
                   >
-                    <div className="flex items-center gap-2.5">
-                      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-700 text-[10px] font-bold text-white">
-                        {initials(member.nama)}
+                    <button type="button" onClick={() => setFilter(filter === member.id ? null : member.id)} className="w-full text-left">
+                      <span className="flex items-center gap-2.5 pr-6">
+                        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-700 text-[10px] font-bold text-white">
+                          {initials(member.nama)}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-xs font-semibold text-slate-100">{member.nama}</span>
+                          <span className="block text-[10px] text-slate-500">{member.nim || 'NIM belum diisi'}</span>
+                        </span>
                       </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-xs font-semibold text-slate-100">{member.nama}</span>
-                        <span className="block text-[10px] text-slate-500">{member.nim || 'NIM belum diisi'}</span>
-                      </span>
-                    </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRemoveTarget(member)}
+                      title="Keluarkan dari grup bimbingan"
+                      aria-label={`Keluarkan ${member.nama} dari grup`}
+                      className="absolute right-2 top-2 rounded-md p-1 text-slate-600 transition hover:bg-rose-500/15 hover:text-rose-300"
+                    >
+                      <UserX className="h-3.5 w-3.5" />
+                    </button>
                     {snap ? (
                       <div className="mt-2 flex flex-wrap gap-1">
                         <span className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[9px] font-semibold ${burnoutMeta.chip}`}>
@@ -414,7 +445,7 @@ export default function DpaGroupChat() {
                     ) : (
                       <p className="mt-1.5 text-[9px] text-slate-600">Belum ada data assessment</p>
                     )}
-                  </button>
+                  </div>
                 );
               })
             )}
@@ -423,11 +454,65 @@ export default function DpaGroupChat() {
           <div className="mt-4 flex items-start gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2.5">
             <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-300" />
             <p className="text-[10px] leading-4 text-slate-500">
-              Grup ini hanya berisi Anda dan mahasiswa bimbingan. Pesan tersimpan untuk pemantauan bimbingan akademik.
+              Grup ini hanya berisi Anda dan mahasiswa bimbingan. Mahasiswa yang dikeluarkan bisa bergabung kembali lewat Direktori DPA.
             </p>
           </div>
         </aside>
       </section>
+
+      {removeTarget && (
+        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm" onMouseDown={() => !removing && setRemoveTarget(null)}>
+          <div
+            className="w-full max-w-sm rounded-2xl border border-white/10 bg-slate-950 p-5 shadow-2xl shadow-black/50"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start gap-3">
+              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-rose-300/25 bg-rose-500/15">
+                <AlertTriangle className="h-5 w-5 text-rose-300" />
+              </span>
+              <div className="min-w-0">
+                <h3 className="text-sm font-semibold text-white">Keluarkan dari Grup?</h3>
+                <p className="mt-1 text-xs leading-5 text-slate-400">
+                  <span className="font-semibold text-slate-200">{removeTarget.nama}</span>{removeTarget.nim ? ` · ${removeTarget.nim}` : ''} akan dikeluarkan dari grup bimbingan ini.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 space-y-2 rounded-xl border border-white/10 bg-white/[0.03] p-3.5">
+              {[
+                'Mahasiswa tidak bisa lagi mengirim atau melihat pesan grup.',
+                'Riwayat pesan mereka tetap tersimpan dan bisa diarsipkan.',
+                'Mereka dapat bergabung kembali lewat Direktori DPA bila dipetakan ulang.',
+              ].map((note) => (
+                <p key={note} className="flex items-start gap-2 text-[11px] leading-4 text-slate-400">
+                  <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-slate-500" />
+                  {note}
+                </p>
+              ))}
+            </div>
+
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                disabled={removing}
+                onClick={() => setRemoveTarget(null)}
+                className="rounded-xl border border-white/10 px-4 py-2 text-sm font-semibold text-slate-300 transition hover:bg-white/[0.06] disabled:opacity-50"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={removing}
+                onClick={() => removeStudent(removeTarget)}
+                className="inline-flex items-center gap-2 rounded-xl bg-rose-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-rose-400 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {removing && <Loader2 className="h-4 w-4 animate-spin" />}
+                Keluarkan dari Grup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -6,26 +6,32 @@ import "strings"
 // student    = mahasiswa pengguna utama
 // dpa        = dosen pembimbing akademik (admin biasa, scope mahasiswa bimbingan)
 // superadmin = kaprodi (akses administratif + analytics tingkat prodi)
+// staff      = staf kampus pemroses laporan syarat UTS/UAS
 const (
 	RoleStudent    = "student"
 	RoleDPA        = "dpa"
 	RoleSuperadmin = "superadmin"
+	RoleStaff      = "staff"
 )
 
+// normalizeRole menyamakan alias role lama dengan role kanonis:
+// kaprodi->superadmin, dosen/admin->dpa, selain itu student.
 func normalizeRole(role string) string {
 	switch strings.ToLower(strings.TrimSpace(role)) {
-	case RoleDPA:
-		return RoleDPA
-	case RoleSuperadmin:
+	case RoleSuperadmin, "kaprodi":
 		return RoleSuperadmin
+	case RoleDPA, "dosen", "admin":
+		return RoleDPA
+	case RoleStaff, "staf":
+		return RoleStaff
 	default:
 		return RoleStudent
 	}
 }
 
 func isValidRole(role string) bool {
-	switch strings.ToLower(strings.TrimSpace(role)) {
-	case RoleStudent, RoleDPA, RoleSuperadmin:
+	switch normalizeRole(role) {
+	case RoleStudent, RoleDPA, RoleSuperadmin, RoleStaff:
 		return true
 	}
 	return false
@@ -43,7 +49,11 @@ func isSuperadminRole(role string) bool {
 	return normalizeRole(role) == RoleSuperadmin
 }
 
-// isAdminLevelRole mencakup dpa dan superadmin: bukan responden asesmen.
+func isStaffRole(role string) bool {
+	return normalizeRole(role) == RoleStaff
+}
+
+// isAdminLevelRole mencakup dpa, superadmin, dan staff: bukan responden asesmen.
 func isAdminLevelRole(role string) bool {
 	return !isStudentRole(role)
 }
